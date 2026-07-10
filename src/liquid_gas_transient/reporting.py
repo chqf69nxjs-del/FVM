@@ -19,9 +19,11 @@ import numpy as np
 
 from .cases.case_c import (
     CaseCParameters,
+    _build_eos,
     _case_c_sample,
     build_case_c_solver,
     build_discretized_case_c_network,
+    effective_eos_model,
     effective_phase_change_model,
 )
 
@@ -99,6 +101,31 @@ def variant_parameters(base: CaseCParameters, variant: ReportVariant) -> CaseCPa
     if variant.hne_tau_s is not None:
         kwargs["hne_tau_s"] = variant.hne_tau_s
     return replace(base, **kwargs)
+
+
+def case_c_property_backend_metadata(params: CaseCParameters) -> dict[str, str]:
+    """Return report-only EOS/backend traceability metadata for Case C.
+
+    ``eos_model`` is the Case-C selector, while ``property_backend_name`` is the
+    canonical name exposed by an adapter backend when one is actually used.  The
+    design status is intentionally conservative: surrogate and CoolProp backends
+    are verification paths here, not design-approved property sources.
+    """
+
+    eos_model = effective_eos_model(params)
+    eos = _build_eos(params)
+    backend_name = str(getattr(eos, "backend_name", "none"))
+    if backend_name in {"surrogate_lco2", "coolprop_co2"}:
+        design_status = "not_approved_for_design_use"
+    elif backend_name == "none":
+        design_status = "not_applicable_no_property_backend"
+    else:
+        design_status = "requires_acceptance_gate_before_design_use"
+    return {
+        "eos_model": eos_model,
+        "property_backend_name": backend_name,
+        "property_backend_design_status": design_status,
+    }
 
 
 def run_case_c_for_report(
@@ -347,6 +374,9 @@ def write_markdown_report(
         summary_rows,
         [
             ("variant", "Variant"),
+            ("eos_model", "eos_model"),
+            ("property_backend_name", "property backend"),
+            ("property_backend_design_status", "backend design status"),
             ("p_max_overall_pa", "p_max [Pa]"),
             ("p_min_overall_pa", "p_min [Pa]"),
             ("xv_max_overall", "xv_max"),
@@ -412,6 +442,12 @@ def write_markdown_report(
 ```json
 {json.dumps(asdict(base_params), indent=2, ensure_ascii=False)}
 ```
+
+Backend traceability:
+
+- `eos_model`: Case C の EOS 選択子
+- `property_backend_name`: 実際に物性値を返す backend canonical name。property backend を使わない場合は `none`。
+- `property_backend_design_status`: backend の設計評価用承認状態。`surrogate_lco2` と `coolprop_co2` は本レポートでは設計評価用未承認として扱う。
 
 ## 3. ネットワーク構成
 
@@ -488,11 +524,13 @@ def generate_case_c_report(
             all_profile_rows.extend(_profile_rows(variant.name, profile))
 
         summary = summarize_history(history)
+        backend_metadata = case_c_property_backend_metadata(params)
         summary_rows.append(
             {
                 "variant": variant.name,
                 "label": variant.label,
                 "phase_change_model": effective_phase_change_model(params),
+                **backend_metadata,
                 **summary,
             }
         )
@@ -516,6 +554,7 @@ def generate_case_c_report(
         "version": cfg.version,
         "config": asdict(cfg),
         "base_params": asdict(base),
+        "base_backend_metadata": case_c_property_backend_metadata(base),
         "network_summary": network_summary,
         "variants": summary_rows,
     }
@@ -567,5 +606,6 @@ def generate_case_c_report(
         "data_paths": [str(p) for p in data_paths],
         "figure_paths": [str(p) for p in figure_paths],
         "summary_rows": summary_rows,
+        "base_backend_metadata": case_c_property_backend_metadata(base),
         "network_summary": network_summary,
     }

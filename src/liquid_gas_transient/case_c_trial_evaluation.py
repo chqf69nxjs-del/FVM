@@ -31,6 +31,7 @@ from .reference_acceptance import (
 from .reporting import (
     CaseCReportConfig,
     ReportVariant,
+    case_c_property_backend_metadata,
     run_case_c_for_report,
     summarize_history,
 )
@@ -265,6 +266,9 @@ def _write_trial_report(
         summary_rows,
         [
             ("variant", "Variant"),
+            ("eos_model", "eos_model"),
+            ("property_backend_name", "property backend"),
+            ("property_backend_design_status", "backend design status"),
             ("p_max_overall_pa", "p_max [Pa]"),
             ("p_min_overall_pa", "p_min [Pa]"),
             ("xv_max_overall", "xv_max"),
@@ -316,7 +320,10 @@ def _write_trial_report(
 This is a **trial evaluation** of Case C: land-side ESD valve rapid closure.
 It exercises the accepted-property-backend workflow introduced in Ver.0.5.x, but the generated artifact uses the internal surrogate LCO₂ backend unless a project-approved external reference table is supplied.
 
-- Backend: `{cfg.backend_name}`
+- `eos_model`: `{case_c_property_backend_metadata(base_params)["eos_model"]}`
+- `property_backend_name`: `{case_c_property_backend_metadata(base_params)["property_backend_name"]}`
+- `property_backend_design_status`: `{case_c_property_backend_metadata(base_params)["property_backend_design_status"]}`
+- Configured reference backend: `{cfg.backend_name}`
 - Reference gate status: `{acceptance_status}`
 - Trial label: `{cfg.trial_label}`
 - Gate message: {acceptance_message}
@@ -424,6 +431,7 @@ def generate_case_c_trial_evaluation(
             "variant": variant.name,
             "label": variant.label,
             "phase_change_model": effective_phase_change_model(params),
+            **case_c_property_backend_metadata(params),
             **summary,
             **flags,
         })
@@ -468,6 +476,7 @@ def generate_case_c_trial_evaluation(
         "version": cfg.version,
         "config": asdict(cfg),
         "base_params": asdict(base),
+        "base_backend_metadata": case_c_property_backend_metadata(base),
         "reference_gate_status": status,
         "reference_gate_message": message,
         "summary_rows": summary_rows,

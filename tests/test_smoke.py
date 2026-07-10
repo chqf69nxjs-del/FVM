@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 import numpy as np
+import pytest
 
 from liquid_gas_transient.eos import LinearLiquidEOS
 from liquid_gas_transient.flux import physical_flux, rusanov_flux
@@ -809,6 +811,7 @@ def test_case_c_reports_pump_and_valve_interface_energy_budget() -> None:
 
 
 def test_case_c_report_generator_creates_markdown_csv_and_figures(tmp_path) -> None:
+    pytest.importorskip("matplotlib")
     from liquid_gas_transient.cases.case_c import CaseCParameters
     from liquid_gas_transient.reporting import CaseCReportConfig, generate_case_c_report
 
@@ -832,6 +835,46 @@ def test_case_c_report_generator_creates_markdown_csv_and_figures(tmp_path) -> N
     assert any(Path(p).name == "case_c_summary_comparison_v0_4_4.csv" for p in result["data_paths"])
     assert all(Path(p).exists() for p in result["data_paths"])
     assert all(Path(p).exists() for p in result["figure_paths"])
+
+
+def test_case_c_report_generator_creates_nonfigure_artifacts_without_matplotlib(tmp_path) -> None:
+    from liquid_gas_transient.cases.case_c import CaseCParameters
+    from liquid_gas_transient.reporting import CaseCReportConfig, generate_case_c_report
+
+    params = CaseCParameters(
+        n_cells=60,
+        t_end_s=0.02,
+        pump_delta_p_nominal_pa=1.0e5,
+        valve_close_start_s=0.01,
+        valve_close_time_s=0.01,
+        latent_heat_placeholder_j_kg=2.0e5,
+    )
+    result = generate_case_c_report(
+        tmp_path,
+        base_params=params,
+        config=CaseCReportConfig(sample_every=5, include_figures=False),
+    )
+    assert Path(result["report_path"]).exists()
+    assert len(result["summary_rows"]) == 3
+    variants = {row["variant"] for row in result["summary_rows"]}
+    assert variants == {"none", "hem", "hne"}
+    assert result["figure_paths"] == []
+    assert result["base_backend_metadata"] == {
+        "eos_model": "linear",
+        "property_backend_name": "none",
+        "property_backend_design_status": "not_applicable_no_property_backend",
+    }
+    assert all("eos_model" in row for row in result["summary_rows"])
+    assert all("property_backend_name" in row for row in result["summary_rows"])
+    assert all("property_backend_design_status" in row for row in result["summary_rows"])
+    data_names = {Path(p).name for p in result["data_paths"]}
+    assert "case_c_summary_comparison_v0_4_4.csv" in data_names
+    assert "case_c_report_summary_v0_4_4.json" in data_names
+    assert all(Path(p).exists() for p in result["data_paths"])
+    summary_json = next(Path(p) for p in result["data_paths"] if Path(p).name == "case_c_report_summary_v0_4_4.json")
+    summary_data = json.loads(summary_json.read_text(encoding="utf-8"))
+    assert summary_data["base_backend_metadata"] == result["base_backend_metadata"]
+    assert all("property_backend_name" in row for row in summary_data["variants"])
 
 from liquid_gas_transient.eos import LCO2PropertyEOSAdapter
 from liquid_gas_transient.properties import SurrogateLCO2PropertyBackend, coolprop_available
@@ -872,6 +915,29 @@ def test_case_c_lco2_surrogate_property_adapter_builds_and_steps() -> None:
     assert final["time_s"] == params.t_end_s
     assert final["rho_min_kg_m3"] > 0.0
     assert abs(final["budget_mass_relative_residual"]) < 1.0e-12
+
+
+def test_case_c_report_backend_metadata_distinguishes_selector_from_backend() -> None:
+    from liquid_gas_transient.cases.case_c import CaseCParameters
+    from liquid_gas_transient.reporting import case_c_property_backend_metadata
+
+    surrogate = case_c_property_backend_metadata(
+        CaseCParameters(eos_model="lco2_surrogate", phase_change_model="none", n_cells=20, t_end_s=0.001)
+    )
+    assert surrogate == {
+        "eos_model": "lco2_surrogate",
+        "property_backend_name": "surrogate_lco2",
+        "property_backend_design_status": "not_approved_for_design_use",
+    }
+
+    coolprop = case_c_property_backend_metadata(
+        CaseCParameters(eos_model="coolprop_lco2", phase_change_model="none", n_cells=20, t_end_s=0.001)
+    )
+    assert coolprop == {
+        "eos_model": "coolprop_lco2",
+        "property_backend_name": "coolprop_co2",
+        "property_backend_design_status": "not_approved_for_design_use",
+    }
 
 
 def test_case_c_lco2_surrogate_hne_uses_property_equilibrium_quality() -> None:
@@ -935,6 +1001,7 @@ def test_property_backend_mixture_reconstruction_is_consistent() -> None:
 
 
 def test_property_backend_verification_generator_creates_artifacts(tmp_path) -> None:
+    pytest.importorskip("matplotlib")
     result = generate_property_backend_verification(
         tmp_path,
         config=PropertyBackendVerificationConfig(
@@ -946,6 +1013,27 @@ def test_property_backend_verification_generator_creates_artifacts(tmp_path) -> 
     )
     assert result["overall_pass"] is True
     paths = result["paths"]
+    assert Path(paths["report_md"]).exists()
+    assert Path(paths["saturation_table_csv"]).exists()
+    assert Path(paths["mixture_reconstruction_csv"]).exists()
+    assert Path(paths["density_pT_table_csv"]).exists()
+    assert Path(paths["metrics_json"]).exists()
+
+
+def test_property_backend_verification_generator_creates_nonfigure_artifacts_without_matplotlib(tmp_path) -> None:
+    result = generate_property_backend_verification(
+        tmp_path,
+        config=PropertyBackendVerificationConfig(
+            pressures_pa=(1.5e6, 1.9e6, 2.3e6),
+            quality_points=(0.0, 0.1, 0.5, 0.9, 1.0),
+            pT_temperature_offsets_K=(-2.0, 2.0),
+            include_optional_coolprop=False,
+            make_figures=False,
+        ),
+    )
+    assert result["overall_pass"] is True
+    paths = result["paths"]
+    assert paths["figures"] == []
     assert Path(paths["report_md"]).exists()
     assert Path(paths["saturation_table_csv"]).exists()
     assert Path(paths["mixture_reconstruction_csv"]).exists()
@@ -972,6 +1060,21 @@ def test_property_backend_factory_and_availability_are_safe_without_optional_dep
     # Instantiation must be safe even when CoolProp is not installed. Evaluation
     # may raise ImportError, which is the intended optional-dependency behavior.
     assert CoolPropCO2Backend().name == "coolprop_co2"
+
+
+def test_coolprop_backend_saturation_state_when_installed() -> None:
+    pytest.importorskip("CoolProp")
+    backend = CoolPropCO2Backend()
+
+    sat = backend.saturation_state(1.9e6)
+
+    assert np.all(np.isfinite(sat.T_sat))
+    assert np.all(np.isfinite(sat.rho_l))
+    assert np.all(np.isfinite(sat.rho_v))
+    assert np.all(np.isfinite(sat.e_l))
+    assert np.all(np.isfinite(sat.e_v))
+    assert np.all(sat.rho_l > sat.rho_v)
+    assert np.all(sat.h_lv > 0.0)
 
 
 def test_surrogate_external_reference_comparison_closes_exactly() -> None:

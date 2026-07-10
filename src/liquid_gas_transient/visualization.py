@@ -31,7 +31,7 @@ from .cases.case_c import (
     build_discretized_case_c_network,
     effective_phase_change_model,
 )
-from .reporting import ReportVariant, summarize_history
+from .reporting import ReportVariant, case_c_property_backend_metadata, summarize_history
 
 
 @dataclass(frozen=True)
@@ -427,6 +427,9 @@ def _write_visual_report(
         summary_rows,
         [
             ("variant", "Variant"),
+            ("eos_model", "eos_model"),
+            ("property_backend_name", "property backend"),
+            ("property_backend_design_status", "backend design status"),
             ("p_max_overall_pa", "p max [Pa]"),
             ("xv_max_overall", "xv max"),
             ("alpha_max_overall", "alpha max"),
@@ -455,7 +458,9 @@ The priority is direct visual interpretation:
 ## 2. Case setup
 
 - Main event: land-side ESD closure from `{base.valve_close_start_s:.3f} s` to `{base.valve_close_start_s + base.valve_close_time_s:.3f} s`
-- Backend: `{base.eos_model}`
+- `eos_model`: `{case_c_property_backend_metadata(base)["eos_model"]}`
+- `property_backend_name`: `{case_c_property_backend_metadata(base)["property_backend_name"]}`
+- `property_backend_design_status`: `{case_c_property_backend_metadata(base)["property_backend_design_status"]}`
 - Phase models compared: single phase, HEM, HNE
 - Sample interval: every `{cfg.sample_every}` solver steps
 
@@ -534,6 +539,7 @@ def generate_case_c_visualization_package(
                 "variant": variant.name,
                 "label": variant.label,
                 "phase_change_model": effective_phase_change_model(params),
+                **case_c_property_backend_metadata(params),
                 **summary,
                 **_engineering_flags(summary, trial_cfg),
             }
@@ -593,6 +599,7 @@ def generate_case_c_visualization_package(
         "version": cfg.version,
         "config": asdict(cfg),
         "base_params": asdict(base),
+        "base_backend_metadata": case_c_property_backend_metadata(base),
         "summary_rows": summary_rows,
         "n_figures": len(figure_paths),
         "n_gifs": len(gif_paths),

@@ -22,7 +22,7 @@ from .dvcm_legacy import (
     write_csv,
     write_json,
 )
-from .reporting import ReportVariant, summarize_history
+from .reporting import ReportVariant, case_c_property_backend_metadata, summarize_history
 from .visualization import (
     FieldSnapshotSet,
     VisualizationConfig,
@@ -119,6 +119,9 @@ def _write_report(
         [
             ("variant", "Variant"),
             ("model_role", "Role"),
+            ("eos_model", "eos_model"),
+            ("property_backend_name", "property backend"),
+            ("property_backend_design_status", "backend design status"),
             ("p_max_overall_pa", "p max [Pa]"),
             ("xv_or_equiv_xv_max", "xv / equiv. xv"),
             ("alpha_or_cavity_alpha_max", "alpha / cavity alpha"),
@@ -153,7 +156,9 @@ The Ver.0.6.2 DVCM path is a diagnostic proxy. It maps the sampled single-phase 
 ## 3. Case setup
 
 - Event: land-side ESD closure from `{base.valve_close_start_s:.3f} s` to `{base.valve_close_start_s + base.valve_close_time_s:.3f} s`
-- Backend: `{base.eos_model}`
+- `eos_model`: `{case_c_property_backend_metadata(base)["eos_model"]}`
+- `property_backend_name`: `{case_c_property_backend_metadata(base)["property_backend_name"]}`
+- `property_backend_design_status`: `{case_c_property_backend_metadata(base)["property_backend_design_status"]}`
 - DVCM vapor pressure: `{dvcm_cfg.vapor_pressure_pa:.6e} Pa`
 - DVCM saturated liquid density: `{dvcm_cfg.saturated_liquid_density_kg_m3:.6g} kg/m3`
 - DVCM saturated vapor density: `{dvcm_cfg.saturated_vapor_density_kg_m3:.6g} kg/m3`
@@ -222,14 +227,14 @@ def generate_dvcm_legacy_comparison_package(
             all_history_rows.append({"variant": variant.name, **row})
         all_field_rows.extend(_snapshot_field_rows(snapshot))
         if cfg.include_single_phase_baseline or variant.name != "single_phase":
-            summary_rows.append(
-                _comparison_summary_row_from_history(
-                    variant.name,
-                    variant.label,
-                    effective_phase_change_model(params),
-                    history,
-                )
+            row = _comparison_summary_row_from_history(
+                variant.name,
+                variant.label,
+                effective_phase_change_model(params),
+                history,
             )
+            row.update(case_c_property_backend_metadata(params))
+            summary_rows.append(row)
 
     single = snapshots.get("single_phase")
     if single is None:
@@ -240,7 +245,15 @@ def generate_dvcm_legacy_comparison_package(
     histories["dvcm_legacy"] = [dict(row) for row in dvcm_history_rows(dvcm_snapshot, config=dvcm_cfg)]  # type: ignore[list-item]
     all_history_rows.extend(histories["dvcm_legacy"])
     all_field_rows.extend(dvcm_field_rows(dvcm_snapshot))
-    summary_rows.append(_comparison_summary_row_from_dvcm(dvcm_summary))
+    dvcm_row = _comparison_summary_row_from_dvcm(dvcm_summary)
+    dvcm_row.update(
+        {
+            "eos_model": "dvcm_legacy_proxy",
+            "property_backend_name": "none",
+            "property_backend_design_status": "not_applicable_legacy_proxy_not_design_model",
+        }
+    )
+    summary_rows.append(dvcm_row)
 
     # For main comparison panels, show HEM/HNE/DVCM.  Single-phase is still in
     # the data/summary but can obscure two-phase comparison panels.
@@ -314,6 +327,7 @@ def generate_dvcm_legacy_comparison_package(
         "config": asdict(cfg),
         "dvcm_config": asdict(dvcm_cfg),
         "base_params": asdict(base),
+        "base_backend_metadata": case_c_property_backend_metadata(base),
         "summary_rows": summary_rows,
         "dvcm_summary": dvcm_summary,
         "n_figures": len(figure_paths),

@@ -119,8 +119,12 @@ class CaseCParameters:
     # Ver.0.5.0 property backend adapter.  ``auto`` preserves all earlier
     # behavior: LinearLiquidEOS for phase_change_model=none and ToyHEMEOS for
     # HEM/HNE.  Explicit ``lco2_surrogate`` routes all states through the new
-    # adapter without requiring external packages. ``coolprop_lco2`` is an
-    # optional dependency path and is not used by default verification.
+    # adapter without requiring external packages. ``coolprop_lco2`` is a
+    # Case-C ``eos_model`` selector for using the CoolProp-backed LCO2 adapter
+    # path; it is not the canonical property-backend tracking name and does not
+    # imply backend approval for design use.  Property verification, reference
+    # comparison, and acceptance-gate artifacts should track ``backend.name``
+    # instead, e.g. ``coolprop_co2`` for ``CoolPropCO2Backend``.
     eos_model: str = "auto"  # auto, linear, toy_hem, lco2_surrogate, coolprop_lco2
     lco2_boundary_temperature_K: float = 253.15
     lco2_quality_source: str = "transported"  # transported or backend
