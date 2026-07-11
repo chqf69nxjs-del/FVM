@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 import csv
 import importlib.metadata
+from io import BytesIO
 import json
 import math
 from pathlib import Path
@@ -296,7 +297,14 @@ def _write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
 
 def _plotting_available() -> bool:
     try:
-        import matplotlib  # noqa: F401
+        from matplotlib.backends.backend_agg import FigureCanvasAgg  # noqa: F401
+        from matplotlib.figure import Figure
+    except Exception:
+        return False
+    try:
+        fig = Figure(figsize=(1, 1))
+        FigureCanvasAgg(fig)
+        fig.savefig(BytesIO(), format="png")
     except Exception:
         return False
     return True
@@ -319,9 +327,12 @@ def _probe_rows_by_name(history: list[dict[str, Any]]) -> dict[str, list[dict[st
 
 
 def _plot_probe_pressure_history(output_dir: Path, stem: str, metrics: dict[str, Any], history: list[dict[str, Any]]) -> str:
-    import matplotlib.pyplot as plt
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
 
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig = Figure(figsize=(10, 6))
+    FigureCanvasAgg(fig)
+    ax = fig.subplots()
     grouped = _probe_rows_by_name(history)
     probe_metrics = {p["probe_name"]: p for p in metrics["probes"]}
     for probe_name, rows in grouped.items():
@@ -347,17 +358,19 @@ def _plot_probe_pressure_history(output_dir: Path, stem: str, metrics: dict[str,
     fig.tight_layout()
     name = f"{stem}_probe_pressure_history.png"
     fig.savefig(output_dir / name, dpi=160)
-    plt.close(fig)
     return name
 
 
 def _plot_xt_pressure_map(output_dir: Path, stem: str, metrics: dict[str, Any], sampled_fields: dict[str, Any]) -> str:
-    import matplotlib.pyplot as plt
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
 
     times = np.asarray(sampled_fields["times_s"], dtype=float)
     x = np.asarray(sampled_fields["x_m"], dtype=float)
     dp = np.asarray(sampled_fields["delta_pressure_pa"], dtype=float)
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig = Figure(figsize=(10, 6))
+    FigureCanvasAgg(fig)
+    ax = fig.subplots()
     mesh = ax.pcolormesh(times, x, dp.T, shading="auto", cmap="coolwarm")
     cbar = fig.colorbar(mesh, ax=ax)
     cbar.set_label("delta pressure [Pa]")
@@ -373,12 +386,12 @@ def _plot_xt_pressure_map(output_dir: Path, stem: str, metrics: dict[str, Any], 
     fig.tight_layout()
     name = f"{stem}_xt_pressure_map.png"
     fig.savefig(output_dir / name, dpi=160)
-    plt.close(fig)
     return name
 
 
 def _plot_pressure_snapshots(output_dir: Path, stem: str, metrics: dict[str, Any], sampled_fields: dict[str, Any]) -> str:
-    import matplotlib.pyplot as plt
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
 
     times = np.asarray(sampled_fields["times_s"], dtype=float)
     x = np.asarray(sampled_fields["x_m"], dtype=float)
@@ -395,7 +408,9 @@ def _plot_pressure_snapshots(output_dir: Path, stem: str, metrics: dict[str, Any
         idx = int(np.argmin(np.abs(times - target)))
         if idx not in indices:
             indices.append(idx)
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig = Figure(figsize=(10, 6))
+    FigureCanvasAgg(fig)
+    ax = fig.subplots()
     for idx in indices:
         ax.plot(x, dp[idx, :], label=f"t={times[idx]:.6g} s")
     for probe in metrics["probes"]:
@@ -409,15 +424,35 @@ def _plot_pressure_snapshots(output_dir: Path, stem: str, metrics: dict[str, Any
     fig.tight_layout()
     name = f"{stem}_pressure_snapshots.png"
     fig.savefig(output_dir / name, dpi=160)
-    plt.close(fig)
     return name
 
 
+def _existing_plot_name(output_dir: Path, name: str) -> str | None:
+    path = output_dir / name
+    return name if path.exists() and path.is_file() else None
+
+
 def _generate_plots(output_dir: Path, stem: str, metrics: dict[str, Any], history: list[dict[str, Any]], sampled_fields: dict[str, Any] | None) -> list[str]:
-    generated = [_plot_probe_pressure_history(output_dir, stem, metrics, history)]
+    generated: list[str] = []
+    errors: dict[str, str] = {}
+    plot_jobs = [("probe_pressure_history", lambda: _plot_probe_pressure_history(output_dir, stem, metrics, history))]
     if sampled_fields is not None and len(sampled_fields.get("times_s", [])) >= 2:
-        generated.append(_plot_xt_pressure_map(output_dir, stem, metrics, sampled_fields))
-        generated.append(_plot_pressure_snapshots(output_dir, stem, metrics, sampled_fields))
+        plot_jobs.extend([
+            ("xt_pressure_map", lambda: _plot_xt_pressure_map(output_dir, stem, metrics, sampled_fields)),
+            ("pressure_snapshots", lambda: _plot_pressure_snapshots(output_dir, stem, metrics, sampled_fields)),
+        ])
+    for key, plot_func in plot_jobs:
+        try:
+            maybe_name = _existing_plot_name(output_dir, plot_func())
+            if maybe_name is not None:
+                generated.append(maybe_name)
+            else:
+                errors[key] = "plot helper returned a path that does not exist"
+        except Exception as exc:  # pragma: no cover - optional plotting must not fail run
+            errors[key] = str(exc)
+    if errors:
+        metrics["plotting_errors"] = errors
+        metrics["plotting_error"] = next(iter(errors.values()))
     return generated
 
 
@@ -435,11 +470,7 @@ def _write_artifacts(output_dir: Path, cfg: CoolPropSmallAmplitudeWaveConfig, me
     generated_plots: list[str] = []
     plotting_available = _plotting_available()
     if plotting_available:
-        try:
-            generated_plots = _generate_plots(output_dir, stem, metrics, history, sampled_fields)
-        except Exception as exc:  # pragma: no cover - optional plotting must not fail run
-            metrics["plotting_error"] = str(exc)
-            generated_plots = []
+        generated_plots = _generate_plots(output_dir, stem, metrics, history, sampled_fields)
     metrics["plotting_available"] = bool(plotting_available)
     metrics["generated_plots"] = generated_plots
     metrics["figure_paths"] = [str(output_dir / name) for name in generated_plots]
