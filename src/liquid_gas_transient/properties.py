@@ -214,22 +214,47 @@ class CoolPropCO2Backend:
             ) from exc
         return PropsSI
 
+    def _phase_si(self):
+        try:
+            from CoolProp.CoolProp import PhaseSI  # type: ignore
+        except Exception as exc:  # pragma: no cover - optional dependency
+            raise ImportError(
+                "CoolProp is not installed. Install CoolProp or use SurrogateLCO2PropertyBackend."
+            ) from exc
+        return PhaseSI
+
     def state_from_rho_e(self, rho: np.ndarray | float, e: np.ndarray | float) -> PropertyState:
         PropsSI = self._cp()
+        PhaseSI = self._phase_si()
         rho_arr, e_arr = np.broadcast_arrays(np.asarray(rho, dtype=float), np.asarray(e, dtype=float))
         p = np.empty_like(rho_arr, dtype=float)
         T = np.empty_like(rho_arr, dtype=float)
         q = np.empty_like(rho_arr, dtype=float)
         c = np.empty_like(rho_arr, dtype=float)
+        liquid_phases = {"liquid", "supercritical_liquid"}
+        twophase_phases = {"twophase"}
         it = np.nditer([rho_arr, e_arr, p, T, q, c], flags=["refs_ok", "multi_index"], op_flags=[["readonly"], ["readonly"], ["writeonly"], ["writeonly"], ["writeonly"], ["writeonly"]])
         for rho_i, e_i, p_o, T_o, q_o, c_o in it:  # pragma: no cover - optional dependency
+            rho_val = float(rho_i)
+            e_val = float(e_i)
             try:
-                p_val = PropsSI("P", "Dmass", float(rho_i), "Umass", float(e_i), self.fluid)
-                T_val = PropsSI("T", "Dmass", float(rho_i), "Umass", float(e_i), self.fluid)
-                q_val = PropsSI("Q", "Dmass", float(rho_i), "Umass", float(e_i), self.fluid)
-                c_val = PropsSI("A", "Dmass", float(rho_i), "Umass", float(e_i), self.fluid)
+                p_val = PropsSI("P", "Dmass", rho_val, "Umass", e_val, self.fluid)
+                T_val = PropsSI("T", "Dmass", rho_val, "Umass", e_val, self.fluid)
+                phase = str(PhaseSI("Dmass", rho_val, "Umass", e_val, self.fluid)).lower()
+                c_val = PropsSI("A", "Dmass", rho_val, "Umass", e_val, self.fluid)
+                if phase in liquid_phases:
+                    # CoolProp Q is only a vapor quality in the two-phase region;
+                    # dense liquid-side single-phase states must not be promoted
+                    # to vapor/void when Q happens to be reported as 1.
+                    q_val = 0.0
+                elif phase in twophase_phases:
+                    q_val = PropsSI("Q", "Dmass", rho_val, "Umass", e_val, self.fluid)
+                else:
+                    # Preserve the previous non-liquid single-phase behavior for
+                    # gas/supercritical/critical/unknown classifications.
+                    q_val = PropsSI("Q", "Dmass", rho_val, "Umass", e_val, self.fluid)
             except Exception as exc:
-                raise PropertyEvaluationError(f"CoolProp failed at rho={float(rho_i)}, e={float(e_i)}") from exc
+                raise PropertyEvaluationError(f"CoolProp failed at rho={rho_val}, e={e_val}") from exc
             p_o[...] = p_val
             T_o[...] = T_val
             q_o[...] = np.nan if q_val < 0.0 else q_val
