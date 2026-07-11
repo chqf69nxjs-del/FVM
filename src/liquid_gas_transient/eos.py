@@ -271,7 +271,7 @@ class LCO2PropertyEOSAdapter:
             raise ValueError("boundary_temperature_K must be positive and finite")
         if self.quality_source not in {"transported", "backend"}:
             raise ValueError("quality_source must be transported or backend")
-        for method in ("state_from_rho_e", "density_from_pT", "saturation_state"):
+        for method in ("state_from_rho_e", "density_from_pT", "internal_energy_from_pT", "saturation_state"):
             if not hasattr(self.backend, method):
                 raise TypeError(f"backend must provide {method}()")
 

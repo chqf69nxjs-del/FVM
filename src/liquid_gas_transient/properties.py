@@ -62,6 +62,9 @@ class RealFluidPropertyBackend(Protocol):
     def density_from_pT(self, p: np.ndarray | float, T: np.ndarray | float) -> np.ndarray:
         """Return density from pressure and temperature for boundary construction."""
 
+    def internal_energy_from_pT(self, p: np.ndarray | float, T: np.ndarray | float) -> np.ndarray:
+        """Return mass-specific internal energy from pressure and temperature."""
+
     def saturation_state(self, p: np.ndarray | float) -> SaturationState:
         """Return saturation properties at pressure."""
 
@@ -166,6 +169,16 @@ class SurrogateLCO2PropertyBackend:
         rho = np.where(liquid_branch | (p_arr >= self.p_sat_ref_pa), rho_l, rho_v)
         return np.maximum(rho, 1.0e-6)
 
+    def internal_energy_from_pT(self, p: np.ndarray | float, T: np.ndarray | float) -> np.ndarray:
+        p_arr, T_arr = np.broadcast_arrays(np.asarray(p, dtype=float), np.asarray(T, dtype=float))
+        if np.any(p_arr <= 0.0) or np.any(~np.isfinite(p_arr)) or np.any(~np.isfinite(T_arr)):
+            raise PropertyEvaluationError("p and T must be finite, with p > 0")
+        rho = self.density_from_pT(p_arr, T_arr)
+        q = self.equilibrium_quality_from_density(rho)
+        cv_mix = (1.0 - q) * self.cv_liquid_j_kgK + q * self.cv_vapor_j_kgK
+        e_sat_mix = self.e_l_ref_j_kg + q * self.latent_heat_ref_j_kg
+        return e_sat_mix + cv_mix * (T_arr - self.T_sat_ref_K)
+
     def saturation_state(self, p: np.ndarray | float) -> SaturationState:
         p_arr = np.asarray(p, dtype=float)
         if np.any(p_arr <= 0.0) or np.any(~np.isfinite(p_arr)):
@@ -232,9 +245,27 @@ class CoolPropCO2Backend:
         it = np.nditer([p_arr, T_arr, out], flags=["refs_ok"], op_flags=[["readonly"], ["readonly"], ["writeonly"]])
         for p_i, T_i, out_i in it:  # pragma: no cover - optional dependency
             try:
-                out_i[...] = PropsSI("Dmass", "P", float(p_i), "T", float(T_i), self.fluid)
+                value = PropsSI("Dmass", "P", float(p_i), "T", float(T_i), self.fluid)
             except Exception as exc:
                 raise PropertyEvaluationError(f"CoolProp density_from_pT failed at p={float(p_i)}, T={float(T_i)}") from exc
+            if not np.isfinite(value):
+                raise PropertyEvaluationError(f"CoolProp density_from_pT returned non-finite value at p={float(p_i)}, T={float(T_i)}")
+            out_i[...] = value
+        return out
+
+    def internal_energy_from_pT(self, p: np.ndarray | float, T: np.ndarray | float) -> np.ndarray:
+        PropsSI = self._cp()
+        p_arr, T_arr = np.broadcast_arrays(np.asarray(p, dtype=float), np.asarray(T, dtype=float))
+        out = np.empty_like(p_arr, dtype=float)
+        it = np.nditer([p_arr, T_arr, out], flags=["refs_ok"], op_flags=[["readonly"], ["readonly"], ["writeonly"]])
+        for p_i, T_i, out_i in it:  # pragma: no cover - optional dependency
+            try:
+                value = PropsSI("Umass", "P", float(p_i), "T", float(T_i), self.fluid)
+            except Exception as exc:
+                raise PropertyEvaluationError(f"CoolProp internal_energy_from_pT failed at p={float(p_i)}, T={float(T_i)}") from exc
+            if not np.isfinite(value):
+                raise PropertyEvaluationError(f"CoolProp internal_energy_from_pT returned non-finite value at p={float(p_i)}, T={float(T_i)}")
+            out_i[...] = value
         return out
 
     def saturation_state(self, p: np.ndarray | float) -> SaturationState:
@@ -258,12 +289,32 @@ class CoolPropCO2Backend:
         return SaturationState(p=p_arr, T_sat=T_sat, rho_l=rho_l, rho_v=rho_v, e_l=e_l, e_v=e_v, h_lv=e_v - e_l)
 
     def _alpha_from_quality_pressure(self, quality: np.ndarray, p: np.ndarray) -> np.ndarray:
-        sat = self.saturation_state(p)  # pragma: no cover - optional dependency
-        q = np.clip(quality, 0.0, 1.0)
-        v_v = q / sat.rho_v
-        v_l = (1.0 - q) / sat.rho_l
-        denom = v_v + v_l
-        return np.divide(v_v, denom, out=np.zeros_like(v_v, dtype=float), where=denom > 0.0)
+        q_raw, p_arr = np.broadcast_arrays(np.asarray(quality, dtype=float), np.asarray(p, dtype=float))
+        endpoint_tol = 1.0e-12
+        alpha = np.empty_like(q_raw, dtype=float)
+        liquid = q_raw <= endpoint_tol
+        vapor = q_raw >= 1.0 - endpoint_tol
+        mixed = ~(liquid | vapor)
+        alpha[liquid] = 0.0
+        alpha[vapor] = 1.0
+        if np.any(mixed):
+            q_mixed = q_raw[mixed]
+            p_mixed = p_arr[mixed]
+            if np.any(~np.isfinite(q_mixed)) or np.any(~np.isfinite(p_mixed)):
+                raise PropertyEvaluationError("CoolProp alpha calculation requires finite quality and pressure for mixed states")
+            try:
+                sat = self.saturation_state(p_mixed)  # pragma: no cover - optional dependency
+            except Exception as exc:
+                raise PropertyEvaluationError("CoolProp alpha calculation failed while evaluating saturation properties for mixed-quality states") from exc
+            q = np.clip(q_mixed, 0.0, 1.0)
+            v_v = q / sat.rho_v
+            v_l = (1.0 - q) / sat.rho_l
+            denom = v_v + v_l
+            alpha[mixed] = np.divide(v_v, denom, out=np.zeros_like(v_v, dtype=float), where=denom > 0.0)
+        alpha = np.clip(alpha, 0.0, 1.0)
+        if np.any(~np.isfinite(alpha)):
+            raise PropertyEvaluationError("CoolProp alpha calculation produced non-finite values")
+        return alpha
 
 
 def coolprop_available() -> bool:
@@ -300,6 +351,9 @@ class REFPROPCO2Backend:
         self._raise_unavailable()
 
     def density_from_pT(self, p: np.ndarray | float, T: np.ndarray | float) -> np.ndarray:
+        self._raise_unavailable()
+
+    def internal_energy_from_pT(self, p: np.ndarray | float, T: np.ndarray | float) -> np.ndarray:
         self._raise_unavailable()
 
     def saturation_state(self, p: np.ndarray | float) -> SaturationState:

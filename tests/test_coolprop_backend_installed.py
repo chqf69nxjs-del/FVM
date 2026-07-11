@@ -70,3 +70,32 @@ def test_coolprop_factory_returns_coolprop_backend_when_installed() -> None:
     backend = make_property_backend("coolprop_co2")
 
     assert isinstance(backend, CoolPropCO2Backend)
+
+
+def test_coolprop_internal_energy_from_pT_round_trips_dense_single_phase_state() -> None:
+    _coolprop_props_si()
+    backend = CoolPropCO2Backend()
+
+    rho = backend.density_from_pT(
+        np.array([LIQUID_CO2_PRESSURE_PA]),
+        np.array([LIQUID_CO2_TEMPERATURE_K]),
+    )
+    e = backend.internal_energy_from_pT(
+        np.array([LIQUID_CO2_PRESSURE_PA]),
+        np.array([LIQUID_CO2_TEMPERATURE_K]),
+    )
+
+    state = backend.state_from_rho_e(rho, e)
+
+    assert np.all(np.isfinite(state.p))
+    assert np.all(np.isfinite(state.T))
+    assert np.all(np.isfinite(state.rho))
+    assert np.all(np.isfinite(state.e))
+    assert np.all(np.isfinite(state.c))
+    assert np.all(np.isfinite(state.alpha))
+    assert np.all(np.isfinite(state.quality))
+    np.testing.assert_allclose(state.p, LIQUID_CO2_PRESSURE_PA, rtol=5.0e-3)
+    np.testing.assert_allclose(state.T, LIQUID_CO2_TEMPERATURE_K, rtol=5.0e-3)
+    np.testing.assert_allclose(state.quality, 0.0, rtol=0.0, atol=0.0)
+    np.testing.assert_allclose(state.alpha, 0.0, rtol=0.0, atol=0.0)
+    assert np.all(state.c > 0.0)
