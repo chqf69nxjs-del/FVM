@@ -294,13 +294,156 @@ def _write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         writer.writeheader(); writer.writerows(rows)
 
 
-def _write_artifacts(output_dir: Path, cfg: CoolPropSmallAmplitudeWaveConfig, metrics: dict[str, Any], history: list[dict[str, Any]], profile: list[dict[str, Any]]) -> None:
+def _plotting_available() -> bool:
+    try:
+        import matplotlib  # noqa: F401
+    except Exception:
+        return False
+    return True
+
+
+def _common_plot_note(metrics: dict[str, Any]) -> str:
+    return (
+        f"case={metrics['case_name']} | eos={metrics['eos_model']} | "
+        f"backend={metrics['property_backend_name']} | "
+        f"status={metrics['property_backend_design_status']} | "
+        "software_path_verification, design_evaluation=False"
+    )
+
+
+def _probe_rows_by_name(history: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in history:
+        grouped.setdefault(row["probe_name"], []).append(row)
+    return grouped
+
+
+def _plot_probe_pressure_history(output_dir: Path, stem: str, metrics: dict[str, Any], history: list[dict[str, Any]]) -> str:
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    grouped = _probe_rows_by_name(history)
+    probe_metrics = {p["probe_name"]: p for p in metrics["probes"]}
+    for probe_name, rows in grouped.items():
+        probe = probe_metrics[probe_name]
+        label = probe_name
+        if probe.get("primary_for_wave_speed_assessment"):
+            label += " (primary)"
+        else:
+            label += " (diagnostic)"
+        ax.plot([r["time_s"] for r in rows], [r["delta_pressure_pa"] for r in rows], label=label)
+        theory = probe.get("theoretical_threshold_arrival_time_cell_center_s")
+        numerical = probe.get("numerical_threshold_arrival_time_s")
+        if theory is not None:
+            ax.axvline(theory, color="0.35", linestyle="--", linewidth=0.8, alpha=0.55)
+        if numerical is not None:
+            ax.axvline(numerical, color="0.05", linestyle=":", linewidth=0.9, alpha=0.65)
+    ax.set_title("CoolProp small-amplitude wave: probe pressure histories")
+    ax.set_xlabel("time [s]")
+    ax.set_ylabel("delta pressure [Pa]")
+    ax.text(0.01, 0.99, _common_plot_note(metrics) + "\nvertical: theory dashed, numerical dotted", transform=ax.transAxes, va="top", ha="left", fontsize=8, bbox={"facecolor": "white", "alpha": 0.75, "edgecolor": "none"})
+    ax.legend(fontsize=8)
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    name = f"{stem}_probe_pressure_history.png"
+    fig.savefig(output_dir / name, dpi=160)
+    plt.close(fig)
+    return name
+
+
+def _plot_xt_pressure_map(output_dir: Path, stem: str, metrics: dict[str, Any], sampled_fields: dict[str, Any]) -> str:
+    import matplotlib.pyplot as plt
+
+    times = np.asarray(sampled_fields["times_s"], dtype=float)
+    x = np.asarray(sampled_fields["x_m"], dtype=float)
+    dp = np.asarray(sampled_fields["delta_pressure_pa"], dtype=float)
+    fig, ax = plt.subplots(figsize=(10, 6))
+    mesh = ax.pcolormesh(times, x, dp.T, shading="auto", cmap="coolwarm")
+    cbar = fig.colorbar(mesh, ax=ax)
+    cbar.set_label("delta pressure [Pa]")
+    for probe in metrics["probes"]:
+        ax.axhline(probe["probe_cell_center_x_m"], color="k", linewidth=0.6, alpha=0.45)
+        ax.text(times[-1], probe["probe_cell_center_x_m"], " " + probe["probe_name"], va="center", fontsize=7)
+    ax.axhline(metrics["pulse_center_x_m"], color="yellow", linestyle="--", linewidth=0.9, alpha=0.8, label="pulse center x0")
+    ax.set_title("CoolProp small-amplitude wave: x-t pressure map")
+    ax.set_xlabel("time [s]")
+    ax.set_ylabel("x [m]")
+    ax.text(0.01, 0.99, _common_plot_note(metrics), transform=ax.transAxes, va="top", ha="left", fontsize=8, bbox={"facecolor": "white", "alpha": 0.75, "edgecolor": "none"})
+    ax.legend(fontsize=8, loc="lower right")
+    fig.tight_layout()
+    name = f"{stem}_xt_pressure_map.png"
+    fig.savefig(output_dir / name, dpi=160)
+    plt.close(fig)
+    return name
+
+
+def _plot_pressure_snapshots(output_dir: Path, stem: str, metrics: dict[str, Any], sampled_fields: dict[str, Any]) -> str:
+    import matplotlib.pyplot as plt
+
+    times = np.asarray(sampled_fields["times_s"], dtype=float)
+    x = np.asarray(sampled_fields["x_m"], dtype=float)
+    dp = np.asarray(sampled_fields["delta_pressure_pa"], dtype=float)
+    targets = [0.0]
+    for frac in (0.5, 0.75):
+        probe = min(metrics["probes"], key=lambda p: abs(p["probe_cell_center_x_m"] / metrics["pipe_length_m"] - frac))
+        t = probe.get("theoretical_threshold_arrival_time_cell_center_s")
+        if t is not None:
+            targets.append(float(t))
+    targets.append(0.9 * float(metrics["target_time_s"]))
+    indices = []
+    for target in targets:
+        idx = int(np.argmin(np.abs(times - target)))
+        if idx not in indices:
+            indices.append(idx)
+    fig, ax = plt.subplots(figsize=(10, 6))
+    for idx in indices:
+        ax.plot(x, dp[idx, :], label=f"t={times[idx]:.6g} s")
+    for probe in metrics["probes"]:
+        ax.axvline(probe["probe_cell_center_x_m"], color="0.25", linewidth=0.5, alpha=0.35)
+    ax.set_title("CoolProp small-amplitude wave: pressure snapshots")
+    ax.set_xlabel("x [m]")
+    ax.set_ylabel("delta pressure [Pa]")
+    ax.text(0.01, 0.99, _common_plot_note(metrics), transform=ax.transAxes, va="top", ha="left", fontsize=8, bbox={"facecolor": "white", "alpha": 0.75, "edgecolor": "none"})
+    ax.legend(fontsize=8)
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    name = f"{stem}_pressure_snapshots.png"
+    fig.savefig(output_dir / name, dpi=160)
+    plt.close(fig)
+    return name
+
+
+def _generate_plots(output_dir: Path, stem: str, metrics: dict[str, Any], history: list[dict[str, Any]], sampled_fields: dict[str, Any] | None) -> list[str]:
+    generated = [_plot_probe_pressure_history(output_dir, stem, metrics, history)]
+    if sampled_fields is not None and len(sampled_fields.get("times_s", [])) >= 2:
+        generated.append(_plot_xt_pressure_map(output_dir, stem, metrics, sampled_fields))
+        generated.append(_plot_pressure_snapshots(output_dir, stem, metrics, sampled_fields))
+    return generated
+
+
+def _sample_pressure_field(solver: FvmSolver, cfg: CoolPropSmallAmplitudeWaveConfig) -> np.ndarray:
+    prim = solver.primitive()
+    return np.asarray(prim.p, dtype=float) - cfg.initial_pressure_pa
+
+
+def _write_artifacts(output_dir: Path, cfg: CoolPropSmallAmplitudeWaveConfig, metrics: dict[str, Any], history: list[dict[str, Any]], profile: list[dict[str, Any]], sampled_fields: dict[str, Any] | None = None) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     stem = cfg.case_name
     (output_dir / f"{stem}_config.json").write_text(json.dumps(asdict(cfg), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    (output_dir / f"{stem}_metrics.json").write_text(json.dumps(metrics, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     _write_csv(output_dir / f"{stem}_probe_history.csv", history)
     _write_csv(output_dir / f"{stem}_final_profile.csv", profile)
+    generated_plots: list[str] = []
+    plotting_available = _plotting_available()
+    if plotting_available:
+        try:
+            generated_plots = _generate_plots(output_dir, stem, metrics, history, sampled_fields)
+        except Exception as exc:  # pragma: no cover - optional plotting must not fail run
+            metrics["plotting_error"] = str(exc)
+            generated_plots = []
+    metrics["plotting_available"] = bool(plotting_available)
+    metrics["generated_plots"] = generated_plots
+    metrics["figure_paths"] = [str(output_dir / name) for name in generated_plots]
+    (output_dir / f"{stem}_metrics.json").write_text(json.dumps(metrics, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     probe_lines = "\n".join(f"- {p['probe_name']}: center_theory_cell={p['theoretical_center_arrival_time_cell_center_s']}, threshold_theory_cell={p['theoretical_threshold_arrival_time_cell_center_s']}, numerical_threshold={p['numerical_threshold_arrival_time_s']}, threshold_inferred_c={p['threshold_inferred_wave_speed_m_s']}, threshold_rel_err={p['threshold_wave_speed_relative_error']}, primary={p['primary_for_wave_speed_assessment']}, tail_ratio={p['initial_tail_ratio']}, amplitude_ratio={p['amplitude_ratio']}" for p in metrics["probes"])
     report = f"""# CoolProp small-amplitude wave observation report
 
@@ -324,6 +467,15 @@ def _write_artifacts(output_dir: Path, cfg: CoolPropSmallAmplitudeWaveConfig, me
 
 `theoretical_center_arrival_time_*` は Gaussian 中心の到達時刻です。`theoretical_threshold_arrival_time_*`、`numerical_threshold_arrival_time_s`、`threshold_inferred_wave_speed_m_s`、および後方互換 field の `arrival_time_*` / `inferred_wave_speed_m_s` は、立ち上がり側 threshold 位置を基準にした主比較値です。`arrival_initial_tail_subtracted_pa` は t=0 の probe 圧力変化を baseline として差し引いた値です。数値拡散で観測 peak が減衰しても各 probe の local peak に対する 50% crossing を観測する設計ですが、local peak 50% 方式は波形変形の影響を受けるため、正式な acceptance threshold はメッシュ/CFL 比較後に決定します。`primary_for_wave_speed_assessment=False` は pulse center からの距離が 4 sigma 未満で、初期 Gaussian tail の影響が相対的に大きい diagnostic probe を示します。
 
+## 可視化の読み方
+- probe圧力履歴図は、到達時刻・振幅減衰・波形拡散を見るための図です。理論 threshold arrival は破線、数値 threshold arrival は点線で示します。
+- x-t 図は、伝播速度・反射前評価 window・不要な波の有無を見るための図です。
+- スナップショット図は、Gaussian 波形の広がりや数値拡散を見るための図です。
+- 到達検出は local peak 50% crossing に基づくため、振幅減衰と波形変形の影響を受けます。
+- 正式な acceptance threshold は未固定です。この observation run は design-use ではありません。
+- plotting_available: {metrics.get('plotting_available')}
+- generated_plots: {metrics.get('generated_plots')}
+
 ## Budget / single phase
 - budget_mass_residual: {metrics['budget_mass_residual']}
 - energy_budget_balance_residual_j: {metrics['energy_budget_balance_residual_j']}
@@ -334,15 +486,6 @@ def _write_artifacts(output_dir: Path, cfg: CoolPropSmallAmplitudeWaveConfig, me
 実在 EOS の非線形性により、初期条件は完全な一方向波ではなく微小な反対方向成分を含む可能性があります。
 """
     (output_dir / f"{stem}_report.md").write_text(report, encoding="utf-8")
-    try:  # pragma: no cover - optional plotting
-        import matplotlib.pyplot as plt
-        for probe in sorted({r["probe_name"] for r in history}):
-            rs = [r for r in history if r["probe_name"] == probe]
-            plt.plot([r["time_s"] for r in rs], [r["delta_pressure_pa"] for r in rs], label=probe)
-        plt.xlabel("time_s"); plt.ylabel("delta_pressure_pa"); plt.legend(); plt.tight_layout()
-        plt.savefig(output_dir / f"{stem}_pressure_probe_history.png"); plt.close()
-    except Exception:
-        pass
 
 
 def run_coolprop_small_amplitude_wave(output_dir: Path | str | None = None, config: CoolPropSmallAmplitudeWaveConfig | None = None) -> dict[str, Any]:
@@ -355,6 +498,8 @@ def run_coolprop_small_amplitude_wave(output_dir: Path | str | None = None, conf
     timing = _auto_timing(cfg, ref["c0"])
     probes = _probe_specs(cfg, solver.grid)
     history = _sample_probes(solver, cfg, probes, 0.0)
+    sampled_times: list[float] = [float(solver.t)]
+    sampled_delta_pressure_fields: list[np.ndarray] = [_sample_pressure_field(solver, cfg)]
     dts: list[float] = []
     completed = False
     for _ in range(cfg.max_steps):
@@ -364,9 +509,19 @@ def run_coolprop_small_amplitude_wave(output_dir: Path | str | None = None, conf
         solver.step(dt); dts.append(float(dt))
         if solver.step_count % cfg.sample_every == 0 or solver.t >= timing["target_time_s"]:
             history.extend(_sample_probes(solver, cfg, probes, dt))
+            sampled_times.append(float(solver.t))
+            sampled_delta_pressure_fields.append(_sample_pressure_field(solver, cfg))
     else:
         completed = False
     completed = completed or solver.t >= timing["target_time_s"]
+    if sampled_times[-1] != float(solver.t):
+        sampled_times.append(float(solver.t))
+        sampled_delta_pressure_fields.append(_sample_pressure_field(solver, cfg))
+    sampled_fields = {
+        "times_s": sampled_times,
+        "x_m": [float(v) for v in solver.grid.cell_centers],
+        "delta_pressure_pa": np.vstack(sampled_delta_pressure_fields),
+    }
     final_prim = solver.primitive()
     hist_vals = np.array([[float(v) for k, v in r.items() if isinstance(v, (int, float))] for r in history], dtype=float)
     diag = solver.diagnostics(dt=0.0)
@@ -410,11 +565,14 @@ def run_coolprop_small_amplitude_wave(output_dir: Path | str | None = None, conf
         "energy_budget_balance_residual_j": float(diag.get("energy_budget_balance_residual_j", np.nan)), "energy_budget_balance_relative_residual": float(diag.get("energy_budget_balance_relative_residual", np.nan)),
         "phase_vapor_mass_balance_residual_kg": float(diag.get("phase_vapor_mass_balance_residual_kg", np.nan)), "phase_vapor_mass_balance_relative_residual": float(diag.get("phase_vapor_mass_balance_relative_residual", np.nan)),
         "missing_budget_fields": missing_budget,
+        "plotting_available": False,
+        "generated_plots": [],
+        "figure_paths": [],
     }
     metrics["overall_software_path_pass"] = bool(metrics["completed_without_exception"] and metrics["reached_target_time"] and metrics["property_backend_name"] == "coolprop_co2" and metrics["property_backend_design_status"] == "not_approved_for_design_use")
     metrics["overall_observation_run_pass"] = bool(metrics["overall_software_path_pass"] and metrics["all_history_finite"] and metrics["positive_pressure"] and metrics["positive_temperature"] and metrics["positive_density"] and metrics["positive_sound_speed"] and metrics["remained_single_phase"] and all(p["arrival_detected"] for p in probe_metrics) and not missing_budget and metrics["within_max_steps"])
     if output_dir is not None:
-        _write_artifacts(Path(output_dir), cfg, metrics, history, _final_profile(solver))
+        _write_artifacts(Path(output_dir), cfg, metrics, history, _final_profile(solver), sampled_fields)
     return metrics
 
 
