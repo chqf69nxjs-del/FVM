@@ -128,6 +128,7 @@ def test_coolprop_small_amplitude_wave_plotting_unavailable_keeps_artifacts(tmp_
     metrics = run_coolprop_small_amplitude_wave(output_dir=tmp_path, config=cfg)
 
     assert metrics["completed_without_exception"]
+    assert metrics["overall_observation_run_pass"]
     assert metrics["plotting_available"] is False
     assert metrics["generated_plots"] == []
     assert (tmp_path / f"{cfg.case_name}_metrics.json").exists()
@@ -154,13 +155,70 @@ def test_coolprop_small_amplitude_wave_visual_artifacts_when_matplotlib_availabl
         f"{cfg.case_name}_xt_pressure_map.png",
         f"{cfg.case_name}_pressure_snapshots.png",
     }
-    assert expected.issubset(set(metrics["generated_plots"]))
+    assert expected == set(metrics["generated_plots"]), (
+        f"plotting_error={metrics.get('plotting_error')!r}; "
+        f"plotting_errors={metrics.get('plotting_errors')!r}; "
+        f"generated_plots={metrics.get('generated_plots')!r}; "
+        f"figure_paths={metrics.get('figure_paths')!r}"
+    )
     for name in expected:
         assert (tmp_path / name).exists()
         assert (tmp_path / name).stat().st_size > 0
     saved = json.loads((tmp_path / f"{cfg.case_name}_metrics.json").read_text())
-    assert expected.issubset(set(saved["generated_plots"]))
+    assert expected == set(saved["generated_plots"])
+    assert set(saved["figure_paths"]) == {str(tmp_path / name) for name in expected}
     assert saved["property_backend_design_status"] == "not_approved_for_design_use"
     report = (tmp_path / f"{cfg.case_name}_report.md").read_text(encoding="utf-8")
     assert "x-t 図" in report
     assert "design-use ではありません" in report
+
+
+def test_coolprop_small_amplitude_wave_visual_artifacts_ignore_gui_backend_state(tmp_path, monkeypatch):
+    pytest.importorskip("CoolProp")
+    pytest.importorskip("matplotlib")
+    import sys
+
+    monkeypatch.setitem(sys.modules, "matplotlib.pyplot", None)
+    cfg = CoolPropSmallAmplitudeWaveConfig(n_cells=30, probe_fractions=(0.5, 0.75), max_steps=5000, sample_every=2)
+    metrics = run_coolprop_small_amplitude_wave(output_dir=tmp_path, config=cfg)
+
+    expected = {
+        f"{cfg.case_name}_probe_pressure_history.png",
+        f"{cfg.case_name}_xt_pressure_map.png",
+        f"{cfg.case_name}_pressure_snapshots.png",
+    }
+    assert metrics["overall_observation_run_pass"]
+    assert metrics["plotting_available"] is True
+    assert expected == set(metrics["generated_plots"]), (
+        f"plotting_error={metrics.get('plotting_error')!r}; "
+        f"plotting_errors={metrics.get('plotting_errors')!r}; "
+        f"generated_plots={metrics.get('generated_plots')!r}; "
+        f"figure_paths={metrics.get('figure_paths')!r}"
+    )
+    assert all((tmp_path / name).exists() and (tmp_path / name).stat().st_size > 0 for name in expected)
+
+
+def test_coolprop_small_amplitude_wave_partial_plot_failure_keeps_successes(tmp_path, monkeypatch):
+    pytest.importorskip("CoolProp")
+    pytest.importorskip("matplotlib")
+    import liquid_gas_transient.cases.coolprop_small_amplitude_wave as wave
+
+    def fail_xt_map(*args, **kwargs):
+        raise RuntimeError("intentional xt map failure")
+
+    monkeypatch.setattr(wave, "_plot_xt_pressure_map", fail_xt_map)
+    cfg = CoolPropSmallAmplitudeWaveConfig(n_cells=30, probe_fractions=(0.5, 0.75), max_steps=5000, sample_every=2)
+    metrics = run_coolprop_small_amplitude_wave(output_dir=tmp_path, config=cfg)
+
+    expected_success = {
+        f"{cfg.case_name}_probe_pressure_history.png",
+        f"{cfg.case_name}_pressure_snapshots.png",
+    }
+    failed = f"{cfg.case_name}_xt_pressure_map.png"
+    assert metrics["overall_observation_run_pass"]
+    assert metrics["plotting_available"] is True
+    assert expected_success == set(metrics["generated_plots"])
+    assert all((tmp_path / name).exists() and (tmp_path / name).stat().st_size > 0 for name in expected_success)
+    assert not (tmp_path / failed).exists()
+    assert metrics["plotting_errors"]["xt_pressure_map"] == "intentional xt map failure"
+    assert metrics["plotting_error"] == "intentional xt map failure"
