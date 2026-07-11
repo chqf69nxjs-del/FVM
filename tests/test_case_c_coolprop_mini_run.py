@@ -116,3 +116,49 @@ def test_coolprop_mini_run_completes_and_writes_artifacts(tmp_path: Path) -> Non
         path = tmp_path / name
         assert path.exists(), name
         assert path.stat().st_size > 0, name
+
+
+def test_coolprop_mini_run_preserves_multistep_uniform_state(tmp_path: Path) -> None:
+    pytest.importorskip("CoolProp")
+    cfg = CaseCCoolPropMiniRunConfig(
+        n_cells=20,
+        t_end_s=0.5,
+        max_steps=10000,
+        sample_every=1,
+    )
+
+    metrics = run_case_c_coolprop_mini_run(output_dir=tmp_path, config=cfg)
+
+    assert metrics["reached_target_time"] is True
+    assert metrics["completed_without_exception"] is True
+    assert metrics["step_count"] > 1
+    assert metrics["overall_software_path_pass"] is True
+    assert metrics["sample_count"] == metrics["step_count"] + 1
+    assert metrics["max_cfl"] <= cfg.cfl + 1.0e-15
+    assert metrics["initial_dt_s"] == 0.0
+    assert metrics["min_positive_dt_s"] > 0.0
+    assert metrics["final_dt_s"] > 0.0
+    assert metrics["missing_budget_fields"] == []
+
+    for key in [
+        "max_abs_change_pressure_pa",
+        "max_abs_change_temperature_K",
+        "max_abs_change_density_kg_m3",
+        "max_abs_change_velocity_m_s",
+        "max_abs_change_vapor_mass_fraction",
+        "max_abs_change_alpha",
+    ]:
+        assert metrics[key] == pytest.approx(0.0, abs=1.0e-12), key
+
+    budget = metrics["budget"]
+    assert budget["budget_mass_residual"] == pytest.approx(0.0, abs=1.0e-12)
+    assert budget["energy_budget_balance_residual_j"] == pytest.approx(0.0, abs=1.0e-8)
+    assert budget["phase_vapor_mass_balance_residual_kg"] == pytest.approx(0.0, abs=1.0e-12)
+
+    assert metrics["eos_model"] == "coolprop_lco2"
+    assert metrics["property_backend_name"] == "coolprop_co2"
+    assert metrics["property_backend_design_status"] == "not_approved_for_design_use"
+    assert metrics["design_evaluation"] is False
+    assert metrics["acceptance_gate"] is False
+    assert metrics["validation"] is False
+    assert metrics["software_path_verification"] is True

@@ -244,10 +244,16 @@ def _coolprop_version() -> str:
 def _metrics(cfg: CaseCCoolPropMiniRunConfig, solver: FvmSolver, history: list[dict[str, float]], initial_prim, final_prim) -> dict[str, Any]:
     diag = solver.diagnostics(dt=0.0)
     budget_keys = sorted(k for k in diag if "budget" in k or "residual" in k or "inventory" in k)
-    expected_budget = ["mass_budget_residual_kg", "energy_budget_residual_j"]
+    expected_budget = [
+        "budget_mass_residual",
+        "energy_budget_balance_residual_j",
+        "phase_vapor_mass_balance_residual_kg",
+    ]
     missing_budget = [k for k in expected_budget if k not in diag]
     hist_numbers = np.array([[float(v) for v in row.values()] for row in history], dtype=float)
-    positive_dt = [row["dt_s"] > 0.0 for row in history if row["step"] > 0]
+    advanced_step_dt = [float(row["dt_s"]) for row in history if row["step"] > 0]
+    positive_dt = [dt > 0.0 for dt in advanced_step_dt]
+    min_positive_dt_s = min(advanced_step_dt) if advanced_step_dt else 0.0
     backend_status = getattr(solver.eos.backend, "design_status", "not_approved_for_design_use")
     metrics: dict[str, Any] = {
         "case_name": cfg.case_name,
@@ -283,6 +289,7 @@ def _metrics(cfg: CaseCCoolPropMiniRunConfig, solver: FvmSolver, history: list[d
         "initial_dt_s": float(history[0]["dt_s"]),
         "final_dt_s": float(history[-1]["dt_s"]),
         "min_dt_s": float(min(row["dt_s"] for row in history)),
+        "min_positive_dt_s": float(min_positive_dt_s),
         "max_dt_s": float(max(row["dt_s"] for row in history)),
         "initial_cfl": float(history[0]["cfl_max"]),
         "final_cfl": float(history[-1]["cfl_max"]),
