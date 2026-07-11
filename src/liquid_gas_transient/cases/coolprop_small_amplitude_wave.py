@@ -11,6 +11,7 @@ from dataclasses import asdict, dataclass
 import csv
 import importlib.metadata
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -91,6 +92,54 @@ class CoolPropSmallAmplitudeWaveConfig:
             raise ValueError("post_arrival_margin_fraction must be positive")
         if not 0.0 < self.reflection_safety_margin_fraction < 1.0:
             raise ValueError("reflection_safety_margin_fraction must be in (0, 1)")
+
+
+def gaussian_threshold_offset(sigma_m: float, threshold_fraction: float) -> float:
+    """Return the Gaussian leading-side offset from center for a threshold fraction.
+
+    For ``dp = A exp(-0.5 ((x - x0) / sigma)^2)``, the right-going
+    leading-side threshold point is ``x0 + offset``.
+    """
+
+    if sigma_m <= 0.0:
+        raise ValueError("sigma_m must be positive")
+    if not 0.0 < threshold_fraction < 1.0:
+        raise ValueError("threshold_fraction must be in (0, 1)")
+    return float(sigma_m * math.sqrt(-2.0 * math.log(threshold_fraction)))
+
+
+def gaussian_threshold_initial_x(x0_m: float, sigma_m: float, threshold_fraction: float, propagation_direction: str = "right") -> float:
+    """Return initial Gaussian threshold x on the leading side.
+
+    The case initializes a right-running pulse. With positive x to the right,
+    the leading side is therefore at ``x0 + offset``; a left-running extension
+    would use ``x0 - offset``.
+    """
+
+    offset = gaussian_threshold_offset(sigma_m, threshold_fraction)
+    if propagation_direction == "right":
+        return float(x0_m + offset)
+    if propagation_direction == "left":
+        return float(x0_m - offset)
+    raise ValueError("propagation_direction must be 'right' or 'left'")
+
+
+def _threshold_metadata(cfg: CoolPropSmallAmplitudeWaveConfig, x0: float, xp: float) -> dict[str, Any]:
+    sigma = cfg.pulse_sigma_fraction * cfg.pipe_length_m
+    offset = gaussian_threshold_offset(sigma, cfg.arrival_threshold_fraction)
+    x_threshold = gaussian_threshold_initial_x(x0, sigma, cfg.arrival_threshold_fraction, "right")
+    distance = xp - x0
+    distance_sigma = distance / sigma
+    initial_tail_ratio = float(math.exp(-0.5 * distance_sigma**2))
+    primary = bool(distance_sigma >= 4.0)
+    return {
+        "gaussian_threshold_initial_x_m": float(x_threshold),
+        "gaussian_threshold_offset_m": float(offset),
+        "distance_from_pulse_center_in_sigma": float(distance_sigma),
+        "initial_tail_ratio": initial_tail_ratio,
+        "primary_for_wave_speed_assessment": primary,
+        "initial_tail_contamination_warning": bool(not primary),
+    }
 
 
 def _coolprop_version() -> str:
@@ -210,24 +259,28 @@ def _sample_probes(solver: FvmSolver, cfg: CoolPropSmallAmplitudeWaveConfig, pro
 
 
 def _detect_arrival(rows: list[dict[str, Any]], cfg: CoolPropSmallAmplitudeWaveConfig, x0: float, c0: float, xp: float) -> dict[str, Any]:
-    t_theory = (xp - x0) / c0
+    threshold_meta = _threshold_metadata(cfg, x0, xp)
+    x_threshold = threshold_meta["gaussian_threshold_initial_x_m"]
+    if xp <= x_threshold:
+        raise ValueError("probe cell center must be to the right of the initial leading-side Gaussian threshold")
+    t_theory = (xp - x_threshold) / c0
     sigma_time = cfg.pulse_sigma_fraction * cfg.pipe_length_m / c0
     t_min = max(0.0, t_theory - 4.0 * sigma_time)
     t_max = t_theory + 4.0 * sigma_time
     series = [(r["time_s"], r["delta_pressure_pa"]) for r in rows if t_min <= r["time_s"] <= t_max]
     if len(series) < 2:
-        return {"arrival_detected": False, "numerical_arrival_time_s": None, "arrival_threshold_pa": None, "detected_peak_delta_pressure_pa": None}
-    initial_tail = series[0][1]
+        return {"arrival_detected": False, "numerical_arrival_time_s": None, "numerical_threshold_arrival_time_s": None, "arrival_threshold_pa": None, "detected_peak_delta_pressure_pa": None}
+    initial_tail = rows[0]["delta_pressure_pa"]
     adjusted = [(t, dp - initial_tail) for t, dp in series]
     peak = max(dp for _, dp in adjusted)
     if not np.isfinite(peak) or peak <= 0.0:
-        return {"arrival_detected": False, "numerical_arrival_time_s": None, "arrival_threshold_pa": None, "detected_peak_delta_pressure_pa": float(peak) if np.isfinite(peak) else None}
+        return {"arrival_detected": False, "numerical_arrival_time_s": None, "numerical_threshold_arrival_time_s": None, "arrival_threshold_pa": None, "detected_peak_delta_pressure_pa": float(peak) if np.isfinite(peak) else None}
     threshold = cfg.arrival_threshold_fraction * peak
     for (t0, y0), (t1, y1) in zip(adjusted[:-1], adjusted[1:]):
         if y0 < threshold <= y1 and t1 > t0:
             frac = (threshold - y0) / (y1 - y0) if y1 != y0 else 0.0
-            return {"arrival_detected": True, "numerical_arrival_time_s": float(t0 + frac * (t1 - t0)), "arrival_threshold_pa": float(threshold), "detected_peak_delta_pressure_pa": float(peak), "arrival_search_start_s": float(t_min), "arrival_search_end_s": float(t_max), "arrival_initial_tail_subtracted_pa": float(initial_tail)}
-    return {"arrival_detected": False, "numerical_arrival_time_s": None, "arrival_threshold_pa": float(threshold), "detected_peak_delta_pressure_pa": float(peak), "arrival_search_start_s": float(t_min), "arrival_search_end_s": float(t_max), "arrival_initial_tail_subtracted_pa": float(initial_tail)}
+            return {"arrival_detected": True, "numerical_arrival_time_s": float(t0 + frac * (t1 - t0)), "numerical_threshold_arrival_time_s": float(t0 + frac * (t1 - t0)), "arrival_threshold_pa": float(threshold), "detected_peak_delta_pressure_pa": float(peak), "arrival_search_start_s": float(t_min), "arrival_search_end_s": float(t_max), "arrival_initial_tail_subtracted_pa": float(initial_tail)}
+    return {"arrival_detected": False, "numerical_arrival_time_s": None, "numerical_threshold_arrival_time_s": None, "arrival_threshold_pa": float(threshold), "detected_peak_delta_pressure_pa": float(peak), "arrival_search_start_s": float(t_min), "arrival_search_end_s": float(t_max), "arrival_initial_tail_subtracted_pa": float(initial_tail)}
 
 
 def _final_profile(solver: FvmSolver) -> list[dict[str, Any]]:
@@ -248,13 +301,13 @@ def _write_artifacts(output_dir: Path, cfg: CoolPropSmallAmplitudeWaveConfig, me
     (output_dir / f"{stem}_metrics.json").write_text(json.dumps(metrics, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     _write_csv(output_dir / f"{stem}_probe_history.csv", history)
     _write_csv(output_dir / f"{stem}_final_profile.csv", profile)
-    probe_lines = "\n".join(f"- {p['probe_name']}: theory_cell={p['theoretical_arrival_time_cell_center_s']}, numerical={p['numerical_arrival_time_s']}, inferred_c={p['inferred_wave_speed_m_s']}, rel_err={p['wave_speed_relative_error']}, amplitude_ratio={p['amplitude_ratio']}" for p in metrics["probes"])
+    probe_lines = "\n".join(f"- {p['probe_name']}: center_theory_cell={p['theoretical_center_arrival_time_cell_center_s']}, threshold_theory_cell={p['theoretical_threshold_arrival_time_cell_center_s']}, numerical_threshold={p['numerical_threshold_arrival_time_s']}, threshold_inferred_c={p['threshold_inferred_wave_speed_m_s']}, threshold_rel_err={p['threshold_wave_speed_relative_error']}, primary={p['primary_for_wave_speed_assessment']}, tail_ratio={p['initial_tail_ratio']}, amplitude_ratio={p['amplitude_ratio']}" for p in metrics["probes"])
     report = f"""# CoolProp small-amplitude wave observation report
 
 このレポートは、CoolProp 単相 CO2 software / numerical verification の初回 observation run です。実設計評価ではなく、CoolProp backend の design-use 承認、Validation、HEM/HNE/DVCM、ESD急閉、pump trip、二相化、flashing の評価ではありません。
 
 ## 目的
-右向き小振幅 Gaussian 圧力波を発生させ、各 probe の理論到達時刻と 50% crossing による数値到達時刻を記録します。正式な到達時刻誤差・波速誤差 threshold は未設定です。
+右向き小振幅 Gaussian 圧力波を発生させ、各 probe の理論到達時刻と local peak 50% rising crossing による数値到達時刻を記録します。主比較は Gaussian 中心ではなく、同じ threshold fraction の立ち上がり側特徴点で行います。正式な到達時刻誤差・波速誤差 threshold は未設定です。
 
 ## 基準状態と pulse
 - CoolProp version: {metrics['coolprop_version']}
@@ -268,6 +321,8 @@ def _write_artifacts(output_dir: Path, cfg: CoolPropSmallAmplitudeWaveConfig, me
 
 ## Probe 到達時刻
 {probe_lines}
+
+`theoretical_center_arrival_time_*` は Gaussian 中心の到達時刻です。`theoretical_threshold_arrival_time_*`、`numerical_threshold_arrival_time_s`、`threshold_inferred_wave_speed_m_s`、および後方互換 field の `arrival_time_*` / `inferred_wave_speed_m_s` は、立ち上がり側 threshold 位置を基準にした主比較値です。`arrival_initial_tail_subtracted_pa` は t=0 の probe 圧力変化を baseline として差し引いた値です。数値拡散で観測 peak が減衰しても各 probe の local peak に対する 50% crossing を観測する設計ですが、local peak 50% 方式は波形変形の影響を受けるため、正式な acceptance threshold はメッシュ/CFL 比較後に決定します。`primary_for_wave_speed_assessment=False` は pulse center からの距離が 4 sigma 未満で、初期 Gaussian tail の影響が相対的に大きい diagnostic probe を示します。
 
 ## Budget / single phase
 - budget_mass_residual: {metrics['budget_mass_residual']}
@@ -320,12 +375,19 @@ def run_coolprop_small_amplitude_wave(output_dir: Path | str | None = None, conf
     for spec in probes:
         rows = [r for r in history if r["probe_name"] == spec["probe_name"]]
         det = _detect_arrival(rows, cfg, x0, ref["c0"], spec["probe_cell_center_x_m"])
+        threshold_meta = _threshold_metadata(cfg, x0, spec["probe_cell_center_x_m"])
+        x_threshold = threshold_meta["gaussian_threshold_initial_x_m"]
+        if spec["probe_cell_center_x_m"] <= x_threshold:
+            raise ValueError("probe cell center must be to the right of the initial leading-side Gaussian threshold")
         theory_target = (spec["probe_target_x_m"] - x0) / ref["c0"]
         theory_cell = (spec["probe_cell_center_x_m"] - x0) / ref["c0"]
+        theory_threshold_target = (spec["probe_target_x_m"] - x_threshold) / ref["c0"]
+        theory_threshold_cell = (spec["probe_cell_center_x_m"] - x_threshold) / ref["c0"]
         num = det["numerical_arrival_time_s"]
-        err = abs(num - theory_cell) if num is not None else None
-        inferred = (spec["probe_cell_center_x_m"] - x0) / num if num not in (None, 0.0) else None
-        probe_metrics.append({**spec, "theoretical_arrival_time_target_s": float(theory_target), "theoretical_arrival_time_cell_center_s": float(theory_cell), **det, "arrival_time_absolute_error_s": float(err) if err is not None else None, "arrival_time_relative_error": float(err / theory_cell) if err is not None and theory_cell != 0 else None, "inferred_wave_speed_m_s": float(inferred) if inferred is not None else None, "wave_speed_relative_error": float(abs(inferred - ref["c0"]) / ref["c0"]) if inferred is not None else None, "amplitude_ratio": float(det["detected_peak_delta_pressure_pa"] / cfg.pressure_amplitude_pa) if det.get("detected_peak_delta_pressure_pa") is not None else None})
+        err = abs(num - theory_threshold_cell) if num is not None else None
+        inferred = (spec["probe_cell_center_x_m"] - x_threshold) / num if num not in (None, 0.0) else None
+        center_inferred = (spec["probe_cell_center_x_m"] - x0) / num if num not in (None, 0.0) else None
+        probe_metrics.append({**spec, **threshold_meta, "theoretical_arrival_time_target_s": float(theory_target), "theoretical_arrival_time_cell_center_s": float(theory_cell), "theoretical_center_arrival_time_target_s": float(theory_target), "theoretical_center_arrival_time_cell_center_s": float(theory_cell), "theoretical_threshold_arrival_time_target_s": float(theory_threshold_target), "theoretical_threshold_arrival_time_cell_center_s": float(theory_threshold_cell), **det, "threshold_arrival_time_absolute_error_s": float(err) if err is not None else None, "threshold_arrival_time_relative_error": float(err / theory_threshold_cell) if err is not None and theory_threshold_cell != 0 else None, "threshold_inferred_wave_speed_m_s": float(inferred) if inferred is not None else None, "threshold_wave_speed_relative_error": float(abs(inferred - ref["c0"]) / ref["c0"]) if inferred is not None else None, "arrival_time_absolute_error_s": float(err) if err is not None else None, "arrival_time_relative_error": float(err / theory_threshold_cell) if err is not None and theory_threshold_cell != 0 else None, "inferred_wave_speed_m_s": float(inferred) if inferred is not None else None, "wave_speed_relative_error": float(abs(inferred - ref["c0"]) / ref["c0"]) if inferred is not None else None, "inferred_center_based_wave_speed_m_s": float(center_inferred) if center_inferred is not None else None, "amplitude_ratio": float(det["detected_peak_delta_pressure_pa"] / cfg.pressure_amplitude_pa) if det.get("detected_peak_delta_pressure_pa") is not None else None})
     missing_budget = [k for k in ["budget_mass_residual", "energy_budget_balance_residual_j", "phase_vapor_mass_balance_residual_kg"] if k not in diag]
     metrics: dict[str, Any] = {
         "case_name": cfg.case_name, "output_version": cfg.output_version, "software_path_verification": True, "numerical_verification": True,
@@ -356,4 +418,4 @@ def run_coolprop_small_amplitude_wave(output_dir: Path | str | None = None, conf
     return metrics
 
 
-__all__ = ["CoolPropSmallAmplitudeWaveConfig", "build_initial_gaussian_pulse", "build_coolprop_small_amplitude_wave_solver", "run_coolprop_small_amplitude_wave"]
+__all__ = ["CoolPropSmallAmplitudeWaveConfig", "gaussian_threshold_offset", "gaussian_threshold_initial_x", "build_initial_gaussian_pulse", "build_coolprop_small_amplitude_wave_solver", "run_coolprop_small_amplitude_wave"]
