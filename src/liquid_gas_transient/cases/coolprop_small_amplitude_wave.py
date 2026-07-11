@@ -1,0 +1,359 @@
+"""CoolProp single-phase CO2 small-amplitude Gaussian wave observation run.
+
+This module is an independent software/numerical verification observation case.
+It is not a design evaluation, validation, design-use approval of CoolProp, or a
+HEM/HNE/DVCM/two-phase/flashing assessment.
+"""
+
+from __future__ import annotations
+
+from dataclasses import asdict, dataclass
+import csv
+import importlib.metadata
+import json
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+
+from ..boundary import TransmissiveBoundary
+from ..config import PipeGeometry
+from ..eos import LCO2PropertyEOSAdapter
+from ..grid import UniformGrid
+from ..phase_change import NoPhaseChange
+from ..properties import CoolPropCO2Backend, coolprop_available
+from ..solver import FvmSolver
+from ..source_terms import NoSource
+from ..state import make_conserved
+
+
+@dataclass(frozen=True)
+class CoolPropSmallAmplitudeWaveConfig:
+    """Configuration for the initial CoolProp small-amplitude wave run."""
+
+    case_name: str = "coolprop_small_amplitude_wave"
+    output_version: str = "coolprop_small_amplitude_wave_v1"
+    pipe_length_m: float = 100.0
+    diameter_m: float = 0.30
+    n_cells: int = 100
+    cfl: float = 0.5
+    initial_pressure_pa: float = 8.0e6
+    initial_temperature_K: float = 280.0
+    pressure_amplitude_pa: float = 1.0e3
+    pulse_center_fraction: float = 0.15
+    pulse_sigma_fraction: float = 0.03
+    probe_fractions: tuple[float, ...] = (0.25, 0.5, 0.75)
+    sample_every: int = 1
+    max_steps: int = 10000
+    t_end_s: float | None = None
+    arrival_threshold_fraction: float = 0.5
+    max_perturbation_ratio: float = 1.0e-3
+    post_arrival_margin_fraction: float = 0.25
+    reflection_safety_margin_fraction: float = 0.25
+
+    def __post_init__(self) -> None:
+        if self.pipe_length_m <= 0.0:
+            raise ValueError("pipe_length_m must be positive")
+        if self.diameter_m <= 0.0:
+            raise ValueError("diameter_m must be positive")
+        if self.n_cells < 10:
+            raise ValueError("n_cells must be at least 10")
+        if not 0.0 < self.cfl <= 1.0:
+            raise ValueError("cfl must be in (0, 1]")
+        if self.initial_pressure_pa <= 0.0:
+            raise ValueError("initial_pressure_pa must be positive")
+        if self.initial_temperature_K <= 0.0:
+            raise ValueError("initial_temperature_K must be positive")
+        if self.pressure_amplitude_pa <= 0.0:
+            raise ValueError("pressure_amplitude_pa must be positive")
+        if self.pressure_amplitude_pa / self.initial_pressure_pa > self.max_perturbation_ratio:
+            raise ValueError("pressure perturbation ratio is too large for this small-amplitude case")
+        if not 0.0 < self.pulse_center_fraction < 1.0:
+            raise ValueError("pulse_center_fraction must be in (0, 1)")
+        if self.pulse_sigma_fraction <= 0.0:
+            raise ValueError("pulse_sigma_fraction must be positive")
+        if not self.probe_fractions:
+            raise ValueError("at least one probe is required")
+        for probe in self.probe_fractions:
+            if not 0.0 < probe < 1.0:
+                raise ValueError("probe fractions must be in (0, 1)")
+            if probe <= self.pulse_center_fraction:
+                raise ValueError("probe positions must be to the right of the pulse center")
+        if self.max_steps <= 0:
+            raise ValueError("max_steps must be positive")
+        if self.sample_every <= 0:
+            raise ValueError("sample_every must be positive")
+        if self.t_end_s is not None and self.t_end_s <= 0.0:
+            raise ValueError("t_end_s must be positive when provided")
+        if not 0.0 < self.arrival_threshold_fraction < 1.0:
+            raise ValueError("arrival_threshold_fraction must be in (0, 1)")
+        if self.post_arrival_margin_fraction <= 0.0:
+            raise ValueError("post_arrival_margin_fraction must be positive")
+        if not 0.0 < self.reflection_safety_margin_fraction < 1.0:
+            raise ValueError("reflection_safety_margin_fraction must be in (0, 1)")
+
+
+def _coolprop_version() -> str:
+    try:
+        return importlib.metadata.version("CoolProp")
+    except importlib.metadata.PackageNotFoundError:  # pragma: no cover
+        return "unknown"
+
+
+def _reference_state(cfg: CoolPropSmallAmplitudeWaveConfig, backend: CoolPropCO2Backend, eos: LCO2PropertyEOSAdapter) -> dict[str, Any]:
+    rho0 = float(np.asarray(backend.density_from_pT(cfg.initial_pressure_pa, cfg.initial_temperature_K)))
+    e0 = float(np.asarray(backend.internal_energy_from_pT(cfg.initial_pressure_pa, cfg.initial_temperature_K)))
+    U0 = make_conserved(rho=rho0, u=0.0, e=e0, xv=0.0)
+    prim0 = eos.primitive_from_conserved(U0)
+    return {
+        "rho0": rho0,
+        "e0": e0,
+        "c0": float(np.asarray(prim0.c)),
+        "phase": "single_phase_liquid_side",
+        "quality": float(np.asarray(prim0.xv)),
+        "alpha": float(np.asarray(prim0.alpha)),
+    }
+
+
+def _auto_timing(cfg: CoolPropSmallAmplitudeWaveConfig, c0: float) -> dict[str, float]:
+    L = cfg.pipe_length_m
+    x0 = cfg.pulse_center_fraction * L
+    far_probe = max(cfg.probe_fractions) * L
+    incident_far = (far_probe - x0) / c0
+    right_end = (L - x0) / c0
+    reflection_to_far = right_end + (L - far_probe) / c0
+    gap = reflection_to_far - incident_far
+    target = incident_far + cfg.post_arrival_margin_fraction * gap
+    latest_safe = incident_far + (1.0 - cfg.reflection_safety_margin_fraction) * gap
+    if cfg.t_end_s is not None:
+        if not (incident_far < cfg.t_end_s < reflection_to_far):
+            raise ValueError("t_end_s must be after last incident arrival and before first right-end reflection return")
+        target = cfg.t_end_s
+    return {
+        "target_time_s": float(target),
+        "last_probe_incident_time_s": float(incident_far),
+        "right_end_incident_time_s": float(right_end),
+        "last_probe_reflection_return_time_s": float(reflection_to_far),
+        "latest_safe_time_s": float(latest_safe),
+        "reflection_window_margin_s": float(reflection_to_far - target),
+    }
+
+
+def build_initial_gaussian_pulse(
+    config: CoolPropSmallAmplitudeWaveConfig | None = None,
+) -> dict[str, Any]:
+    """Build the p-T initialized right-running Gaussian pulse state."""
+
+    cfg = config or CoolPropSmallAmplitudeWaveConfig()
+    backend = CoolPropCO2Backend()
+    eos = LCO2PropertyEOSAdapter(backend=backend, boundary_temperature_K=cfg.initial_temperature_K, quality_source="transported")
+    ref = _reference_state(cfg, backend, eos)
+    if not (np.isfinite(ref["rho0"]) and ref["rho0"] > 0 and np.isfinite(ref["e0"]) and ref["c0"] > 0):
+        raise ValueError("CoolProp reference state must be finite and liquid-side single-phase")
+    if abs(ref["quality"]) > 1.0e-12 or abs(ref["alpha"]) > 1.0e-12:
+        raise ValueError("reference state must keep transported quality and alpha at zero")
+    grid = UniformGrid(PipeGeometry(cfg.pipe_length_m, cfg.diameter_m), cfg.n_cells)
+    x = grid.cell_centers
+    x0 = cfg.pulse_center_fraction * cfg.pipe_length_m
+    sigma = cfg.pulse_sigma_fraction * cfg.pipe_length_m
+    dp = cfg.pressure_amplitude_pa * np.exp(-0.5 * ((x - x0) / sigma) ** 2)
+    p = cfg.initial_pressure_pa + dp
+    T = np.full(cfg.n_cells, cfg.initial_temperature_K)
+    rho = np.asarray(backend.density_from_pT(p, T), dtype=float)
+    e = np.asarray(backend.internal_energy_from_pT(p, T), dtype=float)
+    # Positive velocity follows the solver convention u = momentum / rho, so this
+    # creates the linear-acoustic right-running component. EOS nonlinearity can
+    # still leave a small left-running residual, noted in metrics/report.
+    u = dp / (ref["rho0"] * ref["c0"])
+    U = make_conserved(rho=rho, u=u, e=e, xv=np.zeros(cfg.n_cells))
+    return {"config": cfg, "backend": backend, "eos": eos, "grid": grid, "U": U, "x": x, "dp": dp, "p": p, "T": T, "rho": rho, "e": e, "u": u, "reference": ref}
+
+
+def build_coolprop_small_amplitude_wave_solver(config: CoolPropSmallAmplitudeWaveConfig | None = None) -> FvmSolver:
+    init = build_initial_gaussian_pulse(config)
+    return FvmSolver(
+        grid=init["grid"],
+        eos=init["eos"],
+        U=init["U"],
+        cfl=init["config"].cfl,
+        left_boundary=TransmissiveBoundary(),
+        right_boundary=TransmissiveBoundary(),
+        source_term=NoSource(),
+        phase_change=NoPhaseChange(),
+        internal_interfaces=(),
+        latent_heat_placeholder_j_kg=0.0,
+    )
+
+
+def _probe_specs(cfg: CoolPropSmallAmplitudeWaveConfig, grid: UniformGrid) -> list[dict[str, Any]]:
+    specs = []
+    for frac in cfg.probe_fractions:
+        target = frac * cfg.pipe_length_m
+        idx = int(np.argmin(np.abs(grid.cell_centers - target)))
+        specs.append({"probe_name": f"x_over_L_{frac:g}", "probe_target_x_m": float(target), "probe_cell_index": idx, "probe_cell_center_x_m": float(grid.cell_centers[idx])})
+    return specs
+
+
+def _sample_probes(solver: FvmSolver, cfg: CoolPropSmallAmplitudeWaveConfig, probes: list[dict[str, Any]], dt: float) -> list[dict[str, Any]]:
+    prim = solver.primitive()
+    rows = []
+    cfl = float(np.max((np.abs(prim.u) + prim.c) * dt / solver.grid.dx)) if dt > 0 else 0.0
+    for spec in probes:
+        i = spec["probe_cell_index"]
+        rows.append({
+            "time_s": float(solver.t), "step": int(solver.step_count), "dt_s": float(dt), "cfl": cfl, **spec,
+            "pressure_pa": float(prim.p[i]), "delta_pressure_pa": float(prim.p[i] - cfg.initial_pressure_pa),
+            "temperature_K": float(prim.T[i]), "density_kg_m3": float(prim.rho[i]), "velocity_m_s": float(prim.u[i]),
+            "sound_speed_m_s": float(prim.c[i]), "vapor_mass_fraction": float(prim.xv[i]), "alpha": float(prim.alpha[i]),
+        })
+    return rows
+
+
+def _detect_arrival(rows: list[dict[str, Any]], cfg: CoolPropSmallAmplitudeWaveConfig, x0: float, c0: float, xp: float) -> dict[str, Any]:
+    t_theory = (xp - x0) / c0
+    sigma_time = cfg.pulse_sigma_fraction * cfg.pipe_length_m / c0
+    t_min = max(0.0, t_theory - 4.0 * sigma_time)
+    t_max = t_theory + 4.0 * sigma_time
+    series = [(r["time_s"], r["delta_pressure_pa"]) for r in rows if t_min <= r["time_s"] <= t_max]
+    if len(series) < 2:
+        return {"arrival_detected": False, "numerical_arrival_time_s": None, "arrival_threshold_pa": None, "detected_peak_delta_pressure_pa": None}
+    initial_tail = series[0][1]
+    adjusted = [(t, dp - initial_tail) for t, dp in series]
+    peak = max(dp for _, dp in adjusted)
+    if not np.isfinite(peak) or peak <= 0.0:
+        return {"arrival_detected": False, "numerical_arrival_time_s": None, "arrival_threshold_pa": None, "detected_peak_delta_pressure_pa": float(peak) if np.isfinite(peak) else None}
+    threshold = cfg.arrival_threshold_fraction * peak
+    for (t0, y0), (t1, y1) in zip(adjusted[:-1], adjusted[1:]):
+        if y0 < threshold <= y1 and t1 > t0:
+            frac = (threshold - y0) / (y1 - y0) if y1 != y0 else 0.0
+            return {"arrival_detected": True, "numerical_arrival_time_s": float(t0 + frac * (t1 - t0)), "arrival_threshold_pa": float(threshold), "detected_peak_delta_pressure_pa": float(peak), "arrival_search_start_s": float(t_min), "arrival_search_end_s": float(t_max), "arrival_initial_tail_subtracted_pa": float(initial_tail)}
+    return {"arrival_detected": False, "numerical_arrival_time_s": None, "arrival_threshold_pa": float(threshold), "detected_peak_delta_pressure_pa": float(peak), "arrival_search_start_s": float(t_min), "arrival_search_end_s": float(t_max), "arrival_initial_tail_subtracted_pa": float(initial_tail)}
+
+
+def _final_profile(solver: FvmSolver) -> list[dict[str, Any]]:
+    prim = solver.primitive()
+    return [{"cell_index": i, "x_m": float(solver.grid.cell_centers[i]), "pressure_pa": float(prim.p[i]), "temperature_K": float(prim.T[i]), "density_kg_m3": float(prim.rho[i]), "velocity_m_s": float(prim.u[i]), "sound_speed_m_s": float(prim.c[i]), "vapor_mass_fraction": float(prim.xv[i]), "alpha": float(prim.alpha[i])} for i in range(solver.grid.n_cells)]
+
+
+def _write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
+    with path.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+        writer.writeheader(); writer.writerows(rows)
+
+
+def _write_artifacts(output_dir: Path, cfg: CoolPropSmallAmplitudeWaveConfig, metrics: dict[str, Any], history: list[dict[str, Any]], profile: list[dict[str, Any]]) -> None:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    stem = cfg.case_name
+    (output_dir / f"{stem}_config.json").write_text(json.dumps(asdict(cfg), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    (output_dir / f"{stem}_metrics.json").write_text(json.dumps(metrics, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    _write_csv(output_dir / f"{stem}_probe_history.csv", history)
+    _write_csv(output_dir / f"{stem}_final_profile.csv", profile)
+    probe_lines = "\n".join(f"- {p['probe_name']}: theory_cell={p['theoretical_arrival_time_cell_center_s']}, numerical={p['numerical_arrival_time_s']}, inferred_c={p['inferred_wave_speed_m_s']}, rel_err={p['wave_speed_relative_error']}, amplitude_ratio={p['amplitude_ratio']}" for p in metrics["probes"])
+    report = f"""# CoolProp small-amplitude wave observation report
+
+このレポートは、CoolProp 単相 CO2 software / numerical verification の初回 observation run です。実設計評価ではなく、CoolProp backend の design-use 承認、Validation、HEM/HNE/DVCM、ESD急閉、pump trip、二相化、flashing の評価ではありません。
+
+## 目的
+右向き小振幅 Gaussian 圧力波を発生させ、各 probe の理論到達時刻と 50% crossing による数値到達時刻を記録します。正式な到達時刻誤差・波速誤差 threshold は未設定です。
+
+## 基準状態と pulse
+- CoolProp version: {metrics['coolprop_version']}
+- property_backend_design_status: {metrics['property_backend_design_status']}
+- p0 Pa: {metrics['initial_pressure_pa']}
+- T0 K: {metrics['initial_temperature_K']}
+- rho0 kg/m3: {metrics['rho0']}
+- c0 m/s: {metrics['c0']}
+- pressure_amplitude_pa: {metrics['pressure_amplitude_pa']}
+- perturbation_ratio: {metrics['perturbation_ratio']}
+
+## Probe 到達時刻
+{probe_lines}
+
+## Budget / single phase
+- budget_mass_residual: {metrics['budget_mass_residual']}
+- energy_budget_balance_residual_j: {metrics['energy_budget_balance_residual_j']}
+- phase_vapor_mass_balance_residual_kg: {metrics['phase_vapor_mass_balance_residual_kg']}
+- remained_single_phase: {metrics['remained_single_phase']}
+- overall_observation_run_pass: {metrics['overall_observation_run_pass']}
+
+実在 EOS の非線形性により、初期条件は完全な一方向波ではなく微小な反対方向成分を含む可能性があります。
+"""
+    (output_dir / f"{stem}_report.md").write_text(report, encoding="utf-8")
+    try:  # pragma: no cover - optional plotting
+        import matplotlib.pyplot as plt
+        for probe in sorted({r["probe_name"] for r in history}):
+            rs = [r for r in history if r["probe_name"] == probe]
+            plt.plot([r["time_s"] for r in rs], [r["delta_pressure_pa"] for r in rs], label=probe)
+        plt.xlabel("time_s"); plt.ylabel("delta_pressure_pa"); plt.legend(); plt.tight_layout()
+        plt.savefig(output_dir / f"{stem}_pressure_probe_history.png"); plt.close()
+    except Exception:
+        pass
+
+
+def run_coolprop_small_amplitude_wave(output_dir: Path | str | None = None, config: CoolPropSmallAmplitudeWaveConfig | None = None) -> dict[str, Any]:
+    """Run the observation case and return metrics."""
+
+    cfg = config or CoolPropSmallAmplitudeWaveConfig()
+    init = build_initial_gaussian_pulse(cfg)
+    solver = build_coolprop_small_amplitude_wave_solver(cfg)
+    ref = init["reference"]
+    timing = _auto_timing(cfg, ref["c0"])
+    probes = _probe_specs(cfg, solver.grid)
+    history = _sample_probes(solver, cfg, probes, 0.0)
+    dts: list[float] = []
+    completed = False
+    for _ in range(cfg.max_steps):
+        if solver.t >= timing["target_time_s"]:
+            completed = True; break
+        dt = solver.compute_dt(timing["target_time_s"])
+        solver.step(dt); dts.append(float(dt))
+        if solver.step_count % cfg.sample_every == 0 or solver.t >= timing["target_time_s"]:
+            history.extend(_sample_probes(solver, cfg, probes, dt))
+    else:
+        completed = False
+    completed = completed or solver.t >= timing["target_time_s"]
+    final_prim = solver.primitive()
+    hist_vals = np.array([[float(v) for k, v in r.items() if isinstance(v, (int, float))] for r in history], dtype=float)
+    diag = solver.diagnostics(dt=0.0)
+    x0 = cfg.pulse_center_fraction * cfg.pipe_length_m
+    probe_metrics = []
+    for spec in probes:
+        rows = [r for r in history if r["probe_name"] == spec["probe_name"]]
+        det = _detect_arrival(rows, cfg, x0, ref["c0"], spec["probe_cell_center_x_m"])
+        theory_target = (spec["probe_target_x_m"] - x0) / ref["c0"]
+        theory_cell = (spec["probe_cell_center_x_m"] - x0) / ref["c0"]
+        num = det["numerical_arrival_time_s"]
+        err = abs(num - theory_cell) if num is not None else None
+        inferred = (spec["probe_cell_center_x_m"] - x0) / num if num not in (None, 0.0) else None
+        probe_metrics.append({**spec, "theoretical_arrival_time_target_s": float(theory_target), "theoretical_arrival_time_cell_center_s": float(theory_cell), **det, "arrival_time_absolute_error_s": float(err) if err is not None else None, "arrival_time_relative_error": float(err / theory_cell) if err is not None and theory_cell != 0 else None, "inferred_wave_speed_m_s": float(inferred) if inferred is not None else None, "wave_speed_relative_error": float(abs(inferred - ref["c0"]) / ref["c0"]) if inferred is not None else None, "amplitude_ratio": float(det["detected_peak_delta_pressure_pa"] / cfg.pressure_amplitude_pa) if det.get("detected_peak_delta_pressure_pa") is not None else None})
+    missing_budget = [k for k in ["budget_mass_residual", "energy_budget_balance_residual_j", "phase_vapor_mass_balance_residual_kg"] if k not in diag]
+    metrics: dict[str, Any] = {
+        "case_name": cfg.case_name, "output_version": cfg.output_version, "software_path_verification": True, "numerical_verification": True,
+        "design_evaluation": False, "acceptance_gate": False, "validation": False, "eos_model": "coolprop_lco2", "property_backend_name": "coolprop_co2",
+        "property_backend_design_status": "not_approved_for_design_use", "coolprop_available": coolprop_available(), "coolprop_version": _coolprop_version(), "quality_source": "transported",
+        "pipe_length_m": cfg.pipe_length_m, "diameter_m": cfg.diameter_m, "n_cells": cfg.n_cells, "dx_m": solver.grid.dx, "cfl_target": cfg.cfl,
+        "initial_pressure_pa": cfg.initial_pressure_pa, "initial_temperature_K": cfg.initial_temperature_K, "rho0": ref["rho0"], "e0": ref["e0"], "c0": ref["c0"],
+        "reference_phase": ref["phase"], "reference_quality": ref["quality"], "reference_alpha": ref["alpha"],
+        "pressure_amplitude_pa": cfg.pressure_amplitude_pa, "perturbation_ratio": cfg.pressure_amplitude_pa / cfg.initial_pressure_pa,
+        "pulse_center_x_m": x0, "pulse_sigma_m": cfg.pulse_sigma_fraction * cfg.pipe_length_m, "theoretical_velocity_amplitude_m_s": cfg.pressure_amplitude_pa / (ref["rho0"] * ref["c0"]),
+        **timing, "final_time_s": float(solver.t), "reached_target_time": bool(solver.t >= timing["target_time_s"]), "completed_without_exception": bool(completed),
+        "step_count": int(solver.step_count), "sample_count": len(history), "min_positive_dt_s": min(dts) if dts else 0.0, "max_dt_s": max(dts) if dts else 0.0,
+        "max_cfl": max((r["cfl"] for r in history), default=0.0), "all_history_finite": bool(np.all(np.isfinite(hist_vals))), "within_max_steps": bool(solver.step_count <= cfg.max_steps),
+        "probes": probe_metrics,
+        "min_pressure_pa": float(np.min(final_prim.p)), "min_temperature_K": float(np.min(final_prim.T)), "min_density_kg_m3": float(np.min(final_prim.rho)), "min_sound_speed_m_s": float(np.min(final_prim.c)),
+        "max_abs_temperature_change_K": float(np.max(np.abs(final_prim.T - cfg.initial_temperature_K))), "max_abs_density_change_kg_m3": float(np.max(np.abs(final_prim.rho - ref["rho0"]))), "max_abs_velocity_m_s": float(np.max(np.abs(final_prim.u))),
+        "max_vapor_mass_fraction": float(np.max(final_prim.xv)), "max_alpha": float(np.max(final_prim.alpha)), "remained_single_phase": bool(np.max(final_prim.xv) <= 1e-12 and np.max(final_prim.alpha) <= 1e-12),
+        "positive_pressure": bool(np.min(final_prim.p) > 0), "positive_temperature": bool(np.min(final_prim.T) > 0), "positive_density": bool(np.min(final_prim.rho) > 0), "positive_sound_speed": bool(np.min(final_prim.c) > 0),
+        "budget_mass_residual": float(diag.get("budget_mass_residual", np.nan)), "budget_mass_relative_residual": float(diag.get("budget_mass_relative_residual", np.nan)),
+        "energy_budget_balance_residual_j": float(diag.get("energy_budget_balance_residual_j", np.nan)), "energy_budget_balance_relative_residual": float(diag.get("energy_budget_balance_relative_residual", np.nan)),
+        "phase_vapor_mass_balance_residual_kg": float(diag.get("phase_vapor_mass_balance_residual_kg", np.nan)), "phase_vapor_mass_balance_relative_residual": float(diag.get("phase_vapor_mass_balance_relative_residual", np.nan)),
+        "missing_budget_fields": missing_budget,
+    }
+    metrics["overall_software_path_pass"] = bool(metrics["completed_without_exception"] and metrics["reached_target_time"] and metrics["property_backend_name"] == "coolprop_co2" and metrics["property_backend_design_status"] == "not_approved_for_design_use")
+    metrics["overall_observation_run_pass"] = bool(metrics["overall_software_path_pass"] and metrics["all_history_finite"] and metrics["positive_pressure"] and metrics["positive_temperature"] and metrics["positive_density"] and metrics["positive_sound_speed"] and metrics["remained_single_phase"] and all(p["arrival_detected"] for p in probe_metrics) and not missing_budget and metrics["within_max_steps"])
+    if output_dir is not None:
+        _write_artifacts(Path(output_dir), cfg, metrics, history, _final_profile(solver))
+    return metrics
+
+
+__all__ = ["CoolPropSmallAmplitudeWaveConfig", "build_initial_gaussian_pulse", "build_coolprop_small_amplitude_wave_solver", "run_coolprop_small_amplitude_wave"]
