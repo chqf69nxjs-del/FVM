@@ -365,3 +365,15 @@ t_end   = min(t_reflect(xp) - 3*sigma/c0, global_t_end_s)
 - DVCM との優劣判定ではない。
 - `surrogate_lco2` と実在物性 backend を混同しない。
 - `property_backend_design_status = not_approved_for_design_use` を成果物に必ず残す。
+
+## 8. 波形可視化 artifact
+
+小振幅波 verification では、到達時刻・推定波速・振幅比だけでは波形の拡散、歪み、反射前後の様子を直感的に確認しにくい。このため、case module は optional dependency の `matplotlib` が利用可能な場合に以下の PNG を自動生成する。
+
+- `coolprop_small_amplitude_wave_probe_pressure_history.png`: 全 probe の `delta pressure [Pa]` と `time [s]` を重ね描きし、理論 threshold arrival と数値 threshold arrival を縦線で示す。`primary_for_wave_speed_assessment` の probe と diagnostic probe は凡例で区別する。
+- `coolprop_small_amplitude_wave_xt_pressure_map.png`: 計算中に `sample_every` と整合して保持した全セル圧力場から、`x [m]` - `time [s]` の `delta pressure [Pa]` ヒートマップを描く。伝播速度、反射前評価 window、不要な波の有無を確認するための図である。
+- `coolprop_small_amplitude_wave_pressure_snapshots.png`: `t=0`、L/2 近傍 probe の理論 threshold arrival、3L/4 近傍 probe の理論 threshold arrival、`0.9 * target_time_s` に近い sampled time の空間分布を重ね描きする。Gaussian 波形の広がりや数値拡散を確認するための図である。
+
+`matplotlib` が利用できない環境では、run、metrics、probe history、final profile、Markdown report は成功させ、図生成だけを skip する。`metrics.json` には `plotting_available`、`generated_plots`、`figure_paths` を記録する。
+
+これらの図は software / numerical verification の解釈補助であり、CoolProp backend の design-use 承認、Validation、HEM/HNE/DVCM 評価、Case C 本体の設計評価を意味しない。local peak 50% crossing に基づく到達検出は、振幅減衰と波形変形の影響を受けるため、正式な acceptance threshold はまだ固定しない。

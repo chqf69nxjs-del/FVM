@@ -117,3 +117,50 @@ def test_coolprop_small_amplitude_wave_integration_and_artifacts(tmp_path):
     assert "theoretical_center_arrival_time" in report
     assert "theoretical_threshold_arrival_time" in report
     assert "not_approved_for_design_use" in report
+
+
+def test_coolprop_small_amplitude_wave_plotting_unavailable_keeps_artifacts(tmp_path, monkeypatch):
+    pytest.importorskip("CoolProp")
+    import liquid_gas_transient.cases.coolprop_small_amplitude_wave as wave
+
+    monkeypatch.setattr(wave, "_plotting_available", lambda: False)
+    cfg = CoolPropSmallAmplitudeWaveConfig(n_cells=30, probe_fractions=(0.5,), max_steps=5000, sample_every=2)
+    metrics = run_coolprop_small_amplitude_wave(output_dir=tmp_path, config=cfg)
+
+    assert metrics["completed_without_exception"]
+    assert metrics["plotting_available"] is False
+    assert metrics["generated_plots"] == []
+    assert (tmp_path / f"{cfg.case_name}_metrics.json").exists()
+    assert (tmp_path / f"{cfg.case_name}_probe_history.csv").exists()
+    assert (tmp_path / f"{cfg.case_name}_final_profile.csv").exists()
+    saved = json.loads((tmp_path / f"{cfg.case_name}_metrics.json").read_text())
+    assert saved["plotting_available"] is False
+    assert saved["generated_plots"] == []
+    report = (tmp_path / f"{cfg.case_name}_report.md").read_text(encoding="utf-8")
+    assert "可視化の読み方" in report
+    assert "plotting_available: False" in report
+
+
+def test_coolprop_small_amplitude_wave_visual_artifacts_when_matplotlib_available(tmp_path):
+    pytest.importorskip("CoolProp")
+    pytest.importorskip("matplotlib")
+    cfg = CoolPropSmallAmplitudeWaveConfig(n_cells=30, probe_fractions=(0.5, 0.75), max_steps=5000, sample_every=2)
+    metrics = run_coolprop_small_amplitude_wave(output_dir=tmp_path, config=cfg)
+
+    assert metrics["overall_observation_run_pass"]
+    assert metrics["plotting_available"] is True
+    expected = {
+        f"{cfg.case_name}_probe_pressure_history.png",
+        f"{cfg.case_name}_xt_pressure_map.png",
+        f"{cfg.case_name}_pressure_snapshots.png",
+    }
+    assert expected.issubset(set(metrics["generated_plots"]))
+    for name in expected:
+        assert (tmp_path / name).exists()
+        assert (tmp_path / name).stat().st_size > 0
+    saved = json.loads((tmp_path / f"{cfg.case_name}_metrics.json").read_text())
+    assert expected.issubset(set(saved["generated_plots"]))
+    assert saved["property_backend_design_status"] == "not_approved_for_design_use"
+    report = (tmp_path / f"{cfg.case_name}_report.md").read_text(encoding="utf-8")
+    assert "x-t 図" in report
+    assert "design-use ではありません" in report
