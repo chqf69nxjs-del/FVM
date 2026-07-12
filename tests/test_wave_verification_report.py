@@ -53,6 +53,13 @@ def _write_synthetic_inputs(tmp_path: Path):
             "cross_correlation_coefficient": 0.99,
             "waveform_l1_difference_vs_finest": wl2 * 0.9,
             "waveform_l2_difference_vs_finest": wl2,
+            "eos_model": "coolprop_lco2",
+            "property_backend_name": "coolprop_co2",
+            "property_backend_design_status": "not_approved_for_design_use",
+            "coolprop_version": "synthetic-coolprop",
+            "output_version": "coolprop_small_amplitude_wave_sweep_v1",
+            "vapor_mass_budget_balance_relative_residual": 0.0,
+            "missing_budget_fields": "",
         })
     summary_path = tmp_path / "coolprop_small_amplitude_wave_sweep_sweep_summary.csv"
     with summary_path.open("w", newline="", encoding="utf-8") as f:
@@ -61,8 +68,6 @@ def _write_synthetic_inputs(tmp_path: Path):
     metrics = {
         "output_version": "coolprop_small_amplitude_wave_sweep_v1",
         "design_evaluation": False,
-        "property_backend_name": "coolprop_co2",
-        "property_backend_design_status": "not_approved_for_design_use",
         "run_plan": [
             {"case_id": "n0050_cfl050", "comparison_groups": ["mesh_comparison"]},
             {"case_id": "n0100_cfl050", "comparison_groups": ["cfl_comparison", "mesh_comparison"]},
@@ -90,6 +95,13 @@ def _write_synthetic_inputs(tmp_path: Path):
     metrics_path = tmp_path / "coolprop_small_amplitude_wave_sweep_sweep_metrics.json"
     metrics_path.write_text(json.dumps(metrics), encoding="utf-8")
     (tmp_path / "coolprop_small_amplitude_wave_sweep_mesh_overlay_L2.png").write_bytes(b"fake plot")
+    (tmp_path / "coolprop_small_amplitude_wave_sweep_sweep_report.md").write_text("existing report", encoding="utf-8")
+    (tmp_path / "coolprop_small_amplitude_wave_sweep_comparison_plot.png").write_bytes(b"fake comparison")
+    for row in rows:
+        case_dir = tmp_path / row["case_id"] / "nested"
+        case_dir.mkdir(parents=True, exist_ok=True)
+        (case_dir / "coolprop_small_amplitude_wave_probe_pressure_history.png").write_bytes(b"probe png")
+        (case_dir / "coolprop_small_amplitude_wave_probe_history.csv").write_text("t,p\n0,1\n", encoding="utf-8")
     return metrics_path, summary_path
 
 
@@ -119,10 +131,23 @@ def test_generate_wave_verification_report_from_synthetic_sweep(tmp_path, monkey
     assert "error floor" in text
     assert "finest-grid comparison reference" in text
     assert "真の解ではなく" in text
+    assert "- eos_model: coolprop_lco2" in text
+    assert "- property_backend_name: coolprop_co2" in text
+    assert "- property_backend_design_status: not_approved_for_design_use" in text
     assert "property_backend_design_status = not_approved_for_design_use" in text
     assert "design_evaluation = false" in text
     assert "acceptance_gate = false" in text
     assert "validation = false" in text
+    assert "overall_sweep_execution_pass: True" in text
+    assert "overall_sweep_execution_pass: 1" not in text
+    assert "mass relative residual" in text
+    assert "energy balance relative residual" in text
+    assert "vapor mass balance relative residual" in text
+    assert "missing budget fields" in text
+    assert "probe pressure history" in text
+    assert "probe history CSV" in text
+    assert "n0050_cfl050/nested/coolprop_small_amplitude_wave_probe_pressure_history.png" in text
+    assert "n0050_cfl050/nested/coolprop_small_amplitude_wave_probe_history.csv" in text
     assert "not found / not included" in text
     assert "](missing" not in text
     assert "git_commit_hash | unknown" in text
@@ -130,5 +155,25 @@ def test_generate_wave_verification_report_from_synthetic_sweep(tmp_path, monkey
         assert phrase not in text.lower()
 
     manifest = json.loads(Path(meta["manifest_path"]).read_text(encoding="utf-8"))
-    assert any(a["relative_path"].endswith("coolprop_small_amplitude_wave_sweep_sweep_metrics.json") for a in manifest["artifacts"])
+    artifact_paths = [a["relative_path"] for a in manifest["artifacts"]]
+    assert any(p.endswith("coolprop_small_amplitude_wave_sweep_sweep_metrics.json") for p in artifact_paths)
+    assert any(p.endswith("coolprop_small_amplitude_wave_sweep_sweep_summary.csv") for p in artifact_paths)
+    assert any(p.endswith("coolprop_small_amplitude_wave_sweep_sweep_report.md") for p in artifact_paths)
+    assert any(p.endswith("coolprop_small_amplitude_wave_sweep_comparison_plot.png") for p in artifact_paths)
+    assert any(p.endswith("coolprop_small_amplitude_wave_verification_report_v1.md") for p in artifact_paths)
     assert all(len(a["sha256"]) == 64 for a in manifest["artifacts"])
+
+
+def test_wave_report_marks_inconsistent_run_traceability(tmp_path, monkeypatch):
+    metrics_path, summary_path = _write_synthetic_inputs(tmp_path)
+    metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
+    metrics["summary_rows"][0]["eos_model"] = "alternate_eos"
+    metrics_path.write_text(json.dumps(metrics), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    out = tmp_path / "report.md"
+
+    generate_coolprop_small_amplitude_wave_verification_report(metrics_path, summary_path, out, artifact_root=tmp_path)
+
+    text = out.read_text(encoding="utf-8")
+    assert "- eos_model: inconsistent: alternate_eos, coolprop_lco2" in text
+    assert "](missing" not in text
