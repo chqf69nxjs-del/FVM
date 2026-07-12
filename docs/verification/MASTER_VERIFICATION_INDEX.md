@@ -32,14 +32,15 @@
 
 Current work:
 
-- Stage 5 PR-A boundary telemetry / pure helper implementation is under review.
-- numerical boundary flux history、diagnostic boundary-face primitive、`A_plus` / `A_minus`、theoretical timing / evaluation window、`*_boundary_history.csv` schema を実装。
-- solver physics / conservative update path は変更していない。
+- Stage 5 PR-A boundary telemetry / pure helper implementation は PR #22 で main へマージ済み。
+- Stage 5 PR-B rigid-wall / fixed-pressure baseline observation runner を実装中。
+- baseline runner は probe characteristic history、boundary-face telemetry、reflection metrics、budget / health metrics、required CSV / JSON / Markdown artifacts を出力する。
+- CoolProp installed-only smoke tests を追加したが、baseline accuracy band はまだ設定しない。
 
 Next action:
 
-- PR-A をレビューして main へマージする。
-- マージ後の PR-B で rigid-wall / fixed-pressure baseline observation runner を実装する。
+- PR-B focused CoolProp smoke testsを実環境で実行し、剛壁・固定圧力のbaseline observation結果を確認する。
+- 実測結果に基づいてrunner / metrics / artifact schemaをレビューする。
 - まだ mesh / CFL sweep、formal report、CI regression には進まない。
 
 ## 2. Resume checklist
@@ -87,13 +88,13 @@ git switch -c <new-work-branch>
 | V-001 | CoolProp backend traceability/API | `coolprop_co2` backend と design-use status traceability | COMPLETE | backend 名と `not_approved_for_design_use` が出力・判定に残る | `src/liquid_gas_transient/properties`, CoolProp wave path | `tests/test_property_backend_pt_energy.py`, `tests/test_coolprop_backend_installed.py`, wave regression tests | docs と regression JSON | unknown | unknown | software traceability observed | design-use approval は未実施 | backend API/status 変更時 | Stage 5 仕様でも status を明記 |
 | V-002 | CoolProp uniform-state multistep preservation | 静止一様状態保持、保存性 | COMPLETE | 圧力・温度・密度・音速が有限正値、budget residual が regression band 内 | CoolProp/FVM uniform-state path | relevant CoolProp small-amplitude wave tests | local artifact path: `verification/coolprop_small_amplitude_wave_sweep_final_v1/` | unknown | unknown | pass reported in current evidence | physical Validation ではない | solver flux/time integration 変更時 | boundary reflection 仕様に保存性判定を引き継ぐ |
 | V-003 | CoolProp Case C mini-run software path | Case C mini-run の実在物性候補経路 | COMPLETE | CoolProp 経路が例外なく走り、設計未承認 status を残す | `src/liquid_gas_transient/cases/case_c_coolprop_mini_run.py` | `tests/test_case_c_coolprop_mini_run.py` | Case C mini-run outputs | unknown | unknown | software path observed | design-use / Validation ではない | Case C builder/report 変更時 | 必要時に実在物性再評価へ接続 |
-| V-004 | Small-amplitude Gaussian incident wave | 単相小振幅進行波 | COMPLETE | CoolProp 音速との整合、単相維持、有限正値 | `src/liquid_gas_transient/cases/coolprop_small_amplitude_wave.py` | `tests/test_coolprop_small_amplitude_wave.py` | local artifact path: `verification/coolprop_small_amplitude_wave_sweep_final_v1/` | unknown | unknown | peak phase speed は高精度整合 | finest-grid は厳密解ではない | EOS/solver/probe logic 変更時 | Stage 5 反射波の入射波定義に再利用 |
+| V-004 | Small-amplitude Gaussian incident wave | 単相小振幅進行波 | COMPLETE | CoolProp 音速との整合、単相維持、有限正値 | `src/liquid_gas_transient/cases/coolprop_small_amplitude_wave.py` | `tests/test_coolprop_small_amplitude_wave.py` | local artifact path: `verification/coolprop_small_amplitude_wave_sweep_final_v1/` | unknown | unknown | peak phase speed は高精度整合 | finest-grid reference は厳密解ではない | EOS/solver/probe logic 変更時 | Stage 5 反射波の入射波定義に再利用 |
 | V-005 | Mesh/CFL sweep | mesh refinement / CFL comparison | COMPLETE | 50 / 100 / 200 / 400 cells と CFL 比較で shape metrics 改善 | `src/liquid_gas_transient/cases/coolprop_small_amplitude_wave_sweep.py` | `tests/test_coolprop_small_amplitude_wave_sweep.py` | sweep metrics JSON, summary CSV, PNG, per-run directories | unknown | unknown | `monotonic_shape_improvement_with_phase_speed_at_error_floor` | formal acceptance threshold は未設定 | numerical scheme 変更時 | 200/400 セル再実行要否を判断 |
 | V-006 | Formal verification report and manifest | formal report / SHA256 manifest | COMPLETE | report と manifest で artifact を追跡可能 | `src/liquid_gas_transient/reporting_wave_verification.py` | `tests/test_wave_verification_report.py` | formal report and manifest under local artifact path | unknown | unknown | generated | artifact directory may be local/gitignored | report schema/artifact 変更時 | Stage 5 artifact manifest 方針を仕様化 |
 | V-007 | CI-light numerical regression | 軽量 numerical regression | COMPLETE | `profile_name = coolprop_wave_ci_light_v1`, n=50, CFL=0.5, pass | `src/liquid_gas_transient/verification/wave_regression.py` | `tests/test_coolprop_wave_regression.py` | CI-light regression JSON | unknown | unknown | `overall_regression_pass = True`, `failed_checks = []` | n=50 は design mesh ではない。threshold speed は diagnostic-only | regression band/profile 変更時 | Stage 5 用 regression profile は別途仕様化 |
 | V-008 | GitHub Actions CoolProp regression | CI 上の CoolProp 8.0.0 skipなし regression | COMPLETE | CoolProp 8.0.0 を install し numerical regression を skip なしで実行 | `.github/workflows/coolprop-wave-regression.yml` | GitHub Actions `CoolProp Wave Regression` | uploaded JUnit and regression JSON artifacts | unknown | unknown | introduced and reported pass | GitHub run ID/date はここでは unknown | workflow/dependency/backend version 変更時 | Stage 5 仕様後に CI 対象を検討 |
-| V-009 | Closed/rigid-wall boundary reflection | 剛壁境界での反射 | IN_PROGRESS | 理論反射係数、到達時刻、評価 window と整合 | `boundary_telemetry.py`, `boundary_history.py`, `verification/boundary_reflection.py`; solver update path unchanged | `tests/test_boundary_reflection_helpers.py` | specification and `boundary_history_v1` CSV schema | 2026-07-12 synthetic pure tests | PR-A branch | helper tests pass; baseline reflection not executed | rigid wall is infinite-impedance idealization; no baseline coefficient result yet | Stage 5 runner/telemetry変更時 | PR-B baseline rigid-wall runner |
-| V-010 | Fixed-pressure boundary reflection | 固定圧力境界での反射 | IN_PROGRESS | 理論反射係数、到達時刻、評価 window と整合 | same PR-A telemetry/helpers; solver update path unchanged | `tests/test_boundary_reflection_helpers.py` | specification and `boundary_history_v1` CSV schema | 2026-07-12 synthetic pure tests | PR-A branch | helper tests pass; baseline reflection not executed | fixed pressure is zero-impedance idealization; real reservoirではない; CoolProp design-use未承認 | Stage 5 runner/telemetry変更時 | PR-B baseline fixed-pressure runner |
+| V-009 | Closed/rigid-wall boundary reflection | 剛壁境界での反射 | IN_PROGRESS | 理論反射係数、到達時刻、評価 window と整合 | PR-A telemetry/helpers + `cases/coolprop_boundary_reflection.py` baseline runner; solver update path unchanged | `tests/test_boundary_reflection_helpers.py`, `tests/test_coolprop_boundary_reflection.py` | config / metrics JSON, probe history, `boundary_history_v1`, final profile, report | PR-B execution pending | PR #22 merged; PR-B branch | baseline runner implemented; result not yet accepted | infinite-impedance idealization; no formal coefficient accuracy band; CoolProp design-use未承認 | Stage 5 runner/telemetry変更時 | run/review rigid-wall baseline |
+| V-010 | Fixed-pressure boundary reflection | 固定圧力境界での反射 | IN_PROGRESS | 理論反射係数、到達時刻、評価 window と整合 | same PR-B runner with constant-pressure right boundary and PR-A telemetry | `tests/test_boundary_reflection_helpers.py`, `tests/test_coolprop_boundary_reflection.py` | config / metrics JSON, probe history, `boundary_history_v1`, final profile, report | PR-B execution pending | PR #22 merged; PR-B branch | baseline runner implemented; result not yet accepted | zero-impedance idealization; real reservoirではない; no formal coefficient accuracy band; CoolProp design-use未承認 | Stage 5 runner/telemetry変更時 | run/review fixed-pressure baseline |
 | V-011 | Controlled pressure step | 制御された圧力 step 応答 | PLANNED | 線形音響応答と境界条件仕様に整合 | unknown | unknown | unknown | unknown | unknown | not started | 未仕様化 | boundary operation 仕様時 | Stage 6 で仕様化 |
 | V-012 | Single-phase valve operation | 単相 valve 操作 | PLANNED | valve law と単相保存性の確認 | unknown | unknown | unknown | unknown | unknown | not started | 未仕様化 | valve model 変更時 | Stage 6 で仕様化 |
 | V-013 | MOC / linear acoustic cross-verification | MOC または線形音響との cross verification | PLANNED | FVM 到達時刻・波形が verification solver/解析解と整合 | unknown | unknown | unknown | unknown | unknown | not started | MOC は主ソルバではない | cross-verification 追加時 | Stage 7 で仕様化 |
@@ -148,7 +149,7 @@ CI regression:
 | Stage 2 静止一様状態・保存性 | COMPLETE | 静止一様状態保持と budget residual を確認 | uniform-state multistep preservation を確認 | physical Validation ではない |
 | Stage 3 単相小振幅進行波 | COMPLETE | CoolProp 音速、到達時刻、単相維持、保存性を確認 | Gaussian incident wave verification 完了 | finest-grid reference は厳密解ではない |
 | Stage 4 mesh/CFL・report・regression・CI | COMPLETE | sweep、formal report、manifest、CI-light、GitHub Actions が揃う | 50/100/200/400 セル、CFL 比較、CI regression 導入 | formal acceptance threshold は未設定 |
-| Stage 5 単相境界反射 | IN_PROGRESS | 剛壁・固定圧力境界の理論反射係数、到達時刻、評価 window、metrics、artifact、停止条件が仕様化・実行される | specification + PR-A telemetry/helpers/schema + synthetic pure tests | baseline rigid-wall / fixed-pressure observation runner は未実装・未実行 |
+| Stage 5 単相境界反射 | IN_PROGRESS | 剛壁・固定圧力境界の理論反射係数、到達時刻、評価 window、metrics、artifact、停止条件が仕様化・実行される | specification + PR-A telemetry/helpers/schema + PR-B baseline runner/tests under review | focused CoolProp execution、baseline result review、mesh/CFL observation は未完了 |
 | Stage 6 単相境界操作・部品 | PLANNED | controlled pressure step と valve operation の単相 verification が揃う | 未着手 | 境界入力・部品モデルの期待挙動未整理 |
 | Stage 7 MOC / 解析解との cross verification | PLANNED | MOC verification solver または線形音響解析解との cross check が揃う | 未着手 | MOC は主ソルバではなく verification 用に限定する |
 | Stage 8 相変化の最小問題 | PLANNED | 飽和近傍物性 sanity と最小相変化問題が定義される | 未着手 | reference/backend と acceptance gate 未定 |
@@ -192,3 +193,4 @@ CI regression:
 - Stage 5 boundary reflection specification added.
 - V-009 / V-010 moved to IN_PROGRESS.
 - Stage 5 PR-A added boundary numerical-flux telemetry, diagnostic face definition, characteristic/timing/window helpers, CSV schema, and synthetic pure tests without changing solver physics.
+- Stage 5 PR-A merged as PR #22; PR-B baseline rigid-wall / fixed-pressure observation runner and CoolProp smoke tests started.
