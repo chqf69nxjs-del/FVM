@@ -104,3 +104,44 @@ def test_boundary_reflection_baseline_observation_and_artifacts(
     assert "physical_validation: false" in report
     assert "design_use_acceptance: false" in report
     assert "not_approved_for_design_use" in report
+
+
+
+def test_fixed_pressure_boundary_velocity_amplification_is_dimensionless() -> None:
+    from liquid_gas_transient.cases.coolprop_boundary_reflection import (
+        _boundary_metrics,
+    )
+
+    rho0 = 1000.0
+    c0 = 500.0
+    pressure_amplitude = 1000.0
+    incident_velocity = pressure_amplitude / (rho0 * c0)
+
+    cfg = CoolPropBoundaryReflectionConfig(
+        boundary_kind="fixed_pressure",
+        pressure_amplitude_pa=pressure_amplitude,
+    )
+    rows = [
+        {
+            "side": "right",
+            "flux_evaluation_time_s": 0.1,
+            "boundary_face_pressure_pa": cfg.initial_pressure_pa,
+            "boundary_face_velocity_m_s": 2.0 * incident_velocity,
+            "numerical_mass_flux_kg_m2_s": 0.0,
+            "numerical_energy_flux_w_m2": 0.0,
+            "dt_s": 1.0e-3,
+            "numerical_mass_flow_rate_kg_s": 0.0,
+            "numerical_energy_flow_rate_w": 0.0,
+        }
+    ]
+
+    metrics = _boundary_metrics(cfg, rows, rho0, c0)
+
+    assert math.isclose(
+        metrics["theoretical_incident_velocity_amplitude_m_s"],
+        incident_velocity,
+    )
+    assert math.isclose(
+        metrics["boundary_velocity_amplification_ratio"],
+        2.0,
+    )

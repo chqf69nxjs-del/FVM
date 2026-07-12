@@ -277,6 +277,7 @@ def _probe_metrics(
 def _boundary_metrics(
     cfg: CoolPropBoundaryReflectionConfig,
     boundary_rows: list[dict[str, Any]],
+    rho0: float,
     c0: float,
 ) -> dict[str, Any]:
     timing = theoretical_reflection_timing(
@@ -299,6 +300,9 @@ def _boundary_metrics(
     mass_flux = np.asarray([row["numerical_mass_flux_kg_m2_s"] for row in rows], dtype=float)
     energy_flux = np.asarray([row["numerical_energy_flux_w_m2"] for row in rows], dtype=float)
     dt = np.asarray([row["dt_s"] for row in rows], dtype=float)
+    incident_velocity_amplitude = (
+        cfg.pressure_amplitude_pa / acoustic_impedance(rho0, c0)
+    )
     common: dict[str, Any] = {
         "boundary_window_sample_count": len(rows),
         "max_abs_boundary_velocity_m_s": float(np.max(np.abs(velocity))),
@@ -323,7 +327,12 @@ def _boundary_metrics(
             {
                 "max_abs_fixed_pressure_residual_pa": float(np.max(np.abs(residual))),
                 "normalized_fixed_pressure_residual": float(np.max(np.abs(residual)) / cfg.pressure_amplitude_pa),
-                "max_abs_boundary_velocity_amplification_ratio": float(np.max(np.abs(velocity)) / (cfg.pressure_amplitude_pa / 1.0)),
+                "theoretical_incident_velocity_amplitude_m_s": float(
+                    incident_velocity_amplitude
+                ),
+                "boundary_velocity_amplification_ratio": float(
+                    np.max(np.abs(velocity)) / incident_velocity_amplitude
+                ),
             }
         )
     return common
@@ -511,7 +520,9 @@ def run_coolprop_boundary_reflection(
         "probe_sample_count": len(probe_history),
         "boundary_history_row_count": len(boundary_history),
         "probes": probes_metrics,
-        "boundary_metrics": _boundary_metrics(cfg, boundary_history, c0),
+        "boundary_metrics": _boundary_metrics(
+            cfg, boundary_history, rho0, c0
+        ),
         "reflection_detected": reflection_detected,
         "expected_sign_observed": sign_ok,
         "evaluation_window_contaminated": contamination,
