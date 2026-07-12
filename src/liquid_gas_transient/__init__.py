@@ -11,6 +11,7 @@ from .solver import FvmSolver
 from .budget import BoundaryBudgetTracker
 from .pump import ConstantPumpHead, LinearPumpTrip, PumpInletBoundary
 from .properties import CoolPropCO2Backend, SurrogateLCO2PropertyBackend
+from .reporting_wave_verification import generate_coolprop_small_amplitude_wave_verification_report
 
 __all__ = [
     "NumericsConfig",
@@ -30,6 +31,7 @@ __all__ = [
     "PumpInletBoundary",
     "CoolPropCO2Backend",
     "SurrogateLCO2PropertyBackend",
+    "generate_coolprop_small_amplitude_wave_verification_report",
 ]
 
 __version__ = '0.5.1'
