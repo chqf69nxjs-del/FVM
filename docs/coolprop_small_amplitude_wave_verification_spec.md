@@ -449,3 +449,20 @@ The lightweight wave regression path is a software / numerical regression guard,
 - If the numerical scheme is intentionally changed, baseline updates require technical review.
 - Do not widen the regression band only to make CI pass.
 - Required metadata for this path remains: `regression_evaluation = true`, `software_path_verification = true`, `numerical_verification = true`, `design_evaluation = false`, `acceptance_gate = false`, `validation = false`, and `property_backend_design_status = not_approved_for_design_use`.
+
+## 12. GitHub Actions CI-light regression job
+
+`CoolProp Wave Regression` workflow は、GitHub Actions 上で `CoolProp==8.0.0` を明示的に導入し、Python 3.11 の専用 job `coolprop-wave-regression` として `coolprop_wave_ci_light_v1` を実行する。trigger は `pull_request`、`main` branch への `push`、および `workflow_dispatch` である。
+
+CI では `n_cells = 50`、`CFL = 0.5` の CI-light profile のみを実行し、200 / 400-cell sweep や comparison plot 生成は自動実行しない。`tests/test_coolprop_wave_regression.py -m numerical_regression --strict-markers` の JUnit XML を読み直し、testcase が 1 件以上、かつ skipped / failures / errors が 0 件であることを確認するため、CoolProp installed-only test が skip された場合は job failure として扱う。
+
+pytest 後に `run_coolprop_wave_regression(...)` を実行し、`artifacts/coolprop-wave-regression/coolprop_wave_ci_light_regression_result.json` を保存する。JUnit XML と regression JSON は workflow artifact として 14 日間保存する。
+
+この CI 結果は software / numerical regression guard であり、physical Validation、design acceptance、CoolProp backend の design-use 承認、または design mesh 決定ではない。`property_backend_design_status` は `not_approved_for_design_use` のままとする。
+
+ローカル再現コマンド例:
+
+```bash
+PYTHONPATH=src python -m pytest -q -m numerical_regression
+PYTHONPATH=src python -c "from liquid_gas_transient.verification import run_coolprop_wave_regression; r = run_coolprop_wave_regression(output_path='verification/coolprop_wave_ci_light_regression_result.json'); print(r['overall_regression_pass'])"
+```
