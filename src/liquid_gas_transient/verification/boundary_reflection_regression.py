@@ -105,7 +105,12 @@ def evaluate_boundary_reflection_regression(
         require_abs_le("reflection_magnitude_error", magnitude_error, lim.max_rigid_reflection_magnitude_error)
         require_abs_le("arrival_relative_error", arrival_error, lim.max_rigid_arrival_relative_error)
         require_abs_le("reflected_characteristic_leakage_ratio", leakage, lim.max_reflected_characteristic_leakage_ratio)
-        require_abs_le("normalized_wall_velocity_residual", boundary_metrics.get("max_abs_wall_velocity_m_s"), lim.max_normalized_wall_velocity_residual)
+        wall_velocity = boundary_metrics.get("max_abs_wall_velocity_m_s")
+        scale = None
+        if _finite(case_metrics.get("pressure_amplitude_pa")) and _finite(case_metrics.get("Z0")) and float(case_metrics["Z0"]) > 0.0:
+            scale = float(case_metrics["pressure_amplitude_pa"]) / float(case_metrics["Z0"])
+        normalized_wall = float(wall_velocity) / scale if _finite(wall_velocity) and scale and scale > 0.0 else None
+        require_abs_le("normalized_wall_velocity_residual", normalized_wall, lim.max_normalized_wall_velocity_residual)
     elif boundary == "fixed_pressure":
         require_abs_le("reflection_magnitude_error", magnitude_error, lim.max_fixed_reflection_magnitude_error)
         require_abs_le("arrival_relative_error", arrival_error, lim.max_fixed_arrival_relative_error)
