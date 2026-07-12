@@ -176,15 +176,82 @@ def cross_correlation_lag(t1: np.ndarray, y1: np.ndarray, t2: np.ndarray, y2: np
     return {"cross_correlation_detected": True, "cross_correlation_lag_s": float(lags[idx]), "cross_correlation_coefficient": float(corr[idx])}
 
 
-def apparent_order(dx: list[float], errors: list[float], floor: float = 1e-14) -> dict[str, Any]:
-    if len(dx) < 3 or len(errors) < 3:
-        return {"apparent_order": None, "reason": "insufficient_data"}
-    d = np.asarray(dx[:3], dtype=float); e = np.asarray(errors[:3], dtype=float)
-    if not (np.all(np.isfinite(d)) and np.all(np.isfinite(e)) and np.all(e > floor)):
-        return {"apparent_order": None, "reason": "nonfinite_or_too_small_error"}
-    if not (d[0] > d[1] > d[2] and e[0] >= e[1] >= e[2]):
-        return {"apparent_order": None, "reason": "not_monotonic"}
-    return {"apparent_order": float(math.log(e[0] / e[1]) / math.log(d[0] / d[1])), "reason": None}
+def local_order_estimates(dx: list[float], errors: list[float], floor: float = 1e-12) -> dict[str, Any]:
+    """Return pairwise local order estimates when errors improve monotonically.
+
+    These are diagnostic local estimates, not formal convergence orders.
+    """
+    if len(dx) < 2 or len(errors) < 2:
+        return {"local_order_estimates": [], "reason": "insufficient_data"}
+    d = np.asarray(dx, dtype=float); e = np.asarray(errors, dtype=float)
+    if not (np.all(np.isfinite(d)) and np.all(np.isfinite(e)) and np.all(d > 0.0)):
+        return {"local_order_estimates": [], "reason": "nonfinite"}
+    if not all(d[i] > d[i + 1] for i in range(len(d) - 1)):
+        return {"local_order_estimates": [], "reason": "dx_not_coarse_to_fine"}
+    if not (np.all(e > floor) and all(e[i] >= e[i + 1] for i in range(len(e) - 1))):
+        return {"local_order_estimates": [], "reason": "not_monotonic_or_at_floor"}
+    orders = [float(math.log(e[i] / e[i + 1]) / math.log(d[i] / d[i + 1])) for i in range(len(e) - 1)]
+    return {"local_order_estimates": orders, "reason": None}
+
+
+def apparent_order(dx: list[float], errors: list[float], floor: float = 1e-12) -> dict[str, Any]:
+    loc = local_order_estimates(dx[:3], errors[:3], floor=floor)
+    if not loc["local_order_estimates"]:
+        return {"apparent_order": None, "reason": loc["reason"]}
+    return {"apparent_order": loc["local_order_estimates"][0], "reason": None}
+
+
+def convergence_by_metric(mesh_rows: list[dict[str, Any]], speed_error_floor: float = 1e-4) -> dict[str, Any]:
+    rows = sorted(mesh_rows, key=lambda r: r["dx_m"], reverse=True)
+    dx = [float(r["dx_m"]) for r in rows]
+    def vals(key: str) -> list[float]:
+        return [float(r[key]) for r in rows if r.get(key) is not None and np.isfinite(float(r[key]))]
+    def monotone_decreasing(v: list[float]) -> bool:
+        return len(v) >= 3 and all(v[i] >= v[i + 1] for i in range(len(v) - 1))
+    def monotone_increasing(v: list[float]) -> bool:
+        return len(v) >= 3 and all(v[i] <= v[i + 1] for i in range(len(v) - 1))
+    out: dict[str, Any] = {}
+    specs = {
+        "threshold_speed": ("interprobe_threshold_speed_relative_error", "decrease", False),
+        "peak_speed": ("interprobe_peak_speed_relative_error", "decrease", True),
+        "centroid_speed": ("interprobe_centroid_speed_relative_error", "decrease", False),
+        "cross_correlation_speed": ("interprobe_cross_correlation_speed_relative_error", "decrease", False),
+        "amplitude_retention": ("primary_probe_amplitude_ratio_L2", "increase", False),
+        "fwhm_broadening": ("primary_probe_fwhm_broadening_ratio_L2", "decrease", False),
+        "waveform_difference": ("waveform_l2_difference_vs_finest", "decrease", False),
+    }
+    for name, (key, direction, floor_metric) in specs.items():
+        v = vals(key)
+        if len(v) < 3:
+            status = "insufficient_data"
+        elif floor_metric and max(abs(x) for x in v) <= speed_error_floor:
+            status = "at_error_floor_or_non_monotonic"
+        elif direction == "increase":
+            status = "monotonic_improvement" if monotone_increasing(v) else "non_monotonic"
+        else:
+            status = "monotonic_improvement_against_finest_reference" if name == "waveform_difference" and monotone_decreasing(v) else ("monotonic_improvement" if monotone_decreasing(v) else "non_monotonic")
+        out[name] = {"classification": status, "values": v}
+    order_inputs = {
+        "threshold_speed": vals("interprobe_threshold_speed_relative_error"),
+        "centroid_speed": vals("interprobe_centroid_speed_relative_error"),
+        "cross_correlation_speed": vals("interprobe_cross_correlation_speed_relative_error"),
+        "amplitude_retention": [1.0 - x for x in vals("primary_probe_amplitude_ratio_L2")],
+        "fwhm_broadening": [x - 1.0 for x in vals("primary_probe_fwhm_broadening_ratio_L2")],
+    }
+    for name, e in order_inputs.items():
+        out[name]["optional_local_orders"] = local_order_estimates(dx[:len(e)], e)
+    out["peak_speed"]["apparent_order"] = None
+    improving = [out[k]["classification"].startswith("monotonic_improvement") for k in ("threshold_speed", "centroid_speed", "cross_correlation_speed", "amplitude_retention", "fwhm_broadening", "waveform_difference")]
+    if len(rows) < 3:
+        overall = "insufficient_data"
+    elif all(improving) and out["peak_speed"]["classification"] == "at_error_floor_or_non_monotonic":
+        overall = "monotonic_shape_improvement_with_phase_speed_at_error_floor"
+    elif any(improving):
+        overall = "mixed_convergence_behavior"
+    else:
+        overall = "no_clear_convergence"
+    out["overall_classification"] = overall
+    return out
 
 
 def _run_plan(cfg: CoolPropSmallAmplitudeWaveSweepConfig) -> list[dict[str, Any]]:
@@ -272,8 +339,16 @@ def _write_report(path: Path, cfg: CoolPropSmallAmplitudeWaveSweepConfig, metric
     lines = ["# CoolProp small-amplitude wave sweep report", "", "これは software / numerical verification 用の観察整理です。design-use評価、Validation、CoolProp backend承認、HEM/HNE/DVCM評価ではありません。", "", "## 全実行条件"]
     for r in metrics["summary_rows"]:
         lines.append(f"- {r['case_id']}: n_cells={r['n_cells']}, CFL={r['cfl']}, pass={r['overall_observation_run_pass']}")
-    lines += ["", "## 波速評価法", "- threshold: local peak 50% rising crossing。波形拡散による早着biasを受ける可能性があります。", "- peak: incident window内の最大圧力時刻。振幅低下の追跡に有用です。", "- centroid: 正のdelta pressure面積の時間重心。波形全体の位相を見ます。", "- cross-correlation: primary probe 2点の波形ラグ。最細meshは真値ではなく finest-grid comparison reference です。", "", "## 観察区分", f"- overall_sweep_execution_pass: {metrics['overall_sweep_execution_pass']}", f"- numerical_convergence_observation: {metrics['numerical_convergence_observation']}", "", "正式な wave-speed / arrival / amplitude acceptance threshold は未設定です。次PRで実測結果を確認して判断してください。"]
+    lines += ["", "## 波速評価法", "- Primary phase-speed metric: interprobe peak speed。", "- Supporting metrics: centroid speed / cross-correlation speed。", "- Diagnostic metric: threshold crossing speed。波形拡散による早着biasを受ける可能性があります。", "- Shape metrics: amplitude ratio / FWHM broadening / waveform difference vs finest-grid reference。", "", "## waveform difference の注意", f"- finest-grid comparison reference: {metrics.get('finest_grid_comparison_reference')}。これは厳密解ではありません。", "- 参照run自身の waveform difference = 0 は定義による0であり、真の誤差0ではありません。", "", "## local order estimate", "- 3 mesh levelsのみのlocal estimateであり、formal order verificationではありません。", "", "## CFL比較", "- CFLが小さい方を正解扱いせず、波形保持・計算時間・budget residualの観察として分離します。", "", "## regression候補（正式acceptance gateではない）", "- mesh refinementでamplitude ratio増加、FWHM broadening減少、centroid/correlation speed error減少、waveform difference減少、single-phase / budget健全性維持。", "", "## 観察区分", f"- overall_sweep_execution_pass: {metrics['overall_sweep_execution_pass']}", f"- numerical_convergence_observation: {metrics['numerical_convergence_observation']}", "", "正式な wave-speed / arrival / amplitude acceptance threshold は未設定です。次PRで実測結果を確認して判断してください。"]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _mesh_summary_rows(runs: list[dict[str, Any]], cfg: CoolPropSmallAmplitudeWaveSweepConfig) -> list[dict[str, Any]]:
+    return sorted(
+        [r["summary_row"] for r in runs if "mesh_comparison" in r["comparison_groups"] and r["metrics"].get("cfl_target") == cfg.mesh_comparison_cfl],
+        key=lambda row: row["dx_m"],
+        reverse=True,
+    )
 
 
 def _generate_comparison_plots(output_dir: Path, cfg: CoolPropSmallAmplitudeWaveSweepConfig, runs: list[dict[str, Any]]) -> tuple[list[str], dict[str, str]]:
@@ -284,6 +359,7 @@ def _generate_comparison_plots(output_dir: Path, cfg: CoolPropSmallAmplitudeWave
     except Exception as exc:
         return generated, {"matplotlib_import": str(exc)}
     def save(name: str, fig: Any) -> None:
+        fig.text(0.01, 0.01, "not approved for design use", fontsize=8)
         fig.tight_layout(); fig.savefig(output_dir / name, dpi=150, bbox_inches="tight"); generated.append(name)
     def plot_overlay(name: str, selected: list[dict[str, Any]], title: str) -> None:
         fig = Figure(figsize=(8,5)); FigureCanvasAgg(fig); ax = fig.subplots(); pn = _probe_name(cfg.comparison_reference_probe_fraction)
@@ -292,19 +368,36 @@ def _generate_comparison_plots(output_dir: Path, cfg: CoolPropSmallAmplitudeWave
             ax.plot([r["time_s"] for r in rows], [r["delta_pressure_pa"] for r in rows], label=run["case_id"])
         ax.set_title(title); ax.set_xlabel("time [s]"); ax.set_ylabel("delta pressure [Pa]"); ax.grid(True, alpha=.3); ax.legend(fontsize=8); save(name, fig)
     jobs = [
-        ("mesh_overlay_L2", lambda: plot_overlay(f"{cfg.case_name}_mesh_overlay_L2.png", [r for r in runs if "mesh_comparison" in r["comparison_groups"]], "Mesh overlay at L/2 (absolute time)")),
-        ("cfl_overlay_L2", lambda: plot_overlay(f"{cfg.case_name}_cfl_overlay_L2.png", [r for r in runs if "cfl_comparison" in r["comparison_groups"]], "CFL overlay at L/2 (absolute time)")),
+        ("mesh_overlay_L2", lambda: plot_overlay(f"{cfg.case_name}_mesh_overlay_L2.png", [r for r in runs if "mesh_comparison" in r["comparison_groups"] and r["metrics"].get("cfl_target") == cfg.mesh_comparison_cfl], "Mesh comparison overlay at L/2")),
+        ("cfl_overlay_L2", lambda: plot_overlay(f"{cfg.case_name}_cfl_overlay_L2.png", [r for r in runs if "cfl_comparison" in r["comparison_groups"]], "CFL comparison overlay at L/2")),
     ]
     for key, job in jobs:
         try: job()
         except Exception as exc: errors[key] = str(exc)
-    for key, col, ylabel in [("speed_error_vs_dx", "interprobe_peak_speed_relative_error", "relative error"), ("amplitude_ratio_vs_dx", "primary_probe_amplitude_ratio_L2", "amplitude ratio"), ("fwhm_broadening_vs_dx", "primary_probe_fwhm_broadening_ratio_L2", "FWHM broadening"), ("waveform_difference_vs_dx", "waveform_l2_difference_vs_finest", "L2 difference")]:
+    mesh_rows = _mesh_summary_rows(runs, cfg)
+    try:
+        fig = Figure(figsize=(7,5)); FigureCanvasAgg(fig); ax = fig.subplots()
+        speed_cols = [("threshold", "interprobe_threshold_speed_relative_error"), ("peak", "interprobe_peak_speed_relative_error"), ("centroid", "interprobe_centroid_speed_relative_error"), ("cross-correlation", "interprobe_cross_correlation_speed_relative_error")]
+        for label, col in speed_cols:
+            rows = [r for r in mesh_rows if r.get(col) is not None]
+            ax.plot([r["dx_m"] for r in rows], [r[col] for r in rows], marker="o", label=label)
+        ax.set_yscale("log"); ax.set_title("Speed error vs dx (mesh comparison only)"); ax.set_xlabel("dx [m] (coarse to fine)"); ax.set_ylabel("relative speed error [-]"); ax.grid(True, alpha=.3, which="both"); ax.legend(fontsize=8); save(f"{cfg.case_name}_speed_error_vs_dx.png", fig)
+    except Exception as exc: errors["speed_error_vs_dx"] = str(exc)
+    plot_specs = [
+        ("amplitude_ratio_vs_dx", "primary_probe_amplitude_ratio_L2", "Amplitude ratio vs dx (mesh comparison only)", "amplitude ratio at L/2 [-]"),
+        ("fwhm_broadening_vs_dx", "primary_probe_fwhm_broadening_ratio_L2", "FWHM broadening vs dx (mesh comparison only)", "FWHM broadening ratio at L/2 [-]"),
+        ("waveform_difference_vs_dx", "waveform_l2_difference_vs_finest", "Waveform difference vs finest-grid comparison reference", "L2 difference vs n={} CFL={} reference [-]".format(max(cfg.mesh_cells), cfg.mesh_comparison_cfl)),
+    ]
+    for key, col, title, ylabel in plot_specs:
         try:
-            fig = Figure(figsize=(7,5)); FigureCanvasAgg(fig); ax = fig.subplots(); rows = [r for r in [run["summary_row"] for run in runs] if r.get(col) not in (None, "")]
-            ax.plot([r["dx_m"] for r in rows], [r[col] for r in rows], marker="o"); ax.set_title(key); ax.set_xlabel("dx [m]"); ax.set_ylabel(ylabel); ax.grid(True, alpha=.3); save(f"{cfg.case_name}_{key}.png", fig)
+            fig = Figure(figsize=(7,5)); FigureCanvasAgg(fig); ax = fig.subplots(); rows = [r for r in mesh_rows if r.get(col) is not None]
+            ax.plot([r["dx_m"] for r in rows], [r[col] for r in rows], marker="o", label="mesh comparison")
+            ax.set_title(title); ax.set_xlabel("dx [m] (coarse to fine)"); ax.set_ylabel(ylabel); ax.grid(True, alpha=.3); ax.legend(fontsize=8)
+            if key == "waveform_difference_vs_dx":
+                ax.text(0.02, 0.95, "finest-grid reference is not an exact solution", transform=ax.transAxes, va="top", fontsize=8)
+            save(f"{cfg.case_name}_{key}.png", fig)
         except Exception as exc: errors[key] = str(exc)
     return generated, errors
-
 
 def run_coolprop_small_amplitude_wave_sweep(output_dir: Path | str | None = None, config: CoolPropSmallAmplitudeWaveSweepConfig | None = None) -> dict[str, Any]:
     cfg = config or CoolPropSmallAmplitudeWaveSweepConfig()
@@ -345,10 +438,11 @@ def run_coolprop_small_amplitude_wave_sweep(output_dir: Path | str | None = None
     rows = [_summary_row(r["metrics"], cfg) for r in runs]
     for run, row in zip(runs, rows): run["summary_row"] = row
     all_pass = all(r["metrics"].get("completed_without_exception") and r["metrics"].get("overall_observation_run_pass") and not r["metrics"].get("missing_budget_fields") for r in runs)
-    mesh_rows = [row for row in rows if row["cfl"] == cfg.mesh_comparison_cfl]
+    mesh_rows = sorted([row for row in rows if row["cfl"] == cfg.mesh_comparison_cfl and "mesh_comparison" in next((rr["comparison_groups"] for rr in runs if rr["case_id"] == row["case_id"]), [])], key=lambda r: r["dx_m"], reverse=True)
     order = apparent_order([r["dx_m"] for r in mesh_rows], [r.get("interprobe_peak_speed_relative_error") or math.nan for r in mesh_rows])
-    obs = "run_failure" if not all_pass else ("monotonic_improvement_observed" if order.get("apparent_order") is not None else "mixed_convergence_behavior")
-    metrics = {"case_name": cfg.case_name, "output_version": cfg.output_version, "design_evaluation": False, "property_backend_design_status": "not_approved_for_design_use", "run_plan": _run_plan(cfg), "runs": [r["metrics"] for r in runs], "summary_rows": rows, "apparent_order_peak_speed": order, "overall_sweep_execution_pass": bool(all_pass), "numerical_convergence_observation": obs, "finest_grid_comparison_reference": case_id_for(max(cfg.mesh_cells), cfg.mesh_comparison_cfl)}
+    by_metric = convergence_by_metric(mesh_rows)
+    obs = "run_failure" if not all_pass else by_metric["overall_classification"]
+    metrics = {"case_name": cfg.case_name, "output_version": cfg.output_version, "design_evaluation": False, "property_backend_design_status": "not_approved_for_design_use", "run_plan": _run_plan(cfg), "runs": [r["metrics"] for r in runs], "summary_rows": rows, "mesh_comparison_summary_rows": mesh_rows, "apparent_order_peak_speed": order, "convergence_by_metric": by_metric, "overall_sweep_execution_pass": bool(all_pass), "numerical_convergence_observation": obs, "finest_grid_comparison_reference": case_id_for(max(cfg.mesh_cells), cfg.mesh_comparison_cfl), "finest_grid_comparison_reference_note": "The finest-grid reference is selected from the largest mesh_cells entry at mesh_comparison_cfl and is not an exact solution."}
     stem = cfg.case_name
     (base / f"{stem}_sweep_config.json").write_text(json.dumps(asdict(cfg), ensure_ascii=False, indent=2)+"\n", encoding="utf-8")
     _write_summary_csv(base / f"{stem}_sweep_summary.csv", rows)
@@ -361,4 +455,4 @@ def run_coolprop_small_amplitude_wave_sweep(output_dir: Path | str | None = None
     return metrics
 
 
-__all__ = ["CoolPropSmallAmplitudeWaveSweepConfig", "run_coolprop_small_amplitude_wave_sweep", "gaussian_fwhm_m", "temporal_fwhm", "temporal_centroid", "common_time_grid", "cross_correlation_lag", "apparent_order", "case_id_for"]
+__all__ = ["CoolPropSmallAmplitudeWaveSweepConfig", "run_coolprop_small_amplitude_wave_sweep", "gaussian_fwhm_m", "temporal_fwhm", "temporal_centroid", "common_time_grid", "cross_correlation_lag", "apparent_order", "local_order_estimates", "convergence_by_metric", "case_id_for"]

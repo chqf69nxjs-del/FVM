@@ -377,3 +377,20 @@ t_end   = min(t_reflect(xp) - 3*sigma/c0, global_t_end_s)
 `matplotlib` が利用できない環境では、run、metrics、probe history、final profile、Markdown report は成功させ、図生成だけを skip する。`metrics.json` には `plotting_available`、`generated_plots`、`figure_paths` を記録する。
 
 これらの図は software / numerical verification の解釈補助であり、CoolProp backend の design-use 承認、Validation、HEM/HNE/DVCM 評価、Case C 本体の設計評価を意味しない。local peak 50% crossing に基づく到達検出は、振幅減衰と波形変形の影響を受けるため、正式な acceptance threshold はまだ固定しない。
+
+## 11. Mesh/CFL sweep 表示と収束観察の整理
+
+Mesh comparison の dx 図は、`comparison_groups` に `mesh_comparison` を含み、かつ `cfl == mesh_comparison_cfl` の run だけを対象にする。CFL comparison run は別 table / overlay に分離し、同じ `dx` の点を同一折れ線に混入させない。
+
+`speed_error_vs_dx` は以下を別系列として表示する。
+
+- threshold speed error: diagnostic metric
+- peak speed error: primary phase-speed metric
+- centroid speed error: supporting metric
+- cross-correlation speed error: supporting metric
+
+Peak speed error は error floor 近傍になり得るため、log scale または別表現で可読性を確保する。`waveform_difference_vs_dx` は finest-grid comparison reference との差であり、参照 run の 0 は定義による 0 で、厳密解に対する真の誤差 0 ではない。
+
+`convergence_by_metric` は単一の混合判定だけにせず、指標別に `monotonic_improvement`、`at_error_floor_or_non_monotonic`、`monotonic_improvement_against_finest_reference` などを記録する。3 mesh levels から計算する `local_order_estimates` は formal order verification ではなく、局所的な診断値として扱う。正式な design-use / acceptance threshold はまだ設定しない。
+
+Optional high-cost observation として `mesh_cells=(50, 100, 200, 400)` を指定できる。finest-grid comparison reference は指定された `mesh_cells` の最大値かつ `mesh_comparison_cfl` の run から自動選択する。

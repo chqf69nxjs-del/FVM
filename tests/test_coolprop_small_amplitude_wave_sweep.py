@@ -110,3 +110,43 @@ def test_comparison_plotting_headless(tmp_path):
     assert metrics["generated_plots"]
     for name in metrics["generated_plots"]:
         assert (tmp_path / name).exists()
+
+
+def _sample_mesh_rows():
+    return [
+        {"case_id":"n0050_cfl050","dx_m":2.0,"cfl":0.5,"interprobe_threshold_speed_relative_error":0.08612,"interprobe_peak_speed_relative_error":8.43e-6,"interprobe_centroid_speed_relative_error":0.02937,"interprobe_cross_correlation_speed_relative_error":0.04550,"primary_probe_amplitude_ratio_L2":0.45538,"primary_probe_fwhm_broadening_ratio_L2":2.19006,"waveform_l2_difference_vs_finest":0.35697},
+        {"case_id":"n0100_cfl050","dx_m":1.0,"cfl":0.5,"interprobe_threshold_speed_relative_error":0.05485,"interprobe_peak_speed_relative_error":1.11e-5,"interprobe_centroid_speed_relative_error":0.01223,"interprobe_cross_correlation_speed_relative_error":0.02292,"primary_probe_amplitude_ratio_L2":0.58462,"primary_probe_fwhm_broadening_ratio_L2":1.70842,"waveform_l2_difference_vs_finest":0.16886},
+        {"case_id":"n0200_cfl050","dx_m":0.5,"cfl":0.5,"interprobe_threshold_speed_relative_error":0.03347,"interprobe_peak_speed_relative_error":1.38e-5,"interprobe_centroid_speed_relative_error":0.00375,"interprobe_cross_correlation_speed_relative_error":0.00917,"primary_probe_amplitude_ratio_L2":0.71301,"primary_probe_fwhm_broadening_ratio_L2":1.40170,"waveform_l2_difference_vs_finest":0.0},
+    ]
+
+
+def test_local_order_and_convergence_by_metric_peak_floor():
+    from liquid_gas_transient.cases.coolprop_small_amplitude_wave_sweep import convergence_by_metric, local_order_estimates
+    loc = local_order_estimates([2.0, 1.0, 0.5], [0.08, 0.04, 0.01])
+    assert loc["local_order_estimates"] == pytest.approx([1.0, 2.0])
+    conv = convergence_by_metric(_sample_mesh_rows())
+    assert conv["threshold_speed"]["classification"] == "monotonic_improvement"
+    assert conv["peak_speed"]["classification"] == "at_error_floor_or_non_monotonic"
+    assert conv["peak_speed"]["apparent_order"] is None
+    assert conv["waveform_difference"]["classification"] == "monotonic_improvement_against_finest_reference"
+    assert conv["overall_classification"] == "monotonic_shape_improvement_with_phase_speed_at_error_floor"
+
+
+def test_optional_400_cell_config_and_finest_reference_plan():
+    cfg = CoolPropSmallAmplitudeWaveSweepConfig(mesh_cells=(50, 100, 200, 400), cfl_values=(0.25, 0.5), mesh_comparison_cfl=0.5, cfl_comparison_n_cells=100)
+    from liquid_gas_transient.cases.coolprop_small_amplitude_wave_sweep import _run_plan
+    plan = _run_plan(cfg)
+    assert any(p["n_cells"] == 400 and p["cfl"] == 0.5 and "mesh_comparison" in p["comparison_groups"] for p in plan)
+    assert case_id_for(max(cfg.mesh_cells), cfg.mesh_comparison_cfl) == "n0400_cfl050"
+
+
+def test_mesh_plot_rows_exclude_cfl_comparison_duplicate_dx():
+    from liquid_gas_transient.cases.coolprop_small_amplitude_wave_sweep import _mesh_summary_rows
+    cfg = CoolPropSmallAmplitudeWaveSweepConfig(mesh_cells=(50, 100, 200), cfl_values=(0.25, 0.5), mesh_comparison_cfl=0.5, cfl_comparison_n_cells=100)
+    runs = []
+    for row in _sample_mesh_rows():
+        runs.append({"case_id": row["case_id"], "comparison_groups": ["mesh_comparison"] + (["cfl_comparison"] if row["case_id"] == "n0100_cfl050" else []), "metrics": {"cfl_target": row["cfl"]}, "summary_row": row})
+    runs.append({"case_id":"n0100_cfl025", "comparison_groups":["cfl_comparison"], "metrics":{"cfl_target":0.25}, "summary_row": {**_sample_mesh_rows()[1], "case_id":"n0100_cfl025", "cfl":0.25}})
+    rows = _mesh_summary_rows(runs, cfg)
+    assert [r["case_id"] for r in rows] == ["n0050_cfl050", "n0100_cfl050", "n0200_cfl050"]
+    assert [r["dx_m"] for r in rows].count(1.0) == 1
