@@ -14,3 +14,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+markers = [
+    "coolprop_installed: tests requiring the optional CoolProp package",
+    "numerical_regression: lightweight numerical regression tests that run solver paths",
+]

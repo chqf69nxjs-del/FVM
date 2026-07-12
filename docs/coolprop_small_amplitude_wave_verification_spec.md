@@ -411,3 +411,41 @@ python -c "from liquid_gas_transient.reporting_wave_verification import generate
 - `coolprop_small_amplitude_wave_verification_manifest_v1.json`: 主要artifactの relative path、file size、SHA256 manifest。
 
 この report generator は CoolProp run や FVM 計算を再実行しない。`property_backend_design_status = not_approved_for_design_use`、`design_evaluation = false`、`acceptance_gate = false`、`validation = false` を冒頭と結論に残し、n=400を厳密解ではなく finest-grid comparison reference として扱う。
+
+## CI light regression hierarchy
+
+The lightweight wave regression path is a software / numerical regression guard, not a design-use acceptance gate. Passing this guard does not approve the CoolProp backend for design use, does not complete physical Validation, and does not define n=50 as a design mesh.
+
+### Level 1: CI light
+
+- Mesh: `n=50` only.
+- CFL: `0.5`.
+- Intended cadence: every relevant code change that could affect the CoolProp single-phase wave software path.
+- Scope: execution metadata, solver health, conservative budget residuals, single-phase preservation, and broad wave-behavior checks.
+- Plotting: disabled.
+- Regression bands are intentionally broad and must not be interpreted as accuracy acceptance criteria.
+- Threshold-crossing speed is recorded as diagnostic only because waveform diffusion can bias the crossing time.
+
+### Level 2: Standard numerical verification
+
+- Meshes: `n=50/100/200`.
+- Intended cadence: manual checks or release-preparation checks.
+- Scope: mesh-trend observation for phase-speed, amplitude retention, FWHM broadening, waveform difference, conservation budgets, and single-phase status.
+- The result remains software / numerical verification evidence, not design-use approval.
+
+### Level 3: High-cost observation
+
+- Meshes: `n=50/100/200/400`.
+- Intended cadence: numerical-method changes or formal technical report updates.
+- Scope: high-cost observation and report refresh using the finest-grid comparison reference.
+- The finest grid is not an exact solution and must not be promoted to a physical Validation reference without separate review.
+
+### Regression guardrails
+
+- Do not call `regression_pass` a `validation_pass`.
+- Do not display the CoolProp backend as design-use approved from these checks.
+- Do not treat `n=50` as a design mesh.
+- Do not claim that peak speed alone verifies all physics.
+- If the numerical scheme is intentionally changed, baseline updates require technical review.
+- Do not widen the regression band only to make CI pass.
+- Required metadata for this path remains: `regression_evaluation = true`, `software_path_verification = true`, `numerical_verification = true`, `design_evaluation = false`, `acceptance_gate = false`, `validation = false`, and `property_backend_design_status = not_approved_for_design_use`.
