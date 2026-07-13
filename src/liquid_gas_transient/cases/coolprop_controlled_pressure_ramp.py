@@ -109,6 +109,23 @@ def requested_boundary_pressure_pa(
     )
 
 
+def schedule_pressure_tolerance_pa(
+    config: CoolPropControlledPressureRampConfig,
+) -> float:
+    """Return an 8-ULP tolerance for independent schedule checks.
+
+    This is a floating-point roundoff tolerance, not a physical,
+    numerical-accuracy, regression, or design-use acceptance band.
+    """
+
+    scale_pa = max(
+        abs(config.initial_pressure_pa),
+        abs(config.final_pressure_pa),
+        1.0,
+    )
+    return float(8.0 * np.spacing(scale_pa))
+
+
 def _coolprop_version() -> str:
     try:
         return importlib.metadata.version("CoolProp")
@@ -324,6 +341,7 @@ def run_coolprop_controlled_pressure_ramp(
         (abs(float(row["schedule_pressure_error_pa"])) for row in schedule_history),
         default=0.0,
     )
+    schedule_tolerance_pa = schedule_pressure_tolerance_pa(cfg)
     metrics: dict[str, Any] = {
         "case_name": cfg.case_name,
         "output_version": cfg.output_version,
@@ -374,6 +392,7 @@ def run_coolprop_controlled_pressure_ramp(
         "probe_sample_count": len(probe_history),
         "boundary_history_row_count": len(boundary_history),
         "max_abs_schedule_pressure_error_pa": float(max_schedule_error),
+        "schedule_pressure_tolerance_pa": float(schedule_tolerance_pa),
     }
     metrics["overall_observation_execution_pass"] = bool(all([
         metrics["reached_target_time"],
@@ -385,7 +404,8 @@ def run_coolprop_controlled_pressure_ramp(
         metrics["positive_sound_speed"],
         metrics["remained_single_phase"],
         not metrics["missing_budget_fields"],
-        metrics["max_abs_schedule_pressure_error_pa"] <= 1.0e-12,
+        metrics["max_abs_schedule_pressure_error_pa"]
+        <= metrics["schedule_pressure_tolerance_pa"],
     ]))
 
     if output_dir is not None:

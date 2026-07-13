@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from liquid_gas_transient.cases.coolprop_controlled_pressure_ramp import (
@@ -10,6 +11,7 @@ from liquid_gas_transient.cases.coolprop_controlled_pressure_ramp import (
     build_coolprop_controlled_pressure_ramp_solver,
     pressure_ramp_fraction,
     requested_boundary_pressure_pa,
+    schedule_pressure_tolerance_pa,
     run_coolprop_controlled_pressure_ramp,
 )
 from liquid_gas_transient.properties import coolprop_available
@@ -56,6 +58,19 @@ def test_config_rejects_non_small_or_invalid_pressure_change() -> None:
         )
 
 
+def test_schedule_pressure_tolerance_is_machine_scale() -> None:
+    cfg = CoolPropControlledPressureRampConfig()
+
+    one_ulp = float(
+        np.spacing(max(cfg.initial_pressure_pa, cfg.final_pressure_pa))
+    )
+    tolerance = schedule_pressure_tolerance_pa(cfg)
+
+    assert tolerance == pytest.approx(8.0 * one_ulp)
+    assert tolerance >= one_ulp
+    assert tolerance < 1.0e-6
+
+
 @pytest.mark.coolprop_installed
 @pytest.mark.skipif(not coolprop_available(), reason="CoolProp is not installed")
 def test_controlled_pressure_ramp_solver_builds() -> None:
@@ -92,7 +107,10 @@ def test_controlled_pressure_ramp_mini_run_and_artifacts(tmp_path: Path) -> None
     assert metrics["reached_target_time"] is True
     assert metrics["all_history_finite"] is True
     assert metrics["remained_single_phase"] is True
-    assert metrics["max_abs_schedule_pressure_error_pa"] <= 1.0e-12
+    assert (
+        metrics["max_abs_schedule_pressure_error_pa"]
+        <= metrics["schedule_pressure_tolerance_pa"]
+    )
     assert metrics["property_backend_design_status"] == "not_approved_for_design_use"
     assert metrics["validation"] is False
     assert metrics["overall_observation_execution_pass"] is True
