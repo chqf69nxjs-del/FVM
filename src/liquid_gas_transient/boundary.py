@@ -192,7 +192,27 @@ class PressureTankBoundary:
         else:  # pragma: no cover - protected by __post_init__
             raise ValueError(f"unknown velocity_policy: {self.velocity_policy}")
 
-        ghost = self._with_density_velocity(interior, rho_b, u_b)
+        e_b: float | None = None
+        internal_energy_from_pressure = getattr(
+            eos,
+            "internal_energy_from_pressure",
+            None,
+        )
+        if callable(internal_energy_from_pressure):
+            e_b = float(
+                np.asarray(internal_energy_from_pressure(p_b))
+            )
+            if not np.isfinite(e_b):
+                raise ValueError(
+                    "pressure tank boundary produced non-finite internal energy"
+                )
+
+        ghost = self._with_density_velocity(
+            interior,
+            rho_b,
+            u_b,
+            e_new=e_b,
+        )
         if side == "left":
             for j in range(n_ghost):
                 U_ext[j] = ghost
@@ -230,16 +250,26 @@ class PressureTankBoundary:
                 U_ext[-n_ghost + j] = src
 
     @staticmethod
-    def _with_density_velocity(U: np.ndarray, rho_new: float, u_new: float) -> np.ndarray:
+    def _with_density_velocity(
+        U: np.ndarray,
+        rho_new: float,
+        u_new: float,
+        *,
+        e_new: float | None = None,
+    ) -> np.ndarray:
         rho_old = U[IDX_RHO]
         E_old = U[IDX_RHOE] / rho_old
         u_old = U[IDX_MOM] / rho_old
         e_old = E_old - 0.5 * u_old**2
+        e_target = e_old if e_new is None else float(e_new)
+        if not np.isfinite(e_target):
+            raise ValueError("boundary internal energy must be finite")
+
         xv = U[IDX_RHO_XV] / rho_old
         out = U.copy()
         out[IDX_RHO] = rho_new
         out[IDX_MOM] = rho_new * u_new
-        out[IDX_RHOE] = rho_new * (e_old + 0.5 * u_new**2)
+        out[IDX_RHOE] = rho_new * (e_target + 0.5 * u_new**2)
         out[IDX_RHO_XV] = rho_new * xv
         return out
 

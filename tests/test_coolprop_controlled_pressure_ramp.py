@@ -91,6 +91,41 @@ def test_controlled_pressure_ramp_solver_builds() -> None:
 
 @pytest.mark.coolprop_installed
 @pytest.mark.skipif(not coolprop_available(), reason="CoolProp is not installed")
+def test_controlled_pressure_ramp_right_ghost_matches_requested_pressure() -> None:
+    cfg = CoolPropControlledPressureRampConfig()
+    solver, _ = build_coolprop_controlled_pressure_ramp_solver(cfg)
+
+    times = (
+        0.0,
+        cfg.ramp_start_s,
+        cfg.ramp_start_s + 0.5 * cfg.ramp_duration_s,
+        cfg.ramp_end_s,
+    )
+
+    for time_s in times:
+        extended = solver.extend_with_ghosts(time_s)
+        right_ghost_index = solver.n_ghost + solver.grid.n_cells
+        ghost = solver.eos.primitive_from_conserved(
+            extended[right_ghost_index][np.newaxis, :]
+        )
+
+        ghost_pressure_pa = float(np.asarray(ghost.p)[0])
+        ghost_temperature_K = float(np.asarray(ghost.T)[0])
+        requested_pressure_pa = requested_boundary_pressure_pa(time_s, cfg)
+
+        assert ghost_pressure_pa == pytest.approx(
+            requested_pressure_pa,
+            rel=1.0e-9,
+            abs=1.0e-3,
+        )
+        assert ghost_temperature_K == pytest.approx(
+            cfg.initial_temperature_K,
+            abs=1.0e-7,
+        )
+
+
+@pytest.mark.coolprop_installed
+@pytest.mark.skipif(not coolprop_available(), reason="CoolProp is not installed")
 def test_controlled_pressure_ramp_mini_run_and_artifacts(tmp_path: Path) -> None:
     cfg = CoolPropControlledPressureRampConfig(
         n_cells=20,
