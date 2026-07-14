@@ -12,11 +12,11 @@
 - Stage 6 specificationはPR #29でマージ済み。merge commitは`1ea2147868e07b594774ee14656c7320ea6b9864`。
 - V-011 controlled pressure ramp baselineはPR #30でマージ済み。merge commitは`aad43b0b12fec57ad52ea70cf3cd1ce05f076623`。
 - V-011 mesh/CFL observationはPR #31でマージ済み。merge commitは`90a58548158cd22c78daf7b1667707d3c99b3a62`。
-- V-011 formalizationはPR #32で最終化済み。CI-light、regression bands、formal report/manifest、GitHub Actions、backend traceability、collision-free CFL case IDsを整備した。
+- V-011 formalizationはPR #32でマージ済み。merge commitは`83bcf51322e88707835f4c500c012aa49ef5602b`。
+- V-011はbaseline、telemetry、可視化、p10/p50/p90 analysis、front fit、mesh/CFL、CI-light、GitHub Actions、backend traceability、formal report、SHA256 manifestまで整備し、`COMPLETE`。
 - 既存46成果物へのbackend identity backfillとformal report/manifest再生成は完了。solver rerunおよび数値結果変更はない。
 - 最終Windows全体testは`223 passed in 78.44s`。
 - 最新GitHub ActionsではCoolProp Controlled Pressure Ramp Regression、CoolProp Wave Regression、CoolProp Boundary Reflection Regressionがすべてsuccess。
-- V-011の残作業はPR #32のマージと、マージコミットを本書へ記録することのみ。
 - V-012 single-phase valve operationは仕様済みだがrunner未実装。
 - Stage 6全体は`IN_PROGRESS`。
 - `property_backend_design_status = not_approved_for_design_use`。
@@ -24,8 +24,10 @@
 
 ### 直近完了段階
 
-V-011 controlled pressure ramp final artifact refresh
+V-011 controlled pressure ramp formalization
 
+- V-011 status: `COMPLETE`
+- PR #32 merge commit: `83bcf51322e88707835f4c500c012aa49ef5602b`
 - Windows focused tests: `28 passed in 10.91s`
 - Windows full repository tests: `223 passed in 78.44s`
 - CI-light direct run: `overall_regression_pass = True`、`failed_checks = []`
@@ -40,14 +42,14 @@ V-011 controlled pressure ramp final artifact refresh
 
 ### 次の段階
 
-V-011 PR #32 merge、続いてV-012 internal valve operation
+V-012 single-phase internal valve operation
 
 ### Next action
 
-1. PR #32をreadyへ移してマージする。
-2. PR #32 merge commitを本書とStage 6 execution logへ記録する。
-3. V-011を`COMPLETE`へ確定する。
-4. V-012 specification-first implementationを開始する。
+1. V-012 specificationと既存Kv/interface surveyを再確認する。
+2. small controlled internal-valve operationの入力、理論応答、telemetry、停止条件を固定する。
+3. baseline runnerを小規模PRで実装する。
+4. visualization、mesh/CFL、CI、formalizationを順次追加する。
 
 Stage 6ではESD event、pump trip、flashing、two-phase dischargeへ進まない。これらは後続stageで扱う。
 
@@ -86,8 +88,8 @@ git switch -c <new-work-branch>
 | V-008 | GitHub Actions CoolProp | COMPLETE | CoolProp 8.0.0 skipなし | design-use approvalではない | workflow変更時に再実行 |
 | V-009 | Rigid-wall reflection | COMPLETE | sign、flux、mesh、CI、formal artifacts | ideal wall | boundary変更時に再実行 |
 | V-010 | Fixed-pressure reflection | COMPLETE | sign、exchange、mesh、CI、formal artifacts | ideal pressure boundary | boundary変更時に再実行 |
-| V-011 | Controlled pressure step/ramp | IN_PROGRESS | baseline、4-run sweep、CI-light、223 tests、GitHub Actions、traceable formal report/manifest | PR #32 mergeのみ未完了 | PR #32 merge後にCOMPLETE |
-| V-012 | Single-phase valve operation | IN_PROGRESS | Stage 6 specification追加、既存Kv/interface survey | operation runner未実装 | V-011完了後にinternal valve runner |
+| V-011 | Controlled pressure step/ramp | COMPLETE | baseline、4-run sweep、CI-light、223 tests、GitHub Actions、traceable formal report/manifest | physical Validationとdesign-use approvalは別問題 | solver/BC変更時に再実行 |
+| V-012 | Single-phase valve operation | IN_PROGRESS | Stage 6 specification追加、既存Kv/interface survey | operation runner未実装 | internal valve baseline runner |
 | V-013 | MOC / linear-acoustic cross verification | PLANNED | 未着手 | MOCはverification用限定 | Stage 7 |
 | V-014 | Saturation-near property sanity | PLANNED | 未着手 | reference gate未定 | Stage 8前 |
 | V-015 | HEM minimum phase-change problem | PLANNED | 未着手 | Validation未実施 | Stage 8/9 |
@@ -166,7 +168,7 @@ Observed mesh trends at `CFL=0.5`:
 - wave-speed error was non-monotonic but the 200-cell result remained better than the 50-cell result
 - automated overall classification: `mixed_behavior`
 
-Formalization components in PR #32:
+Formalization components:
 
 - `coolprop_controlled_pressure_ramp_ci_light_v1`
 - broad software/numerical regression limits
@@ -195,7 +197,7 @@ A 400-cell run is not added because the primary timing、phase、amplitude trend
 | Stage | Status | Remaining work |
 |---|---|---|
 | Stage 1〜5 | COMPLETE | Validation / design-use approvalは別問題 |
-| Stage 6 | IN_PROGRESS | PR #32 merge、V-012 internal valve operation |
+| Stage 6 | IN_PROGRESS | V-012 internal valve operation |
 | Stage 7 | PLANNED | MOC / linear acoustic cross verification |
 | Stage 8 | PLANNED | saturation-near property sanity、minimum phase-change |
 | Stage 9 | PLANNED | HEM/HNE、ESD/pump trip |
@@ -224,4 +226,4 @@ verification関連PRでは同じPR内で本書を更新する。status、artifac
 - PR #29: Stage 6 specificationをマージ。merge commit `1ea2147868e07b594774ee14656c7320ea6b9864`。
 - PR #30: V-011 baseline observationをマージ。merge commit `aad43b0b12fec57ad52ea70cf3cd1ce05f076623`。
 - PR #31: V-011 mesh/CFL observationをマージ。merge commit `90a58548158cd22c78daf7b1667707d3c99b3a62`。
-- PR #32: V-011 formalization最終化。223 tests pass、3 workflows success、final traceable artifacts生成済み。merge待ち。
+- PR #32: V-011 formalizationをマージ。merge commit `83bcf51322e88707835f4c500c012aa49ef5602b`。V-011を`COMPLETE`へ移行。
