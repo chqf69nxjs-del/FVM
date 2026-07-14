@@ -326,6 +326,23 @@ class LCO2PropertyEOSAdapter:
         T_arr = np.full_like(p_arr, self.boundary_temperature_K, dtype=float)
         return self.backend.density_from_pT(p_arr, T_arr)  # type: ignore[attr-defined]
 
+    def internal_energy_from_pressure(
+        self,
+        p: np.ndarray | float,
+    ) -> np.ndarray:
+        """Return boundary internal energy at the configured boundary temperature.
+
+        This closes the p-T thermodynamic state used by real-fluid pressure
+        boundaries. It is a software consistency path, not a physical tank model.
+        """
+
+        p_arr = np.asarray(p, dtype=float)
+        T_arr = np.full_like(p_arr, self.boundary_temperature_K, dtype=float)
+        return self.backend.internal_energy_from_pT(  # type: ignore[attr-defined]
+            p_arr,
+            T_arr,
+        )
+
     def equilibrium_vapor_mass_fraction(self, prim: PrimitiveState) -> np.ndarray:
         prop = self.backend.state_from_rho_e(prim.rho, prim.e)  # type: ignore[attr-defined]
         return np.clip(np.asarray(prop.quality, dtype=float), 0.0, 1.0)
