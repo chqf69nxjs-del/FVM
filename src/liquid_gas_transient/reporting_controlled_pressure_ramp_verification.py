@@ -1,7 +1,7 @@
 """Formal V-011 controlled-pressure-ramp report and SHA256 manifest generator.
 
-The generator reads existing PR #31 sweep artifacts. It does not rerun CoolProp,
-modify the solver, or define physical Validation or design-use acceptance.
+The generator reads existing sweep artifacts. It does not rerun CoolProp, modify
+the solver, or define physical Validation or design-use acceptance.
 """
 from __future__ import annotations
 
@@ -124,6 +124,14 @@ def _markdown_table(headers: list[str], rows: list[list[Any]]) -> list[str]:
     return lines
 
 
+def _single_identity(rows: list[dict[str, Any]], key: str) -> str:
+    values = {str(row.get(key, "")).strip() for row in rows}
+    values.discard("")
+    if len(values) != 1:
+        raise ValueError(f"inconsistent or missing {key} across sweep rows: {sorted(values)}")
+    return next(iter(values))
+
+
 def generate_controlled_pressure_ramp_verification_report(
     *,
     sweep_metrics_path: str | Path,
@@ -144,21 +152,34 @@ def generate_controlled_pressure_ramp_verification_report(
 
     metrics = _read_json(metrics_path)
     rows: list[dict[str, Any]] = list(_read_csv(summary_path))
-    design_status = metrics.get("property_backend_design_status")
-    if design_status != "not_approved_for_design_use":
-        raise ValueError("unexpected property_backend_design_status")
     if int(metrics.get("unique_run_count", 0)) != 4 or len(rows) != 4:
         raise ValueError("formal V-011 report requires four unique sweep rows")
     if metrics.get("overall_sweep_execution_pass") is not True:
         raise ValueError("formal V-011 report requires a successful sweep")
 
+    backend_name = _single_identity(rows, "property_backend_name")
+    source_coolprop_version = _single_identity(rows, "coolprop_version")
+    design_status = _single_identity(rows, "property_backend_design_status")
+    if design_status != "not_approved_for_design_use":
+        raise ValueError("unexpected property_backend_design_status")
+    for key, expected in (
+        ("property_backend_name", backend_name),
+        ("coolprop_version", source_coolprop_version),
+        ("property_backend_design_status", design_status),
+    ):
+        if str(metrics.get(key, "")).strip() != expected:
+            raise ValueError(f"sweep metrics and summary disagree on {key}")
+
+    generator_coolprop_version = _package_version("CoolProp")
     limits = ControlledPressureRampRegressionLimits()
     provenance = {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "python_version": sys.version.split()[0],
         "platform": platform.platform(),
         "numpy_version": _package_version("numpy"),
-        "coolprop_version": _package_version("CoolProp"),
+        "source_property_backend_name": backend_name,
+        "source_coolprop_version": source_coolprop_version,
+        "generator_coolprop_version": generator_coolprop_version,
         "matplotlib_version": _package_version("matplotlib"),
         "git_commit_hash": _git_commit(),
         "source_metrics_path": str(metrics_path),
@@ -195,46 +216,40 @@ def generate_controlled_pressure_ramp_verification_report(
         "## 3. Traceability",
         "",
         f"- output version: {_fmt(metrics.get('output_version'))}",
+        f"- property backend name: {backend_name}",
+        f"- source CoolProp version: {source_coolprop_version}",
+        f"- report-generator CoolProp version: {generator_coolprop_version}",
         f"- property backend status: {design_status}",
         f"- Python: {provenance['python_version']}",
         f"- platform: {provenance['platform']}",
         f"- NumPy: {provenance['numpy_version']}",
-        f"- CoolProp: {provenance['coolprop_version']}",
         f"- git commit: {provenance['git_commit_hash']}",
         "",
         "## 4. Mesh observation",
         "",
     ]
 
-    mesh_table: list[list[Any]] = []
-    for row in _sorted_rows(rows, "mesh_comparison"):
-        mesh_table.append(
-            [
-                row.get("n_cells"),
-                row.get("dx_m"),
-                row.get("cfl"),
-                row.get("wave_speed_relative_error"),
-                1.0e3 * float(row["abs_common_boundary_launch_delay_s"]),
-                row.get("p10_arrival_relative_error_mean"),
-                row.get("p50_arrival_relative_error_mean"),
-                row.get("p90_arrival_relative_error_mean"),
-                row.get("primary_peak_amplitude_error"),
-                row.get("primary_opposite_direction_leakage_ratio"),
-            ]
-        )
+    mesh_table = [
+        [
+            row.get("n_cells"),
+            row.get("dx_m"),
+            row.get("cfl"),
+            row.get("wave_speed_relative_error"),
+            1.0e3 * float(row["abs_common_boundary_launch_delay_s"]),
+            row.get("p10_arrival_relative_error_mean"),
+            row.get("p50_arrival_relative_error_mean"),
+            row.get("p90_arrival_relative_error_mean"),
+            row.get("primary_peak_amplitude_error"),
+            row.get("primary_opposite_direction_leakage_ratio"),
+        ]
+        for row in _sorted_rows(rows, "mesh_comparison")
+    ]
     lines.extend(
         _markdown_table(
             [
-                "n",
-                "dx [m]",
-                "CFL",
-                "wave-speed rel. err",
-                "common offset [ms]",
-                "mean p10 err",
-                "mean p50 err",
-                "mean p90 err",
-                "amplitude err",
-                "opposite leakage",
+                "n", "dx [m]", "CFL", "wave-speed rel. err",
+                "common offset [ms]", "mean p10 err", "mean p50 err",
+                "mean p90 err", "amplitude err", "opposite leakage",
             ],
             mesh_table,
         )
@@ -254,31 +269,23 @@ def generate_controlled_pressure_ramp_verification_report(
         ]
     )
 
-    cfl_table: list[list[Any]] = []
-    for row in _sorted_rows(rows, "cfl_comparison"):
-        cfl_table.append(
-            [
-                row.get("n_cells"),
-                row.get("cfl"),
-                row.get("wave_speed_relative_error"),
-                1.0e3 * float(row["abs_common_boundary_launch_delay_s"]),
-                row.get("p10_arrival_relative_error_mean"),
-                row.get("p50_arrival_relative_error_mean"),
-                row.get("p90_arrival_relative_error_mean"),
-                row.get("total_case_runtime_s"),
-            ]
-        )
+    cfl_table = [
+        [
+            row.get("n_cells"), row.get("cfl"),
+            row.get("wave_speed_relative_error"),
+            1.0e3 * float(row["abs_common_boundary_launch_delay_s"]),
+            row.get("p10_arrival_relative_error_mean"),
+            row.get("p50_arrival_relative_error_mean"),
+            row.get("p90_arrival_relative_error_mean"),
+            row.get("total_case_runtime_s"),
+        ]
+        for row in _sorted_rows(rows, "cfl_comparison")
+    ]
     lines.extend(
         _markdown_table(
             [
-                "n",
-                "CFL",
-                "wave-speed rel. err",
-                "common offset [ms]",
-                "mean p10 err",
-                "mean p50 err",
-                "mean p90 err",
-                "runtime [s]",
+                "n", "CFL", "wave-speed rel. err", "common offset [ms]",
+                "mean p10 err", "mean p50 err", "mean p90 err", "runtime [s]",
             ],
             cfl_table,
         )
@@ -293,28 +300,21 @@ def generate_controlled_pressure_ramp_verification_report(
         ]
     )
 
-    budget_rows: list[list[Any]] = []
-    for row in rows:
-        budget_rows.append(
-            [
-                row.get("case_id"),
-                row.get("budget_mass_relative_residual"),
-                row.get("energy_budget_balance_relative_residual"),
-                row.get("phase_vapor_mass_balance_relative_residual"),
-                row.get("remained_single_phase"),
-                row.get("execution_pass"),
-                row.get("analysis_complete"),
-            ]
-        )
+    budget_rows = [
+        [
+            row.get("case_id"), row.get("budget_mass_relative_residual"),
+            row.get("energy_budget_balance_relative_residual"),
+            row.get("phase_vapor_mass_balance_relative_residual"),
+            row.get("remained_single_phase"), row.get("execution_pass"),
+            row.get("analysis_complete"),
+        ]
+        for row in rows
+    ]
     lines.extend(
         _markdown_table(
             [
-                "case",
-                "mass rel. residual",
-                "energy rel. residual",
-                "vapor-mass rel. residual",
-                "single phase",
-                "execution pass",
+                "case", "mass rel. residual", "energy rel. residual",
+                "vapor-mass rel. residual", "single phase", "execution pass",
                 "analysis complete",
             ],
             budget_rows,
@@ -378,6 +378,9 @@ def generate_controlled_pressure_ramp_verification_report(
         "manifest_version": MANIFEST_VERSION,
         "report_version": REPORT_VERSION,
         "generated_at_utc": provenance["generated_at_utc"],
+        "property_backend_name": backend_name,
+        "source_coolprop_version": source_coolprop_version,
+        "generator_coolprop_version": generator_coolprop_version,
         "property_backend_design_status": design_status,
         "software_path_verification": True,
         "numerical_verification": True,
@@ -387,6 +390,7 @@ def generate_controlled_pressure_ramp_verification_report(
         "artifact_root": str(root),
         "source_metrics_path": str(metrics_path),
         "source_summary_path": str(summary_path),
+        "provenance": provenance,
         "regression_limits": asdict(limits),
         "entries": entries,
     }
@@ -400,6 +404,8 @@ def generate_controlled_pressure_ramp_verification_report(
         "manifest_path": str(manifest),
         "artifact_count": len(entries),
         "report_sha256": _sha256(report_path),
+        "property_backend_name": backend_name,
+        "source_coolprop_version": source_coolprop_version,
         "property_backend_design_status": design_status,
         "overall_sweep_execution_pass": metrics.get("overall_sweep_execution_pass"),
     }
