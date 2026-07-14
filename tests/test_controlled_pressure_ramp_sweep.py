@@ -18,21 +18,23 @@ from liquid_gas_transient.cases.coolprop_controlled_pressure_ramp_sweep import (
 def test_case_id_and_unique_run_plan() -> None:
     cfg = CoolPropControlledPressureRampSweepConfig()
     plan = build_run_plan(cfg)
-
-    assert case_id_for(100, 0.5) == "n0100_cfl050"
+    assert case_id_for(100, 0.5) == "n0100_cfl0p5"
     assert len(plan) == 4
     assert len({item["case_id"] for item in plan}) == 4
-
-    shared = [
-        item
-        for item in plan
-        if item["n_cells"] == 100 and item["cfl"] == 0.5
-    ]
+    shared = [item for item in plan if item["n_cells"] == 100 and item["cfl"] == 0.5]
     assert len(shared) == 1
-    assert set(shared[0]["comparison_groups"]) == {
-        "mesh_comparison",
-        "cfl_comparison",
-    }
+    assert set(shared[0]["comparison_groups"]) == {"mesh_comparison", "cfl_comparison"}
+
+
+def test_case_id_preserves_distinct_close_cfl_values() -> None:
+    assert case_id_for(100, 0.995) != case_id_for(100, 1.0)
+    cfg = CoolPropControlledPressureRampSweepConfig(
+        cfl_values=(0.995, 1.0),
+        mesh_comparison_cfl=1.0,
+    )
+    plan = build_run_plan(cfg)
+    assert len(plan) == 4
+    assert len({item["case_id"] for item in plan}) == 4
 
 
 def test_sweep_config_rejects_invalid_plan() -> None:
@@ -47,17 +49,14 @@ def test_sweep_config_rejects_invalid_plan() -> None:
 def test_mesh_classification_reports_monotonic_improvement() -> None:
     rows = []
     for n_cells, error in ((50, 0.3), (100, 0.2), (200, 0.1)):
-        rows.append(
-            {
-                "n_cells": n_cells,
-                "wave_speed_relative_error": error,
-                "abs_common_boundary_launch_delay_s": error,
-                "p50_arrival_relative_error_mean": error,
-                "primary_peak_amplitude_error": error,
-                "primary_opposite_direction_leakage_ratio": error,
-            }
-        )
-
+        rows.append({
+            "n_cells": n_cells,
+            "wave_speed_relative_error": error,
+            "abs_common_boundary_launch_delay_s": error,
+            "p50_arrival_relative_error_mean": error,
+            "primary_peak_amplitude_error": error,
+            "primary_opposite_direction_leakage_ratio": error,
+        })
     result = classify_mesh_observation(rows)
     assert result["overall_classification"] == "monotonic_improvement"
 
@@ -84,15 +83,12 @@ def test_sweep_runner_writes_summary_without_duplicate_runs(
             "budget_mass_relative_residual": 1.0e-13,
             "energy_budget_balance_relative_residual": -1.0e-13,
             "phase_vapor_mass_balance_relative_residual": 0.0,
+            "property_backend_name": "coolprop_co2",
+            "coolprop_version": "8.0.0",
             "property_backend_design_status": "not_approved_for_design_use",
         }
 
-    def fake_analysis(
-        output_dir: Path | str,
-        case_name: str,
-        *,
-        generate_plots: bool,
-    ) -> dict:
+    def fake_analysis(output_dir: Path | str, case_name: str, *, generate_plots: bool) -> dict:
         del output_dir, generate_plots
         analysis_calls.append(case_name)
         n_cells, cfl = run_data[case_name]
@@ -100,26 +96,19 @@ def test_sweep_runner_writes_summary_without_duplicate_runs(
         cfl_error = 0.001 * cfl
         observations = []
         for fraction in (0.25, 0.50, 0.75):
-            observations.append(
-                {
-                    "probe_name": f"x_over_L_{fraction:g}",
-                    "peak_amplitude_ratio": 1.0 - mesh_error,
-                    "final_amplitude_ratio": 1.0 - mesh_error,
-                    "opposite_direction_leakage_ratio": mesh_error * 1.0e-3,
-                    "linear_velocity_relative_error": mesh_error,
-                    "p10_arrival_relative_error": mesh_error + cfl_error,
-                    "p50_arrival_relative_error": mesh_error + cfl_error,
-                    "p90_arrival_relative_error": mesh_error + cfl_error,
-                }
-            )
+            observations.append({
+                "probe_name": f"x_over_L_{fraction:g}",
+                "peak_amplitude_ratio": 1.0 - mesh_error,
+                "final_amplitude_ratio": 1.0 - mesh_error,
+                "opposite_direction_leakage_ratio": mesh_error * 1.0e-3,
+                "linear_velocity_relative_error": mesh_error,
+                "p10_arrival_relative_error": mesh_error + cfl_error,
+                "p50_arrival_relative_error": mesh_error + cfl_error,
+                "p90_arrival_relative_error": mesh_error + cfl_error,
+            })
         return {"probe_observations": observations}
 
-    def fake_front_fit(
-        output_dir: Path | str,
-        case_name: str,
-        *,
-        generate_plots: bool,
-    ) -> dict:
+    def fake_front_fit(output_dir: Path | str, case_name: str, *, generate_plots: bool) -> dict:
         del output_dir, generate_plots
         fit_calls.append(case_name)
         n_cells, cfl = run_data[case_name]
@@ -142,14 +131,14 @@ def test_sweep_runner_writes_summary_without_duplicate_runs(
     monkeypatch.setattr(sweep, "run_controlled_pressure_ramp_analysis", fake_analysis)
     monkeypatch.setattr(sweep, "run_controlled_pressure_ramp_front_fit", fake_front_fit)
 
-    cfg = CoolPropControlledPressureRampSweepConfig(
-        generate_comparison_plots=False
-    )
+    cfg = CoolPropControlledPressureRampSweepConfig(generate_comparison_plots=False)
     metrics = run_coolprop_controlled_pressure_ramp_sweep(tmp_path, cfg)
 
     assert metrics["unique_run_count"] == 4
     assert metrics["overall_sweep_execution_pass"] is True
     assert metrics["formal_accuracy_threshold_applied"] is False
+    assert metrics["property_backend_name"] == "coolprop_co2"
+    assert metrics["coolprop_version"] == "8.0.0"
     assert metrics["property_backend_design_status"] == "not_approved_for_design_use"
     assert metrics["mesh_observation"]["overall_classification"] == "monotonic_improvement"
     assert len(metrics["cfl_observation"]["rows"]) == 2
@@ -166,17 +155,11 @@ def test_sweep_runner_writes_summary_without_duplicate_runs(
     ]
     assert all(path.is_file() and path.stat().st_size > 0 for path in expected)
 
-    with (tmp_path / f"{stem}_sweep_summary.csv").open(
-        encoding="utf-8",
-        newline="",
-    ) as stream:
+    with (tmp_path / f"{stem}_sweep_summary.csv").open(encoding="utf-8", newline="") as stream:
         rows = list(csv.DictReader(stream))
     assert len(rows) == 4
-    shared = [
-        row for row in rows if row["n_cells"] == "100" and row["cfl"] == "0.5"
-    ]
+    assert {row["property_backend_name"] for row in rows} == {"coolprop_co2"}
+    assert {row["coolprop_version"] for row in rows} == {"8.0.0"}
+    shared = [row for row in rows if row["n_cells"] == "100" and row["cfl"] == "0.5"]
     assert len(shared) == 1
-    assert set(shared[0]["comparison_groups"].split(";")) == {
-        "mesh_comparison",
-        "cfl_comparison",
-    }
+    assert set(shared[0]["comparison_groups"].split(";")) == {"mesh_comparison", "cfl_comparison"}
