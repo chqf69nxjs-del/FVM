@@ -110,5 +110,15 @@ Completion decision:
 - no regression band was relaxed
 - no numerical result changed during traceability backfill
 - all required tests, artifacts, reproducibility instructions, and CI evidence are present
-- PR #32 is ready for merge
-- V-011 becomes `COMPLETE` when PR #32 is merged and the merge commit is recorded
+
+## 2026-07-15 — V-011 COMPLETE
+
+- PR #32 was marked ready and merged.
+- merge commit: `83bcf51322e88707835f4c500c012aa49ef5602b`
+- no unresolved review thread remained at merge time
+- all three current GitHub Actions workflows completed successfully
+- `MASTER_VERIFICATION_INDEX.md` was updated on `main`
+- V-011 status changed to `COMPLETE`
+- Stage 6 remains `IN_PROGRESS` because V-012 single-phase internal-valve operation remains
+
+The V-011 completion claim is limited to software/numerical verification and regression protection. It does not establish physical Validation, equipment fidelity, a design mesh, or design-use acceptance.
