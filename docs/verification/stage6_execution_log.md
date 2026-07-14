@@ -71,11 +71,44 @@ Verification evidence before the final local artifact refresh:
 - installed CoolProp regression was not skipped
 - wave and boundary-reflection workflows also passed
 
-Final remaining action:
+## 2026-07-15 — Final V-011 artifact refresh
 
-- backfill the existing 46 local sweep artifacts
-- regenerate the formal report and SHA256 manifest
-- record the new final report SHA256
-- merge PR #32 and change V-011 to `COMPLETE`
+The existing four-run sweep artifacts were updated from their per-run metrics without rerunning the solver.
 
-No solver rerun is required. No numerical result or regression band is being changed.
+Backfill result:
+
+- `property_backend_name = coolprop_co2`
+- `coolprop_version = 8.0.0`
+- `property_backend_design_status = not_approved_for_design_use`
+- `updated_row_count = 4`
+- `solver_rerun = False`
+- `numerical_results_changed = False`
+
+Formal outputs were regenerated after traceability hardening:
+
+- artifact count: `46`
+- final report SHA256: `dadc6a4a982ff24e6cdf70b70d43ca8b6dadac71ac51c31c19ac7277828a3cf2`
+- overall sweep execution pass: `True`
+- source backend: `coolprop_co2`
+- source CoolProp version: `8.0.0`
+
+Final Windows test result:
+
+- full suite: `223 passed in 78.44s`
+
+Final GitHub Actions state before merge:
+
+- CoolProp Controlled Pressure Ramp Regression: success
+- CoolProp Wave Regression: success
+- CoolProp Boundary Reflection Regression: success
+- installed CoolProp regression was not skipped
+- CI-light artifact upload succeeded
+
+Completion decision:
+
+- no solver-physics or governing-equation change occurred
+- no regression band was relaxed
+- no numerical result changed during traceability backfill
+- all required tests, artifacts, reproducibility instructions, and CI evidence are present
+- PR #32 is ready for merge
+- V-011 becomes `COMPLETE` when PR #32 is merged and the merge commit is recorded
