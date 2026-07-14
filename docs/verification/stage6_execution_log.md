@@ -46,3 +46,36 @@ Open before V-011 completion:
 ### Initial risk assessment
 
 No critical solver or data-integrity blocker is present. The remaining V-011 items are traceability and robustness hardening. Work continues.
+
+## 2026-07-15 — V-011 formalization completion checkpoint
+
+Implemented on PR #32:
+
+- collision-free CFL tokens based on round-trip-safe float representations
+- uniqueness guard for generated sweep case IDs
+- exact `property_backend_name`, `coolprop_version`, and design-status propagation into every aggregate summary row
+- aggregate identity consistency guards across all four sweep cases
+- no-solver-rerun backfill utility for existing local sweep artifacts
+- formal report validation of metrics/summary backend identity agreement
+- formal report traceability section with source backend and source CoolProp version
+- manifest backend identity and provenance fields
+- tests for close-CFL ID separation, row inconsistency, metrics/summary mismatch, and unexpected design status
+- MASTER VERIFICATION INDEX synchronization
+
+Verification evidence before the final local artifact refresh:
+
+- Windows focused tests: `28 passed in 10.91s`
+- Windows full suite: `217 passed in 66.22s`
+- direct CI-light regression: pass, no failed checks
+- GitHub Actions controlled-pressure-ramp regression: success
+- installed CoolProp regression was not skipped
+- wave and boundary-reflection workflows also passed
+
+Final remaining action:
+
+- backfill the existing 46 local sweep artifacts
+- regenerate the formal report and SHA256 manifest
+- record the new final report SHA256
+- merge PR #32 and change V-011 to `COMPLETE`
+
+No solver rerun is required. No numerical result or regression band is being changed.
