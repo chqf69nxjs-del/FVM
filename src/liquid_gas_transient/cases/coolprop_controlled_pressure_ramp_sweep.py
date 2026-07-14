@@ -32,7 +32,7 @@ class CoolPropControlledPressureRampSweepConfig:
     """Configuration for the first V-011 mesh/CFL observation."""
 
     case_name: str = "coolprop_controlled_pressure_ramp_sweep"
-    output_version: str = "coolprop_controlled_pressure_ramp_sweep_v1"
+    output_version: str = "coolprop_controlled_pressure_ramp_sweep_v2"
     mesh_cells: tuple[int, ...] = (50, 100, 200)
     cfl_values: tuple[float, ...] = (0.25, 0.5)
     mesh_comparison_cfl: float = 0.5
@@ -78,10 +78,29 @@ class CoolPropControlledPressureRampSweepConfig:
             raise ValueError("sample_every and max_steps must be positive")
 
 
-def case_id_for(n_cells: int, cfl: float) -> str:
-    """Return a stable identifier for one unique numerical run."""
+def _cfl_token(cfl: float) -> str:
+    """Return a collision-free filesystem token for a finite CFL float.
 
-    return f"n{int(n_cells):04d}_cfl{int(round(float(cfl) * 100)):03d}"
+    Python's canonical ``repr(float)`` is round-trip safe, so distinct finite
+    float values have distinct canonical strings. Characters awkward in paths
+    are replaced without discarding precision.
+    """
+
+    value = float(cfl)
+    if not np.isfinite(value):
+        raise ValueError("cfl must be finite")
+    return (
+        repr(value)
+        .replace("-", "m")
+        .replace("+", "p")
+        .replace(".", "p")
+    )
+
+
+def case_id_for(n_cells: int, cfl: float) -> str:
+    """Return a stable collision-free identifier for one numerical run."""
+
+    return f"n{int(n_cells):04d}_cfl{_cfl_token(cfl)}"
 
 
 def build_run_plan(
@@ -108,6 +127,9 @@ def build_run_plan(
                 "comparison_groups": groups,
             }
         )
+    case_ids = [str(item["case_id"]) for item in plan]
+    if len(set(case_ids)) != len(case_ids):
+        raise RuntimeError("generated sweep case IDs are not unique")
     return plan
 
 
@@ -211,6 +233,8 @@ def _summary_row(
         "baseline_runtime_s": float(baseline_runtime_s),
         "postprocess_runtime_s": float(postprocess_runtime_s),
         "total_case_runtime_s": float(baseline_runtime_s + postprocess_runtime_s),
+        "property_backend_name": str(base_metrics["property_backend_name"]),
+        "coolprop_version": str(base_metrics["coolprop_version"]),
         "property_backend_design_status": base_metrics[
             "property_backend_design_status"
         ],
@@ -385,6 +409,8 @@ def _report_lines(
         f"- overall_sweep_execution_pass: {metrics['overall_sweep_execution_pass']}",
         f"- unique_run_count: {metrics['unique_run_count']}",
         "- formal_accuracy_threshold_applied: false",
+        f"- property_backend_name: {metrics['property_backend_name']}",
+        f"- coolprop_version: {metrics['coolprop_version']}",
         "- property_backend_design_status: not_approved_for_design_use",
         f"- mesh_classification: {metrics['mesh_observation']['overall_classification']}",
         "",
@@ -418,6 +444,14 @@ def _report_lines(
         ]
     )
     return lines
+
+
+def _single_identity(rows: list[dict[str, Any]], key: str) -> str:
+    values = {str(row.get(key, "")) for row in rows}
+    values.discard("")
+    if len(values) != 1:
+        raise ValueError(f"inconsistent or missing {key} across sweep runs: {sorted(values)}")
+    return next(iter(values))
 
 
 def run_coolprop_controlled_pressure_ramp_sweep(
@@ -482,6 +516,12 @@ def run_coolprop_controlled_pressure_ramp_sweep(
             )
         )
 
+    backend_name = _single_identity(rows, "property_backend_name")
+    coolprop_version = _single_identity(rows, "coolprop_version")
+    design_status = _single_identity(rows, "property_backend_design_status")
+    if design_status != "not_approved_for_design_use":
+        raise ValueError("unexpected property_backend_design_status")
+
     mesh_rows = [
         row for row in rows if "mesh_comparison" in row["comparison_groups"]
     ]
@@ -502,7 +542,9 @@ def run_coolprop_controlled_pressure_ramp_sweep(
         "design_evaluation": False,
         "acceptance_gate": False,
         "formal_accuracy_threshold_applied": False,
-        "property_backend_design_status": "not_approved_for_design_use",
+        "property_backend_name": backend_name,
+        "coolprop_version": coolprop_version,
+        "property_backend_design_status": design_status,
         "unique_run_count": len(plan),
         "run_plan": plan,
         "summary_rows": rows,
