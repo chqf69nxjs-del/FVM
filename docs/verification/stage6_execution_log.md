@@ -122,3 +122,39 @@ Completion decision:
 - Stage 6 remains `IN_PROGRESS` because V-012 single-phase internal-valve operation remains
 
 The V-011 completion claim is limited to software/numerical verification and regression protection. It does not establish physical Validation, equipment fidelity, a design mesh, or design-use acceptance.
+
+## 2026-07-15 — V-012 specification checkpoint
+
+The current `KvLiquidValve`, `LinearRampOpening`, `InternalValveInterface`, solver interface application path, and interface energy-budget diagnostics were reviewed before runner implementation.
+
+Current semantics retained:
+
+- single-phase incompressible-liquid Kv relation
+- explicit two-sided internal-interface fluxes
+- common mass, total-enthalpy energy, and vapor-mass flux at finite opening
+- side-specific pressure contribution to momentum flux
+- independent reflective walls at zero opening
+- Mach-based flow cap
+- hydraulic-loss proxy remains diagnostic and is not removed from `rhoE`
+
+A refined implementation-ready specification was added at:
+
+```text
+docs/verification/v012_single_phase_internal_valve_operation_spec.md
+```
+
+The primary baseline is fixed as a small `1 kPa` left-to-right pressure difference at `280 K`, a valve at `x/L = 0.5`, and a derived Kv that gives a full-open target face velocity of `1.0e-3 m/s`.
+
+The implementation sequence is fixed as:
+
+1. diagnostic-only raw/applied/capped flow telemetry and constant-opening baseline
+2. controlled opening and closing ramps with probe characteristics and visualization
+3. mesh/CFL observation, CI-light, formal report, and manifest
+
+Identified telemetry gap:
+
+- existing scalar valve diagnostics report the raw Kv flow but not the Mach-clipped flow actually applied to the interface flux
+
+This is a diagnostic gap only. Closing it must not change the applied numerical flux.
+
+No critical solver-physics or data-integrity blocker was found. No regression band is defined at this stage. V-012 remains `IN_PROGRESS`.
