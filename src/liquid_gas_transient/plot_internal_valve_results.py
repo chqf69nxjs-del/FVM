@@ -27,6 +27,7 @@ PLOT_SUFFIXES = (
     "interface_flux_consistency",
     "budget_and_health",
 )
+RATIO_PLOT_FLOOR = 1.0e-16
 
 
 def matplotlib_available() -> bool:
@@ -147,12 +148,21 @@ def _plot_valve_command_and_flow(
     )
 
     plt = _pyplot()
-    fig, axes = plt.subplots(3, 1, figsize=(10, 9), sharex=True)
+    fig, axes = plt.subplots(4, 1, figsize=(10, 11), sharex=True)
     t = _float_values(valve_rows, "time_s")
     t_flux = _float_values(flux_rows, "time_s")
 
-    axes[0].plot(t, _float_values(valve_rows, "opening_requested"), label="requested")
-    axes[0].plot(t, _float_values(valve_rows, "opening_actual"), label="actual", linestyle="--")
+    axes[0].plot(
+        t,
+        _float_values(valve_rows, "opening_requested"),
+        label="requested",
+    )
+    axes[0].plot(
+        t,
+        _float_values(valve_rows, "opening_actual"),
+        label="actual",
+        linestyle="--",
+    )
     axes[0].set_ylabel("opening [-]")
     axes[0].legend()
     axes[0].grid(True)
@@ -162,21 +172,52 @@ def _plot_valve_command_and_flow(
     axes[1].set_ylabel("valve dp [Pa]")
     axes[1].grid(True)
 
-    axes[2].plot(t, _float_values(valve_rows, "raw_target_q_m3_s"), label="raw Kv Q")
-    axes[2].plot(t, _float_values(valve_rows, "applied_q_m3_s"), label="applied Q", linestyle="--")
-    axes[2].plot(t_flux, _float_values(flux_rows, "flux_derived_q_m3_s"), label="flux-derived Q", linestyle=":")
-    axes[2].plot(t, _float_values(valve_rows, "q_limit_m3_s"), label="positive Q limit", alpha=0.7)
-    cap_times = [
-        float(row["time_s"])
-        for row in valve_rows
-        if _bool_value(row["mach_cap_active"])
-    ]
-    for cap_time in cap_times:
-        axes[2].axvline(cap_time, linewidth=0.7, alpha=0.35)
-    axes[2].set_ylabel("Q [m3/s]")
-    axes[2].set_xlabel("time [s]")
+    axes[2].plot(
+        t,
+        _float_values(valve_rows, "raw_target_q_m3_s"),
+        label="raw Kv Q",
+    )
+    axes[2].plot(
+        t,
+        _float_values(valve_rows, "applied_q_m3_s"),
+        label="applied Q",
+        linestyle="--",
+    )
+    axes[2].plot(
+        t_flux,
+        _float_values(flux_rows, "flux_derived_q_m3_s"),
+        label="flux-derived Q",
+        linestyle=":",
+    )
+    axes[2].axhline(0.0, linewidth=0.8)
+    axes[2].set_ylabel("through-flow Q [m3/s]")
     axes[2].legend()
     axes[2].grid(True)
+
+    limit_line = axes[3].plot(
+        t,
+        _float_values(valve_rows, "q_limit_m3_s"),
+        label="positive Q limit",
+    )
+    axes[3].set_ylabel("Q limit [m3/s]")
+    axes[3].set_xlabel("time [s]")
+    axes[3].grid(True)
+
+    cap_axis = axes[3].twinx()
+    cap_state = np.asarray(
+        [1.0 if _bool_value(row["mach_cap_active"]) else 0.0 for row in valve_rows]
+    )
+    cap_line = cap_axis.step(
+        t,
+        cap_state,
+        where="post",
+        label="Mach cap active",
+        linestyle="--",
+    )
+    cap_axis.set_ylabel("cap active [0/1]")
+    cap_axis.set_ylim(-0.05, 1.05)
+    lines = limit_line + list(cap_line)
+    axes[3].legend(lines, [line.get_label() for line in lines])
 
     fig.suptitle("V-012 internal valve: command and flow response")
     fig.tight_layout()
@@ -265,12 +306,29 @@ def _plot_interface_flux_consistency(
     axes[1].set_ylabel("energy mismatch\n[W/m2]")
     axes[2].plot(t, _float_values(flux_rows, "vapor_mass_flux_mismatch_kg_m2_s"))
     axes[2].set_ylabel("vapor mismatch\n[kg/m2/s]")
-    axes[3].plot(t, _float_values(flux_rows, "momentum_flux_difference_pa"), label="flux difference")
-    axes[3].plot(t, _float_values(flux_rows, "expected_momentum_flux_difference_pa"), label="p_left - p_right", linestyle="--")
-    axes[3].plot(t, _float_values(flux_rows, "momentum_difference_residual_pa"), label="residual", linestyle=":")
+    axes[3].plot(
+        t,
+        _float_values(flux_rows, "momentum_flux_difference_pa"),
+        label="flux difference",
+    )
+    axes[3].plot(
+        t,
+        _float_values(flux_rows, "expected_momentum_flux_difference_pa"),
+        label="p_left - p_right",
+        linestyle="--",
+    )
+    axes[3].plot(
+        t,
+        _float_values(flux_rows, "momentum_difference_residual_pa"),
+        label="residual",
+        linestyle=":",
+    )
     axes[3].set_ylabel("momentum / dp [Pa]")
     axes[3].legend()
-    axes[4].plot(t, _float_values(flux_rows, "flux_q_minus_applied_q_m3_s"))
+    axes[4].plot(
+        t,
+        _float_values(flux_rows, "flux_q_minus_applied_q_m3_s"),
+    )
     axes[4].set_ylabel("flux Q - applied Q\n[m3/s]")
     axes[4].set_xlabel("time [s]")
 
@@ -286,14 +344,49 @@ def _plot_interface_flux_consistency(
     return output
 
 
-def _safe_ratio(value: Any, tolerance: Any) -> float:
+def _ratio(value: Any, tolerance: Any) -> float:
     numerator = abs(float(value))
     denominator = abs(float(tolerance))
     if not np.isfinite(numerator) or not np.isfinite(denominator):
         raise ValueError("non-finite metric or tolerance")
     if denominator <= 0.0:
         raise ValueError("plot tolerance must be positive")
-    return max(numerator / denominator, 1.0e-30)
+    return numerator / denominator
+
+
+def _plot_ratio_bars(
+    axis: Any,
+    labels: list[str],
+    ratios: list[float],
+    ylabel: str,
+) -> None:
+    display_values = [max(value, RATIO_PLOT_FLOOR) for value in ratios]
+    bars = axis.bar(labels, display_values)
+    axis.axhline(
+        1.0,
+        linewidth=1.0,
+        linestyle="--",
+        label="documented tolerance",
+    )
+    axis.set_yscale("log")
+    axis.set_ylim(
+        RATIO_PLOT_FLOOR,
+        max(10.0, 10.0 * max(display_values, default=1.0)),
+    )
+    axis.set_ylabel(ylabel)
+    axis.legend()
+    axis.grid(True, axis="y")
+    for bar, ratio in zip(bars, ratios):
+        label = "0 (exact)" if ratio == 0.0 else f"{ratio:.2e}"
+        axis.text(
+            bar.get_x() + bar.get_width() / 2.0,
+            max(bar.get_height() * 1.5, RATIO_PLOT_FLOOR * 3.0),
+            label,
+            ha="center",
+            va="bottom",
+            fontsize=8,
+            rotation=90 if len(labels) > 5 else 0,
+        )
 
 
 def _plot_budget_and_health(
@@ -303,18 +396,58 @@ def _plot_budget_and_health(
     metrics: dict[str, Any],
 ) -> Path:
     budget_pairs = (
-        ("mass", "budget_mass_relative_residual", "relative_budget_roundoff_tolerance"),
-        ("energy", "energy_budget_balance_relative_residual", "relative_budget_roundoff_tolerance"),
-        ("vapor mass", "phase_vapor_mass_balance_relative_residual", "relative_budget_roundoff_tolerance"),
+        (
+            "mass",
+            "budget_mass_relative_residual",
+            "relative_budget_roundoff_tolerance",
+        ),
+        (
+            "energy",
+            "energy_budget_balance_relative_residual",
+            "relative_budget_roundoff_tolerance",
+        ),
+        (
+            "vapor mass",
+            "phase_vapor_mass_balance_relative_residual",
+            "relative_budget_roundoff_tolerance",
+        ),
     )
     health_pairs = (
-        ("pressure", "max_abs_pressure_disturbance_pa", "pressure_roundoff_tolerance_pa"),
-        ("velocity", "max_abs_velocity_m_s", "velocity_roundoff_tolerance_m_s"),
-        ("mass flux", "max_abs_mass_flux_mismatch_kg_m2_s", "mass_flux_roundoff_tolerance_kg_m2_s"),
-        ("energy flux", "max_abs_energy_flux_mismatch_w_m2", "energy_flux_roundoff_tolerance_w_m2"),
-        ("vapor flux", "max_abs_vapor_mass_flux_mismatch_kg_m2_s", "vapor_flux_roundoff_tolerance_kg_m2_s"),
-        ("momentum", "max_abs_momentum_difference_residual_pa", "momentum_roundoff_tolerance_pa"),
-        ("Q consistency", "max_abs_flux_q_minus_applied_q_m3_s", "q_roundoff_tolerance_m3_s"),
+        (
+            "pressure",
+            "max_abs_pressure_disturbance_pa",
+            "pressure_roundoff_tolerance_pa",
+        ),
+        (
+            "velocity",
+            "max_abs_velocity_m_s",
+            "velocity_roundoff_tolerance_m_s",
+        ),
+        (
+            "mass flux",
+            "max_abs_mass_flux_mismatch_kg_m2_s",
+            "mass_flux_roundoff_tolerance_kg_m2_s",
+        ),
+        (
+            "energy flux",
+            "max_abs_energy_flux_mismatch_w_m2",
+            "energy_flux_roundoff_tolerance_w_m2",
+        ),
+        (
+            "vapor flux",
+            "max_abs_vapor_mass_flux_mismatch_kg_m2_s",
+            "vapor_flux_roundoff_tolerance_kg_m2_s",
+        ),
+        (
+            "momentum",
+            "max_abs_momentum_difference_residual_pa",
+            "momentum_roundoff_tolerance_pa",
+        ),
+        (
+            "Q consistency",
+            "max_abs_flux_q_minus_applied_q_m3_s",
+            "q_roundoff_tolerance_m3_s",
+        ),
     )
     required = {
         key
@@ -328,35 +461,35 @@ def _plot_budget_and_health(
         )
 
     budget_values = [
-        _safe_ratio(metrics[value_key], metrics[tolerance_key])
+        _ratio(metrics[value_key], metrics[tolerance_key])
         for _, value_key, tolerance_key in budget_pairs
     ]
     health_values = [
-        _safe_ratio(metrics[value_key], metrics[tolerance_key])
+        _ratio(metrics[value_key], metrics[tolerance_key])
         for _, value_key, tolerance_key in health_pairs
     ]
 
     plt = _pyplot()
     fig, axes = plt.subplots(2, 1, figsize=(11, 8))
-    axes[0].bar([label for label, _, _ in budget_pairs], budget_values)
-    axes[0].axhline(1.0, linewidth=1.0, linestyle="--", label="documented tolerance")
-    axes[0].set_yscale("log")
-    axes[0].set_ylabel("absolute residual / tolerance")
-    axes[0].legend()
-    axes[0].grid(True, axis="y")
-
-    axes[1].bar([label for label, _, _ in health_pairs], health_values)
-    axes[1].axhline(1.0, linewidth=1.0, linestyle="--", label="documented tolerance")
-    axes[1].set_yscale("log")
-    axes[1].set_ylabel("observed magnitude / tolerance")
+    _plot_ratio_bars(
+        axes[0],
+        [label for label, _, _ in budget_pairs],
+        budget_values,
+        "absolute residual / tolerance",
+    )
+    _plot_ratio_bars(
+        axes[1],
+        [label for label, _, _ in health_pairs],
+        health_values,
+        "observed magnitude / tolerance",
+    )
     axes[1].tick_params(axis="x", rotation=25)
-    axes[1].legend()
-    axes[1].grid(True, axis="y")
 
     status = bool(metrics.get("overall_observation_execution_pass", False))
     fig.suptitle(
         "V-012A budget and health summary "
-        f"(software observation pass={status})"
+        f"(software observation pass={status})\n"
+        "Exact zeros are labelled explicitly and drawn at the visualization floor."
     )
     fig.tight_layout()
     output = directory / f"{stem}_budget_and_health.png"
@@ -409,6 +542,7 @@ def plot_internal_valve_results(
         "plot_count": len(outputs),
         "plot_files": [path.name for path in outputs],
         "matplotlib_version": importlib.metadata.version("matplotlib"),
+        "visualization_floor_ratio": RATIO_PLOT_FLOOR,
         "solver_rerun": False,
         "numerical_results_changed": False,
     }
