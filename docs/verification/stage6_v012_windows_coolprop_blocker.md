@@ -2,76 +2,100 @@
 
 ## Status
 
-V-012A local installed-CoolProp execution is blocked on the current Windows
-machine. Work is saved on branch
-`agent/stage6-v012-uniform-valve-baseline` and draft PR #35. No merge or
-acceptance decision is permitted while this blocker remains.
+`RESOLVED` on 2026-07-15 after a Windows update and restart.
 
-## Observed behavior
+Work remains on branch `agent/stage6-v012-uniform-valve-baseline` and draft PR
+#35. Resolution of this environment blocker does not by itself authorize merge
+or mark V-012 complete.
 
-The local `CoolProp` package is present, but importing its native extension
-fails with:
+## Initial observed behavior
+
+The local `CoolProp` package was present, but importing its native extension
+failed with:
 
 ```text
 ImportError: DLL load failed while importing _constants:
 application control policy blocked this file
 ```
 
-The failure occurs before the V-012A solver starts, while Python imports
+The failure occurred before the V-012A solver started, while Python imported
 `CoolProp.constants` / the `_constants` native module.
 
-Observed local evidence:
+Initial local evidence:
 
 - focused V-012 tests: `8 passed, 3 skipped in 13.24s`
-- the skipped tests are installed-CoolProp paths and therefore do not constitute
-  V-012A numerical evidence
+- the skipped tests were installed-CoolProp paths and did not constitute V-012A
+  numerical evidence
 - V-012A artifact generation did not start
-- no V-012A PNG was accepted
+- no V-012A PNG was accepted at that point
 - full repository run: `18 failed, 205 passed, 11 skipped`
-- all 18 failures trace to the same blocked CoolProp native import
+- all 18 failures traced to the same blocked CoolProp native import
 
-## Interpretation
+CodeIntegrity identified:
 
-This is an operating-environment / application-control failure, not evidence of
-a valve solver, telemetry, plotting, or numerical-regression failure. The
-package is discoverable, so tests that use `pytest.importorskip("CoolProp")`
-encounter an import-time native-module failure rather than a normal
-package-missing skip.
+```text
+policy ID: {0283ac0f-fff1-49ae-ada1-8a933130cad6}
+blocked file: CoolProp/_constants.cp311-win_amd64.pyd
+reason: Enterprise signing-level requirement / code-integrity policy
+```
 
-The three existing GitHub regression workflows pass on the PR head, but they do
-not replace the required local installed-CoolProp V-012A baseline and visual
-review.
+The CoolProp native files had existed since 2026-07-11 and had not been replaced
+on the day of the failure. They were reported as unsigned. The incident was
+therefore treated as an operating-environment / application-control event, not
+as evidence of a valve solver, telemetry, plotting, or numerical-regression
+failure.
 
-## Safe stop
+## Safe stop taken
 
-- branch and draft PR are preserved
+- branch and draft PR were preserved
 - no destructive Git operation occurred
 - no accepted baseline artifact was overwritten
 - no regression band was created or relaxed
 - no solver physics, Kv law, Mach-cap formula, or energy treatment was changed
-- PR #35 remains draft
+- PR #35 remained draft
 
-## Required resolution
+## Resolution evidence
 
-1. Identify the exact blocked CoolProp `.pyd` or dependent DLL from the Windows
-   CodeIntegrity Operational log.
-2. Determine the enforcing App Control policy and whether the block is expected.
-3. Have the device owner or administrator allow an approved CoolProp/Python
-   binary source, or provide an approved environment in which the official
-   CoolProp package imports successfully.
-4. Do not disable or bypass organizational application-control policy merely to
-   pass the test.
-5. After remediation, verify the import directly, then rerun the focused V-012
-   tests, generate the baseline and four PNGs, visually review them, and rerun
-   the full suite.
+After a Windows update and restart, the same repository virtual environment
+successfully imported CoolProp and evaluated the reference density:
 
-## Resume gate
+```text
+CoolProp version: 8.0.0
+PropsSI('D','P',8e6,'T',280,'CO2') = 922.9172130294444 kg/m3
+```
 
-The minimum resume check is:
+The full repository suite was then run from the FVM repository root:
+
+```text
+234 passed in 69.79s
+```
+
+The V-012A baseline and four human-review PNGs were generated. Initial visual
+review showed:
+
+- requested and actual opening coincide at `0.5`
+- valve pressure difference remains zero
+- raw Kv Q, applied Q, and flux-derived Q remain zero
+- no probe pressure or velocity disturbance is visible
+- mass, energy, vapor-mass, momentum-difference, and Q-consistency residuals
+  remain on the zero line
+- software observation pass is `True`
+
+The most plausible explanation is that the Windows update/restart refreshed or
+corrected the active code-integrity state. No security policy was deliberately
+disabled or bypassed.
+
+## Remaining gate
+
+The environment blocker is closed, but PR #35 remains draft until:
+
+1. the readability-only plotter refinement is pulled,
+2. the four PNGs are regenerated without rerunning the solver,
+3. the plot-focused tests and full suite pass on the refined head,
+4. the revised figures are reviewed.
+
+The direct environment check remains:
 
 ```powershell
 python -c "import CoolProp; from CoolProp.CoolProp import PropsSI; print(CoolProp.__version__); print(PropsSI('D','P',8e6,'T',280,'CO2'))"
 ```
-
-V-012A work may resume only when this command succeeds in the same virtual
-environment used for the repository tests.
