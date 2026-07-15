@@ -181,3 +181,45 @@ histories exist.
 No regression band was introduced. Plotting remains a human-review aid and is
 not a substitute for software regression checks, physical Validation, or
 design-use acceptance.
+
+## 2026-07-15 — Windows recovery and first V-012A observation
+
+The temporary Windows application-control blocker was resolved after a Windows
+update and restart. No security setting was deliberately disabled or bypassed.
+The same repository virtual environment then produced:
+
+```text
+CoolProp version: 8.0.0
+CO2 density at 8 MPa and 280 K: 922.9172130294444 kg/m3
+full repository suite: 234 passed in 69.79s
+```
+
+The V-012A numerical artifacts and four PNGs were generated and reviewed.
+Observed behavior matched the uniform-state expectation:
+
+- requested and actual opening coincide at `0.5`
+- valve pressure difference remains zero
+- raw Kv Q, applied Q, and flux-derived Q remain zero
+- the Mach cap remains inactive
+- all four probes show no material pressure or velocity disturbance
+- mass, energy, and vapor-mass flux mismatches remain on the zero line
+- momentum-flux difference matches the zero pressure difference
+- flux-derived Q minus applied Q remains zero
+- the budget/health summary reports software observation pass `True`
+
+The numerical observation revealed no solver-physics or conservation blocker.
+Two readability issues were identified in the first plots:
+
+1. the large positive Q limit shared an axis with zero through-flow and visually
+   compressed the quantities of interest;
+2. exact-zero normalized residuals were drawn at an artificial `1e-30` log-scale
+   floor without explicit zero labels.
+
+A readability-only plotter revision was committed. It separates through-flow
+from the Q-limit / cap-state panel and labels exact-zero ratios explicitly at a
+visualization floor. This revision does not rerun the solver or change any
+numerical result.
+
+PR #35 remains draft until the refined plotter is pulled, the four PNGs are
+regenerated from the existing CSV/JSON artifacts, and the plot-focused plus full
+Windows suites pass on the refined head.
