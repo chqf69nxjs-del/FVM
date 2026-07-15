@@ -131,3 +131,53 @@ Test status at this checkpoint:
 No critical solver-physics or data-integrity blocker has been found. The branch
 must remain unmerged until the focused tests and installed-CoolProp baseline are
 executed and reviewed.
+
+## 2026-07-15 — Human-review plotting checkpoint
+
+A CSV/JSON-driven plotter was added for the V-012A baseline. Plotting is kept
+strictly downstream of the numerical run: it reads saved artifacts, does not
+reconstruct or alter the interface flux, does not rerun the solver, and does not
+change numerical results.
+
+The V-012A baseline plot set is:
+
+1. `*_valve_command_and_flow.png`
+   - requested and actual opening
+   - valve pressure difference
+   - raw Kv, applied, flux-derived, and limiting flow rates
+   - Mach-cap activation markers
+2. `*_probe_pressure_velocity.png`
+   - pressure perturbation and velocity at all recorded probes
+3. `*_interface_flux_consistency.png`
+   - mass, energy, and vapor-mass flux mismatches
+   - momentum-flux difference versus valve pressure difference
+   - flux-derived Q minus applied Q
+4. `*_budget_and_health.png`
+   - final mass, energy, and vapor-mass residuals normalized by their documented
+     numerical tolerances
+   - pressure, velocity, flux, momentum, and Q-consistency observations normalized
+     by their documented numerical tolerances
+
+The plotting command is:
+
+```powershell
+python -m liquid_gas_transient.plot_internal_valve_results `
+  verification/internal_valve_uniform_baseline
+```
+
+A one-command artifact runner was also added:
+
+```powershell
+python -m liquid_gas_transient.cases.coolprop_internal_valve_uniform_artifacts `
+  verification/internal_valve_uniform_baseline
+```
+
+The isolated synthetic plotter test passed (`2 passed`). Repository-focused,
+installed-CoolProp, and full-suite Windows tests remain pending. The dynamic
+V-012B/C/D plots—characteristics, x-t maps, profile snapshots, and the valve
+`delta-p` versus Q path—remain deferred until driven-flow and opening/closing
+histories exist.
+
+No regression band was introduced. Plotting remains a human-review aid and is
+not a substitute for software regression checks, physical Validation, or
+design-use acceptance.
