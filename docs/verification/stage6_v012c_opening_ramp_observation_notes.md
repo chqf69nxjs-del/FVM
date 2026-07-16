@@ -2,7 +2,7 @@
 
 ## Status
 
-`OBSERVED; FULL WINDOWS SUITE AND FINAL DOCUMENT SYNCHRONIZATION PENDING`
+`OBSERVED; READY FOR REVIEW`
 
 Work branch:
 
@@ -10,7 +10,7 @@ Work branch:
 agent/stage6-v012c-opening-ramp
 ```
 
-Draft PR:
+Pull request:
 
 ```text
 #37 Add V-012C controlled internal-valve opening ramp
@@ -45,6 +45,14 @@ Focused tests:
 6 passed in 4.27s
 ```
 
+Full repository suite on the final numerical head:
+
+```text
+245 passed in 72.53s
+```
+
+No output followed `git status --short`, so the supplied working tree was clean.
+
 One-command artifact execution completed with:
 
 ```text
@@ -60,7 +68,12 @@ solver_rerun = false
 numerical_results_changed = false
 ```
 
-The full repository suite has not yet been supplied for the current branch head.
+All three existing installed-CoolProp GitHub workflows completed successfully on
+the observed branch head:
+
+- CoolProp Wave Regression
+- CoolProp Boundary Reflection Regression
+- CoolProp Controlled Pressure Ramp Regression
 
 ## Configuration and timing
 
@@ -76,8 +89,8 @@ The full repository suite has not yet been supplied for the current branch head.
 - first valve-generated boundary arrival: `0.0946929534 s`
 - safe-window end: `0.0812390104 s`
 
-The accepted observation therefore ends before the first valve-generated wave
-reaches an external fixed-pressure boundary.
+The accepted observation ends before the first valve-generated wave reaches an
+external fixed-pressure boundary.
 
 ## Key numerical results
 
@@ -147,8 +160,8 @@ is dominant and negative, while downstream `A_plus` is dominant and positive.
 The opposite-direction components remain visually negligible, consistent with
 the recorded `1.623e-06` maximum leakage ratio.
 
-The observed acoustic-scale relation is internally consistent: the maximum
-`rho*c*u` is approximately the recorded `314 Pa` pressure perturbation.
+The acoustic-scale relation is internally consistent: the observed `rho*c*u` is
+approximately the recorded `314 Pa` pressure perturbation.
 
 ### x-t maps and field profiles
 
@@ -176,11 +189,11 @@ The delta-p/Q path is smooth. It contains a small transient loop after the ramp
 because pressure difference and pipe acoustic state continue adjusting after the
 prescribed opening has reached `1.0`; no unstable or growing loop was observed.
 
-A presentation-only limitation remains: the point labelled `ramp start` is the
-nearest stored numerical sample, so its displayed opening is `0.038` rather than
-the exact prescribed schedule value `0.0` at `t = 0.005 s`. This does not affect
-the calculation, metrics, or other figures. The label should be clarified before
-final review.
+A presentation-only limitation is retained and accepted for this observation:
+the point labelled `ramp start` is the nearest stored numerical sample, so its
+legend shows opening `0.038` rather than the exact prescribed value `0.0` at
+`t = 0.005 s`. The prescribed schedule, solver state, metrics, and acceptance
+result are unaffected. A later plot-only cleanup may make the label more explicit.
 
 ## Artifacts
 
@@ -226,14 +239,9 @@ Human-review figures:
 - no regression band is introduced before mesh/CFL observations;
 - `property_backend_design_status = not_approved_for_design_use`.
 
-## Remaining gate
+## Review decision
 
-Before PR #37 can be marked ready for review:
-
-1. clarify the delta-p/Q event-marker label without changing numerical data;
-2. regenerate only the affected plot from saved artifacts;
-3. run the plot-focused test if the plotter changes;
-4. run the full Windows repository suite on the final branch head;
-5. confirm a clean working tree;
-6. synchronize `MASTER_VERIFICATION_INDEX.md` and the Stage 6 execution log with
-   the final evidence.
+No solver-physics, conservation, sign, timing, phase-state, reproducibility, or
+data-integrity blocker was found. The V-012C increment is ready for PR review.
+V-012 overall remains `IN_PROGRESS`; the next case is the controlled closing ramp
+(V-012D), followed by mesh/CFL observation and formalization.
