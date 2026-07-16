@@ -13,213 +13,222 @@ Persistent guardrails:
 - no flashing, cavitation, choked/two-phase discharge, ESD, or pump trip
 - CI-light meshes are not design meshes
 - finest meshes are comparison references, not exact solutions
+- fixed-pressure ends are zero-impedance numerical idealizations
+- the hydraulic-loss proxy remains diagnostic and is not removed from `rhoE`
 
-## 2026-07-15 — V-012 specification-first start
+## 2026-07-15 — Specification-first start
 
 Starting point:
 
-- V-011 is `COMPLETE`
-- main is synchronized and the full Windows suite passes (`223 passed`)
-- V-012 is `IN_PROGRESS`
-- the repository contains an existing internal-valve / Kv software path
-- no V-012 runner is present yet
+- V-011 was `COMPLETE`
+- main full Windows suite passed (`223 passed`)
+- the repository already contained `KvLiquidValve`, `LinearRampOpening`, and
+  `InternalValveInterface`
+- no V-012 operation runner was present
 
-Work opened on:
-
-```text
-agent/stage6-v012-internal-valve-spec
-```
-
-Draft PR scope:
-
-- fix the V-012 scope and case order
-- define internal-face telemetry and artifact schemas
-- document budget and sign conventions
-- define stop conditions
-- survey the existing internal-valve code path
-- make no solver-physics, valve-law, or total-energy change
-
-Initial case order:
+Case sequence fixed by the specification:
 
 1. V-012A uniform-state constant-opening preservation
 2. V-012B small driven-flow constant-opening baseline
-3. V-012C small controlled opening ramp
-4. V-012D small controlled closing ramp to nonzero opening
-5. V-012E closed-limit observation only after separate review
+3. V-012C controlled opening ramp
+4. V-012D controlled closing ramp
+5. zero-opening / closed-limit review after the controlled closing case
+6. mesh/CFL, CI-light, formal report, and manifest
 
-Initial risk assessment:
+Stop rules:
 
-- no critical blocker prevents specification work
-- the current hydraulic-loss proxy remains diagnostic
-- the relationship between that diagnostic and conserved `rhoE` is not changed
-- actual shared internal-face numerical-flux telemetry is a hard requirement
-- V-012A can proceed without resolving a driven-flow energy-loss model because
-  its expected material flow is zero
+- stop if a solver-physics, governing-equation, Kv-law, Mach-cap, boundary-meaning,
+  or conserved-energy change is required
+- stop on non-finite or non-positive state
+- stop on unexpected phase appearance
+- stop if required budget fields are missing
+- stop if actual two-sided interface fluxes cannot be recorded
+- stop if regression bands would need to be selected before observation evidence
 
-Stop rule for the next implementation PR:
-
-If the solver cannot expose one shared internal-face flux, or if the baseline
-requires a valve-law / energy-treatment change, save the branch and stop for
-owner review.
-
-## 2026-07-15 — V-012A implementation checkpoint
-
-Specification PR #34 was merged at commit
+PR #34 merged the implementation-ready specification at
 `6f4bc16c38361b0fffec3267766224aff0160a90`.
 
-Implementation work was opened on:
+## 2026-07-15 — V-012A telemetry and uniform baseline
 
-```text
-agent/stage6-v012-uniform-valve-baseline
-```
+PR #35 implemented:
 
-Implemented diagnostic-only interface additions:
-
-- raw Kv target flow
+- raw Kv target flow telemetry
 - Mach-limited applied flow and flow limit
 - cap activation state
 - hydraulic-separation state
 - flow direction and upwind state
-- applied face velocity and Mach number
 - exact two-sided interface flux evaluation used by the solver update
+- a uniform single-phase CoolProp baseline
+- four human-review plots generated from saved artifacts
 
-`InternalValveInterface.apply()` now consumes the same `evaluate_fluxes()`
-result that is exposed to telemetry. This avoids reconstructing a second,
-independent valve flux from cell-center values.
+The telemetry path and solver update share the same evaluated interface flux; no
+second reconstructed diagnostic flux is used.
 
-Compatibility and physics constraints retained:
-
-- the existing Kv equation is unchanged
-- the existing Mach cap is unchanged
-- finite-opening mass, total-enthalpy energy, and vapor-mass flux formulae are unchanged
-- the documented momentum-flux difference is unchanged
-- the legacy raw-Q diagnostic fields remain available
-- the hydraulic-loss proxy remains diagnostic and is not removed from `rhoE`
-- no governing-equation or external-boundary meaning was changed
-
-The first runner implements V-012A:
-
-- uniform single-phase CoolProp CO2 at `8 MPa` and `280 K`
-- zero initial velocity and zero driving pressure difference
-- nonzero constant valve opening at the pipe midpoint
-- transmissive, non-driving external boundaries
-- exact internal-face valve and flux telemetry
-- probe, boundary, final-profile, budget, metrics, and observation-report artifacts
-
-Expected implementation behavior:
-
-- requested and actual opening agree to roundoff
-- raw and applied flow remain at numerical zero
-- the Mach cap remains inactive
-- the existing no-flow hydraulic-separation path is active
-- no material pressure or velocity disturbance is introduced
-- two-sided mass, energy, and vapor-mass mismatches remain at roundoff scale
-- momentum-flux difference remains consistent with the pressure difference
-- the case remains finite, positive, and single phase
-
-Pure tests were added for uniform flow, finite-opening flux identities, deliberate
-Mach clipping, exact `apply()`/telemetry flux identity, and legacy diagnostic
-compatibility. An installed-CoolProp mini-run test was also added.
-
-Test status at this checkpoint:
-
-- source files are committed to the branch
-- local Windows focused and full-suite execution is pending
-- no numerical baseline artifact has yet been accepted
-- no regression or acceptance band has been defined
-
-No critical solver-physics or data-integrity blocker has been found. The branch
-must remain unmerged until the focused tests and installed-CoolProp baseline are
-executed and reviewed.
-
-## 2026-07-15 — Human-review plotting checkpoint
-
-A CSV/JSON-driven plotter was added for the V-012A baseline. Plotting is kept
-strictly downstream of the numerical run: it reads saved artifacts, does not
-reconstruct or alter the interface flux, does not rerun the solver, and does not
-change numerical results.
-
-The V-012A baseline plot set is:
-
-1. `*_valve_command_and_flow.png`
-   - requested and actual opening
-   - valve pressure difference
-   - raw Kv, applied, flux-derived, and limiting flow rates
-   - Mach-cap activation markers
-2. `*_probe_pressure_velocity.png`
-   - pressure perturbation and velocity at all recorded probes
-3. `*_interface_flux_consistency.png`
-   - mass, energy, and vapor-mass flux mismatches
-   - momentum-flux difference versus valve pressure difference
-   - flux-derived Q minus applied Q
-4. `*_budget_and_health.png`
-   - final mass, energy, and vapor-mass residuals normalized by their documented
-     numerical tolerances
-   - pressure, velocity, flux, momentum, and Q-consistency observations normalized
-     by their documented numerical tolerances
-
-The plotting command is:
-
-```powershell
-python -m liquid_gas_transient.plot_internal_valve_results `
-  verification/internal_valve_uniform_baseline
-```
-
-A one-command artifact runner was also added:
-
-```powershell
-python -m liquid_gas_transient.cases.coolprop_internal_valve_uniform_artifacts `
-  verification/internal_valve_uniform_baseline
-```
-
-The isolated synthetic plotter test passed (`2 passed`). Repository-focused,
-installed-CoolProp, and full-suite Windows tests remain pending. The dynamic
-V-012B/C/D plots—characteristics, x-t maps, profile snapshots, and the valve
-`delta-p` versus Q path—remain deferred until driven-flow and opening/closing
-histories exist.
-
-No regression band was introduced. Plotting remains a human-review aid and is
-not a substitute for software regression checks, physical Validation, or
-design-use acceptance.
-
-## 2026-07-15 — Windows recovery and first V-012A observation
-
-The temporary Windows application-control blocker was resolved after a Windows
-update and restart. No security setting was deliberately disabled or bypassed.
-The same repository virtual environment then produced:
+V-012A problem:
 
 ```text
-CoolProp version: 8.0.0
-CO2 density at 8 MPa and 280 K: 922.9172130294444 kg/m3
-full repository suite: 234 passed in 69.79s
+pressure difference: 0 Pa
+opening:             0.5 constant
+temperature:         280 K
+initial velocity:    0 m/s
 ```
 
-The V-012A numerical artifacts and four PNGs were generated and reviewed.
-Observed behavior matched the uniform-state expectation:
+Observed result:
 
-- requested and actual opening coincide at `0.5`
-- valve pressure difference remains zero
-- raw Kv Q, applied Q, and flux-derived Q remain zero
-- the Mach cap remains inactive
-- all four probes show no material pressure or velocity disturbance
-- mass, energy, and vapor-mass flux mismatches remain on the zero line
-- momentum-flux difference matches the zero pressure difference
-- flux-derived Q minus applied Q remains zero
-- the budget/health summary reports software observation pass `True`
+- requested and actual opening coincided
+- raw Kv Q, applied Q, and flux-derived Q remained zero
+- Mach cap remained inactive
+- zero-flow hydraulic separation remained active
+- all probes showed no material pressure or velocity disturbance
+- mass, energy, vapor-mass, and momentum-difference residuals were zero
+- the case remained finite, positive, and single phase
+- software observation pass: `True`
+- plot-focused tests: `3 passed in 3.57s`
+- full repository suite: `234 passed in 76.82s`
 
-The numerical observation revealed no solver-physics or conservation blocker.
-Two readability issues were identified in the first plots:
+A temporary Windows application-control event blocked a CoolProp native module.
+The branch was safely preserved. A Windows update and restart restored the same
+virtual environment without disabling or bypassing security controls.
 
-1. the large positive Q limit shared an axis with zero through-flow and visually
-   compressed the quantities of interest;
-2. exact-zero normalized residuals were drawn at an artificial `1e-30` log-scale
-   floor without explicit zero labels.
+PR #35 merged at `128596593ae99e61289475cb79a39ec2127f72aa`.
 
-A readability-only plotter revision was committed. It separates through-flow
-from the Q-limit / cap-state panel and labels exact-zero ratios explicitly at a
-visualization floor. This revision does not rerun the solver or change any
-numerical result.
+## 2026-07-16 — V-012B small driven-flow constant opening
 
-PR #35 remains draft until the refined plotter is pulled, the four PNGs are
-regenerated from the existing CSV/JSON artifacts, and the plot-focused plus full
-Windows suites pass on the refined head.
+PR #36 implemented a small left-to-right driven-flow observation:
+
+```text
+left pressure:       8,000,500 Pa
+right pressure:      7,999,500 Pa
+temperature:         280 K
+opening:             0.5 constant
+mesh / CFL:          n=100 / 0.5
+initial velocity:    0 m/s
+```
+
+The two pipe segments were initialized from separate consistent CoolProp `(p,T)`
+states. The evaluation ended before a valve-generated wave reached either fixed-
+pressure end.
+
+Observed result:
+
+- initial raw Kv Q: `3.534291735286872e-05 m3/s`
+- initial applied Q: `3.534291735286872e-05 m3/s`
+- initial flux-derived Q: `3.534291735286872e-05 m3/s`
+- flow-sign consistency: `72 / 72 = 1.0`
+- Mach-cap activation count: `0`
+- hydraulic-separation count: `0`
+- maximum applied face Mach: `8.969569363202504e-07`
+- maximum pressure perturbation: `199.445663 Pa`
+- maximum velocity: `3.876598270354068e-04 m/s`
+- interface mass, energy, vapor-mass, and momentum-difference residuals: `0`
+- maximum flux-Q minus applied-Q: `3.3881317890172014e-21 m3/s`
+- energy budget relative residual: `-1.7941570435960072e-16`
+- remained single phase: `True`
+- full repository suite: `239 passed in 69.97s`
+
+Human review showed the expected upstream decompression, downstream compression,
+positive flow, and acoustic-scale relation `rho*c*u ≈ delta-p`.
+
+PR #36 merged at `8cb3deee003b141c0cb8e8d56ccc3eaa77c01d8f`.
+
+## 2026-07-16 — V-012C controlled opening ramp
+
+PR #37 implements the primary opening operation:
+
+```text
+opening:       0.0 -> 1.0
+initial hold:  0.005 s
+ramp duration: 0.010 s
+ramp end:      0.015 s
+```
+
+The V-012B pipe, thermodynamic state, Kv calibration, and fixed-pressure numerical
+boundaries are retained.
+
+Added numerical artifacts:
+
+- config and metrics JSON
+- valve schedule and valve history CSV
+- exact two-sided interface-flux history CSV
+- probe history and characteristic-summary CSV
+- boundary and final-profile CSV
+- full pressure / velocity / temperature / density field-history NPZ
+- observation report Markdown
+
+Added nine human-review figures:
+
+1. valve command and flow
+2. probe pressure and velocity
+3. probe `A_plus / A_minus`
+4. pressure x-t map
+5. velocity x-t map
+6. interface-flux consistency
+7. budget and consistency summary
+8. representative field profiles
+9. pressure-difference / flow path
+
+Windows execution evidence:
+
+```text
+focused tests:        6 passed in 4.27s
+full repository:      245 passed in 72.53s
+working tree:         clean
+plot count:           9
+overall observation:  True
+```
+
+Key numerical results:
+
+- opening monotonic non-decreasing: `True`
+- maximum opening error: `0`
+- zero-opening hydraulic-separation fraction: `1.0`
+- finite-opening hydraulic-separation count: `0`
+- initial applied Q: `0 m3/s`
+- final applied Q: `4.3125747224746e-05 m3/s`
+- maximum raw/applied relative difference: `0`
+- maximum applied/flux relative difference: `1.9174770433785486e-16`
+- flow-sign consistency: `78 / 78 = 1.0`
+- Mach-cap activation count: `0`
+- maximum applied face Mach: `1.0944969604068111e-06`
+- primary characteristic direction pass: `True`
+- maximum opposite-direction characteristic ratio: `1.6229101813567113e-06`
+- upstream decompression observed: `True`
+- downstream compression observed: `True`
+- maximum pressure perturbation: `313.8912506327033 Pa`
+- maximum velocity: `6.101059874685836e-04 m/s`
+- interface mass, energy, vapor-mass, and momentum-difference residuals: `0`
+- maximum flux-Q minus applied-Q: `6.776263578034403e-21 m3/s`
+- mass budget relative residual: `-1.394135662426362e-16`
+- energy and vapor-mass budget relative residuals: `0`
+- remained single phase: `True`
+- target time: `0.0697143731 s`
+- first valve-generated boundary arrival: `0.0946929534 s`
+
+Visual review:
+
+- requested and actual openings coincide through hold, ramp, and full-open period
+- raw Kv, applied, and flux-derived Q remain coincident
+- upstream probes are dominated by negative left-going `A_minus`
+- downstream probes are dominated by positive right-going `A_plus`
+- near probes respond before far probes
+- pressure and velocity x-t fronts follow the theoretical ramp-start and ramp-end
+  acoustic lines
+- no growing oscillation, checkerboard pattern, isolated non-valve spike, or
+  premature boundary-return signature was observed
+- field profiles remain smooth at the resolved scale
+- the delta-p/Q path is smooth and contains only a bounded acoustic-adjustment loop
+
+Presentation limitation:
+
+- the delta-p/Q `ramp start` marker uses the nearest stored sample and therefore
+  displays opening `0.038` rather than the exact prescribed `0.0` at `0.005 s`
+- this affects only the label, not the schedule, solver, metrics, or acceptance
+
+Current decision:
+
+- no critical numerical, conservation, sign, timing, phase-state, or data-integrity
+  blocker was found
+- no solver-physics or regression-band change occurred
+- PR #37 is ready for review after documentation synchronization
+- V-012 remains `IN_PROGRESS`
+- V-012D controlled closing ramp is the next implementation increment
