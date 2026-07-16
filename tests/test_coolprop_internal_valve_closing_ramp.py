@@ -246,6 +246,10 @@ def test_closing_ramp_mini_run_and_artifacts(tmp_path: Path) -> None:
     assert metrics["validation"] is False
     assert metrics["esd_event_verification"] is False
     assert metrics["finite_opening_momentum_relation_applied_to_closed_rows"] is False
+    assert metrics["relative_flow_consistency_evaluated_on_finite_opening_rows"] is True
+    assert (
+        metrics["post_closure_flow_consistency_uses_absolute_zero_tolerances"] is True
+    )
 
     stem = cfg.case_name
     required = [

@@ -392,8 +392,9 @@ def _write_report(path: Path, metrics: dict[str, Any]) -> None:
         "the accepted observation window ends before the disturbance launched by",
         "the initially full-open valve reaches an external boundary.",
         "",
-        "At finite opening, the documented momentum-flux-difference relation is",
-        "checked. At zero opening, the implementation changes to two independent",
+        "At finite opening, raw/applied/flux-derived Q relative consistency and",
+        "the documented momentum-flux-difference relation are checked. At zero",
+        "opening, the implementation changes to two independent",
         "reflective-wall fluxes; the finite-opening momentum relation is therefore",
         "not applied to post-closure rows. Post-closure mass, energy, and vapor-mass",
         "through fluxes are checked individually on both valve sides.",
@@ -597,8 +598,9 @@ def run_coolprop_internal_valve_closing_ramp(
     opening_monotonic = bool(
         opening_values.size > 0 and np.all(np.diff(opening_values) <= opening_tolerance)
     )
+    finite_valve_rows = [valve for valve, _ in finite_pairs]
     raw_applied_difference = _max_series_relative_difference(
-        valve_history,
+        finite_valve_rows,
         "raw_target_q_m3_s",
         "applied_q_m3_s",
         q_tolerance,
@@ -609,7 +611,7 @@ def run_coolprop_internal_valve_closing_ramp(
                 "applied_q_m3_s": valve["applied_q_m3_s"],
                 "flux_derived_q_m3_s": flux["flux_derived_q_m3_s"],
             }
-            for valve, flux in zip(valve_history, flux_history)
+            for valve, flux in finite_pairs
         ],
         "applied_q_m3_s",
         "flux_derived_q_m3_s",
@@ -753,6 +755,8 @@ def run_coolprop_internal_valve_closing_ramp(
         "min_finite_opening_applied_q_m3_s": float(min_finite_applied_q),
         "max_raw_applied_relative_difference": float(raw_applied_difference),
         "max_applied_flux_relative_difference": float(applied_flux_difference),
+        "relative_flow_consistency_evaluated_on_finite_opening_rows": True,
+        "post_closure_flow_consistency_uses_absolute_zero_tolerances": True,
         "flow_relative_tolerance": cfg.flow_relative_tolerance,
         "flow_sign_consistency_count": int(flow_sign_consistency_count),
         "flow_sign_consistency_fraction": float(

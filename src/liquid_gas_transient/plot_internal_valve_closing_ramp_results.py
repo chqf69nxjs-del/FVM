@@ -405,12 +405,12 @@ def _plot_budget_and_health(
     finite_pairs = (
         ("opening", "max_abs_opening_error", "opening_roundoff_tolerance"),
         (
-            "raw-applied",
+            "finite raw-applied",
             "max_raw_applied_relative_difference",
             "flow_relative_tolerance",
         ),
         (
-            "applied-flux",
+            "finite applied-flux",
             "max_applied_flux_relative_difference",
             "flow_relative_tolerance",
         ),
