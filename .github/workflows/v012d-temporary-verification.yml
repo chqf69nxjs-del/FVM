@@ -22,109 +22,125 @@ jobs:
         with:
           python-version: '3.11'
           cache: pip
-      - name: Install verification dependencies
+      - name: Run and persist V-012D verification diagnostics
         shell: bash
+        env:
+          PYTHONPATH: src
+          MPLBACKEND: Agg
         run: |
-          set -euo pipefail
-          python -m pip install --upgrade pip
-          python -m pip install -e .
-          python -m pip install 'CoolProp==8.0.0' 'matplotlib>=3.7' pytest ruff
-          python - <<'PY'
+          set -u
+          rm -rf .ci-v012d verification/internal_valve_closing_ramp_baseline
+          mkdir -p .ci-v012d
+
+          set +e
+          python -m pip install -e . 'CoolProp==8.0.0' 'matplotlib>=3.7' pytest ruff \
+            > .ci-v012d/install.txt 2>&1
+          install_status=$?
+
+          if [ "$install_status" -eq 0 ]; then
+            {
+              python - <<'PY'
           import CoolProp, matplotlib, numpy, pytest
           print('CoolProp', CoolProp.__version__)
           print('matplotlib', matplotlib.__version__)
           print('numpy', numpy.__version__)
           print('pytest', pytest.__version__)
           PY
-      - name: Static checks for V-012D files
-        shell: bash
-        run: |
-          set -euo pipefail
-          ruff check \
-            src/liquid_gas_transient/cases/internal_valve_closing_ramp_config.py \
-            src/liquid_gas_transient/cases/coolprop_internal_valve_closing_ramp.py \
-            src/liquid_gas_transient/cases/coolprop_internal_valve_closing_ramp_artifacts.py \
-            src/liquid_gas_transient/plot_internal_valve_closing_ramp_results.py \
-            tests/test_coolprop_internal_valve_closing_ramp.py \
-            tests/test_coolprop_internal_valve_closing_ramp_plots.py
-          ruff format --check \
-            src/liquid_gas_transient/cases/internal_valve_closing_ramp_config.py \
-            src/liquid_gas_transient/cases/coolprop_internal_valve_closing_ramp.py \
-            src/liquid_gas_transient/cases/coolprop_internal_valve_closing_ramp_artifacts.py \
-            src/liquid_gas_transient/plot_internal_valve_closing_ramp_results.py \
-            tests/test_coolprop_internal_valve_closing_ramp.py \
-            tests/test_coolprop_internal_valve_closing_ramp_plots.py
-      - name: Run focused V-012D tests
-        shell: bash
-        env:
-          PYTHONPATH: src
-          MPLBACKEND: Agg
-        run: |
-          set -euo pipefail
-          mkdir -p .ci-v012d
-          python -m pytest -q \
-            tests/test_coolprop_internal_valve_closing_ramp.py \
-            tests/test_coolprop_internal_valve_closing_ramp_plots.py \
-            | tee .ci-v012d/focused-tests.txt
-      - name: Generate baseline numerical and review artifacts
-        shell: bash
-        env:
-          PYTHONPATH: src
-          MPLBACKEND: Agg
-        run: |
-          set -euo pipefail
-          rm -rf verification/internal_valve_closing_ramp_baseline
-          python -m liquid_gas_transient.cases.coolprop_internal_valve_closing_ramp_artifacts \
-            verification/internal_valve_closing_ramp_baseline \
-            | tee .ci-v012d/artifact-wrapper.json
-          python - <<'PY'
+              ruff check \
+                src/liquid_gas_transient/cases/internal_valve_closing_ramp_config.py \
+                src/liquid_gas_transient/cases/coolprop_internal_valve_closing_ramp.py \
+                src/liquid_gas_transient/cases/coolprop_internal_valve_closing_ramp_artifacts.py \
+                src/liquid_gas_transient/plot_internal_valve_closing_ramp_results.py \
+                tests/test_coolprop_internal_valve_closing_ramp.py \
+                tests/test_coolprop_internal_valve_closing_ramp_plots.py
+              ruff format --check \
+                src/liquid_gas_transient/cases/internal_valve_closing_ramp_config.py \
+                src/liquid_gas_transient/cases/coolprop_internal_valve_closing_ramp.py \
+                src/liquid_gas_transient/cases/coolprop_internal_valve_closing_ramp_artifacts.py \
+                src/liquid_gas_transient/plot_internal_valve_closing_ramp_results.py \
+                tests/test_coolprop_internal_valve_closing_ramp.py \
+                tests/test_coolprop_internal_valve_closing_ramp_plots.py
+            } > .ci-v012d/static-checks.txt 2>&1
+            static_status=$?
+
+            python -m pytest -q \
+              tests/test_coolprop_internal_valve_closing_ramp.py \
+              tests/test_coolprop_internal_valve_closing_ramp_plots.py \
+              > .ci-v012d/focused-tests.txt 2>&1
+            focused_status=$?
+
+            python -m liquid_gas_transient.cases.coolprop_internal_valve_closing_ramp_artifacts \
+              verification/internal_valve_closing_ramp_baseline \
+              > .ci-v012d/artifact-wrapper.json 2> .ci-v012d/artifact-stderr.txt
+            artifact_status=$?
+
+            if [ "$artifact_status" -eq 0 ]; then
+              python - <<'PY' > .ci-v012d/metrics-summary.json 2> .ci-v012d/metrics-summary-stderr.txt
           import json
           from pathlib import Path
           path = Path('verification/internal_valve_closing_ramp_baseline/coolprop_internal_valve_closing_ramp_metrics.json')
           metrics = json.loads(path.read_text(encoding='utf-8'))
-          if metrics.get('verification_item') != 'V-012D':
+          summary = {
+              'verification_item': metrics.get('verification_item'),
+              'overall_observation_execution_pass': metrics.get('overall_observation_execution_pass'),
+              'step_count': metrics.get('step_count'),
+              'final_time_s': metrics.get('final_time_s'),
+              'target_time_s': metrics.get('target_time_s'),
+              'first_boundary_arrival_time_s': metrics.get('first_boundary_arrival_time_s'),
+              'post_closure_sample_count': metrics.get('post_closure_sample_count'),
+              'upstream_compression_observed': metrics.get('upstream_compression_observed'),
+              'downstream_decompression_observed': metrics.get('downstream_decompression_observed'),
+              'final_applied_q_m3_s': metrics.get('final_applied_q_m3_s'),
+              'post_closure_max_abs_applied_q_m3_s': metrics.get('post_closure_max_abs_applied_q_m3_s'),
+          }
+          print(json.dumps(summary, indent=2))
+          if summary['verification_item'] != 'V-012D':
               raise SystemExit('unexpected verification item')
-          if not metrics.get('overall_observation_execution_pass'):
-              raise SystemExit('V-012D overall observation execution pass is false')
-          print(json.dumps({
-              'overall_observation_execution_pass': metrics['overall_observation_execution_pass'],
-              'step_count': metrics['step_count'],
-              'final_time_s': metrics['final_time_s'],
-              'post_closure_sample_count': metrics['post_closure_sample_count'],
-              'upstream_compression_observed': metrics['upstream_compression_observed'],
-              'downstream_decompression_observed': metrics['downstream_decompression_observed'],
-          }, indent=2))
+          if not summary['overall_observation_execution_pass']:
+              raise SystemExit('overall observation execution pass is false')
           PY
-      - name: Run full repository test suite
-        shell: bash
-        env:
-          PYTHONPATH: src
-          MPLBACKEND: Agg
-        run: |
-          set -euo pipefail
-          python -m pytest -q | tee .ci-v012d/full-tests.txt
-      - name: Upload V-012D evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: v012d-verification-${{ github.sha }}
-          path: |
-            .ci-v012d
-            verification/internal_valve_closing_ramp_baseline
-          if-no-files-found: warn
-          retention-days: 14
-      - name: Commit generated V-012D baseline artifacts
-        if: success()
-        shell: bash
-        run: |
-          set -euo pipefail
+              metrics_status=$?
+            else
+              metrics_status=125
+            fi
+
+            python -m pytest -q > .ci-v012d/full-tests.txt 2>&1
+            full_status=$?
+          else
+            static_status=125
+            focused_status=125
+            artifact_status=125
+            metrics_status=125
+            full_status=125
+          fi
+          set -e
+
+          python - "$install_status" "$static_status" "$focused_status" "$artifact_status" "$metrics_status" "$full_status" <<'PY'
+          import json
+          import sys
+          names = ('install', 'static', 'focused', 'artifact', 'metrics', 'full')
+          statuses = {name: int(value) for name, value in zip(names, sys.argv[1:])}
+          statuses['overall_pass'] = all(value == 0 for value in statuses.values())
+          with open('.ci-v012d/status.json', 'w', encoding='utf-8') as stream:
+              json.dump(statuses, stream, indent=2)
+              stream.write('\n')
+          print(json.dumps(statuses, indent=2))
+          PY
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add verification/internal_valve_closing_ramp_baseline
-          git diff --cached --check
-          if git diff --cached --quiet; then
-            echo "No generated artifact changes to commit."
-            exit 0
+          git add .ci-v012d
+          if [ -d verification/internal_valve_closing_ramp_baseline ]; then
+            git add verification/internal_valve_closing_ramp_baseline
           fi
-          git commit -m "Record V-012D closing-ramp baseline"
-          git push origin HEAD:agent/stage6-v012d-closing-ramp
+          git diff --cached --check
+          if ! git diff --cached --quiet; then
+            git commit -m "Record V-012D verification diagnostics"
+            git push origin HEAD:agent/stage6-v012d-closing-ramp
+          fi
+
+          python - <<'PY'
+          import json
+          status = json.load(open('.ci-v012d/status.json', encoding='utf-8'))
+          raise SystemExit(0 if status['overall_pass'] else 1)
+          PY
