@@ -1,0 +1,235 @@
+name: V-012D Temporary Apply Fix
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/stage6-v012d-closing-ramp
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Apply reviewed V-012D corrections
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          runner = Path('src/liquid_gas_transient/cases/coolprop_internal_valve_closing_ramp.py')
+          text = runner.read_text(encoding='utf-8')
+          old = '''    raw_applied_difference = _max_series_relative_difference(
+              valve_history,
+              "raw_target_q_m3_s",
+              "applied_q_m3_s",
+              q_tolerance,
+          )
+          applied_flux_difference = _max_series_relative_difference(
+              [
+                  {
+                      "applied_q_m3_s": valve["applied_q_m3_s"],
+                      "flux_derived_q_m3_s": flux["flux_derived_q_m3_s"],
+                  }
+                  for valve, flux in zip(valve_history, flux_history)
+              ],
+              "applied_q_m3_s",
+              "flux_derived_q_m3_s",
+              q_tolerance,
+          )
+          '''
+          new = '''    finite_flow_rows = [
+              {
+                  "raw_target_q_m3_s": valve["raw_target_q_m3_s"],
+                  "applied_q_m3_s": valve["applied_q_m3_s"],
+                  "flux_derived_q_m3_s": flux["flux_derived_q_m3_s"],
+              }
+              for valve, flux in finite_pairs
+          ]
+          raw_applied_difference = _max_series_relative_difference(
+              finite_flow_rows,
+              "raw_target_q_m3_s",
+              "applied_q_m3_s",
+              q_tolerance,
+          )
+          applied_flux_difference = _max_series_relative_difference(
+              finite_flow_rows,
+              "applied_q_m3_s",
+              "flux_derived_q_m3_s",
+              q_tolerance,
+          )
+          '''
+          if old not in text:
+              raise SystemExit('runner finite-flow block not found')
+          text = text.replace(old, new)
+
+          old = '''        f"- maximum post-closure |Q|: `{metrics['max_abs_post_closure_applied_q_m3_s']:.9e} m3/s`",
+              f"- primary characteristic direction pass: `{metrics['primary_characteristic_direction_pass']}`",
+          '''
+          new = '''        f"- maximum post-closure |Q|: `{metrics['max_abs_post_closure_applied_q_m3_s']:.9e} m3/s`",
+              f"- maximum finite-opening raw/applied relative difference: `{metrics['max_finite_opening_raw_applied_relative_difference']:.9e}`",
+              f"- maximum finite-opening applied/flux relative difference: `{metrics['max_finite_opening_applied_flux_relative_difference']:.9e}`",
+              f"- primary characteristic direction pass: `{metrics['primary_characteristic_direction_pass']}`",
+          '''
+          if old not in text:
+              raise SystemExit('runner report block not found')
+          text = text.replace(old, new)
+
+          old = '''        "max_raw_applied_relative_difference": float(raw_applied_difference),
+              "max_applied_flux_relative_difference": float(applied_flux_difference),
+              "flow_relative_tolerance": cfg.flow_relative_tolerance,
+          '''
+          new = '''        "flow_relative_comparison_scope": "finite_opening_only",
+              "max_finite_opening_raw_applied_relative_difference": float(
+                  raw_applied_difference
+              ),
+              "max_finite_opening_applied_flux_relative_difference": float(
+                  applied_flux_difference
+              ),
+              # Compatibility aliases retained for plot/report consumers. Both are
+              # deliberately scoped to finite-opening rows; complete closure is
+              # verified with the explicit absolute through-flux gates below.
+              "max_raw_applied_relative_difference": float(raw_applied_difference),
+              "max_applied_flux_relative_difference": float(applied_flux_difference),
+              "flow_relative_tolerance": cfg.flow_relative_tolerance,
+          '''
+          if old not in text:
+              raise SystemExit('runner metric block not found')
+          text = text.replace(old, new)
+
+          old = '''        metrics["max_raw_applied_relative_difference"]
+              <= metrics["flow_relative_tolerance"],
+              metrics["max_applied_flux_relative_difference"]
+              <= metrics["flow_relative_tolerance"],
+          '''
+          new = '''        metrics["max_finite_opening_raw_applied_relative_difference"]
+              <= metrics["flow_relative_tolerance"],
+              metrics["max_finite_opening_applied_flux_relative_difference"]
+              <= metrics["flow_relative_tolerance"],
+          '''
+          if old not in text:
+              raise SystemExit('runner check block not found')
+          runner.write_text(text.replace(old, new), encoding='utf-8')
+
+          plotter = Path('src/liquid_gas_transient/plot_internal_valve_closing_ramp_results.py')
+          text = plotter.read_text(encoding='utf-8')
+          old = '''        time_s = _float_values(rows, "time_s")
+              a_plus = _float_values(rows, "A_plus_pa") - float(summary["baseline_A_plus_pa"])
+              a_minus = _float_values(rows, "A_minus_pa") - float(
+                  summary["baseline_A_minus_pa"]
+              )
+              axis.plot(time_s, a_plus, label="delta A+ right-going")
+              axis.plot(time_s, a_minus, label="delta A- left-going")
+          '''
+          new = '''        time_s = _float_values(rows, "time_s")
+              a_plus = _float_values(rows, "A_plus_pa") - float(summary["baseline_A_plus_pa"])
+              a_minus = _float_values(rows, "A_minus_pa") - float(
+                  summary["baseline_A_minus_pa"]
+              )
+              arrival_start_s = float(summary["arrival_start_s"])
+              post_arrival = time_s >= arrival_start_s
+              plot_time_s = np.concatenate(
+                  ([float(summary["baseline_time_s"])], time_s[post_arrival])
+              )
+              plot_a_plus = np.concatenate(([0.0], a_plus[post_arrival]))
+              plot_a_minus = np.concatenate(([0.0], a_minus[post_arrival]))
+              axis.plot(plot_time_s, plot_a_plus, label="delta A+ right-going")
+              axis.plot(plot_time_s, plot_a_minus, label="delta A- left-going")
+          '''
+          if old not in text:
+              raise SystemExit('plotter characteristic block not found')
+          text = text.replace(old, new)
+          text = text.replace(
+              '            "max_raw_applied_relative_difference",\n',
+              '            "max_finite_opening_raw_applied_relative_difference",\n',
+          )
+          text = text.replace(
+              '            "max_applied_flux_relative_difference",\n',
+              '            "max_finite_opening_applied_flux_relative_difference",\n',
+          )
+          plotter.write_text(text, encoding='utf-8')
+
+          test_path = Path('tests/test_coolprop_internal_valve_closing_ramp.py')
+          text = test_path.read_text(encoding='utf-8')
+          old = '''    assert metrics["flow_sign_consistency_fraction"] == 1.0
+              assert metrics["mach_cap_activation_count"] == 0
+          '''
+          new = '''    assert metrics["flow_relative_comparison_scope"] == "finite_opening_only"
+              assert (
+                  metrics["max_finite_opening_raw_applied_relative_difference"]
+                  <= metrics["flow_relative_tolerance"]
+              )
+              assert (
+                  metrics["max_finite_opening_applied_flux_relative_difference"]
+                  <= metrics["flow_relative_tolerance"]
+              )
+              assert metrics["flow_sign_consistency_fraction"] == 1.0
+              assert metrics["mach_cap_activation_count"] == 0
+          '''
+          if old not in text:
+              raise SystemExit('test metric assertion block not found')
+          text = text.replace(old, new)
+          old = '''        t_end_s=0.015,
+              max_steps=1000,
+          '''
+          new = '''        t_end_s=0.030,
+              max_steps=1000,
+          '''
+          if old not in text:
+              raise SystemExit('runner test t_end block not found')
+          test_path.write_text(text.replace(old, new), encoding='utf-8')
+
+          plot_test = Path('tests/test_coolprop_internal_valve_closing_ramp_plots.py')
+          text = plot_test.read_text(encoding='utf-8')
+          if old not in text:
+              raise SystemExit('plot test t_end block not found')
+          plot_test.write_text(text.replace(old, new), encoding='utf-8')
+          PY
+      - name: Install focused verification dependencies
+        run: python -m pip install -e . 'CoolProp==8.0.0' 'matplotlib>=3.7' pytest ruff
+      - name: Format and lint
+        run: |
+          ruff format \
+            src/liquid_gas_transient/cases/coolprop_internal_valve_closing_ramp.py \
+            src/liquid_gas_transient/plot_internal_valve_closing_ramp_results.py \
+            tests/test_coolprop_internal_valve_closing_ramp.py \
+            tests/test_coolprop_internal_valve_closing_ramp_plots.py
+          ruff check \
+            src/liquid_gas_transient/cases/internal_valve_closing_ramp_config.py \
+            src/liquid_gas_transient/cases/coolprop_internal_valve_closing_ramp.py \
+            src/liquid_gas_transient/cases/coolprop_internal_valve_closing_ramp_artifacts.py \
+            src/liquid_gas_transient/plot_internal_valve_closing_ramp_results.py \
+            tests/test_coolprop_internal_valve_closing_ramp.py \
+            tests/test_coolprop_internal_valve_closing_ramp_plots.py
+      - name: Focused tests
+        env:
+          PYTHONPATH: src
+          MPLBACKEND: Agg
+        run: |
+          python -m pytest -q \
+            tests/test_coolprop_internal_valve_closing_ramp.py \
+            tests/test_coolprop_internal_valve_closing_ramp_plots.py
+      - name: Commit and push corrections
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            src/liquid_gas_transient/cases/coolprop_internal_valve_closing_ramp.py \
+            src/liquid_gas_transient/plot_internal_valve_closing_ramp_results.py \
+            tests/test_coolprop_internal_valve_closing_ramp.py \
+            tests/test_coolprop_internal_valve_closing_ramp_plots.py
+          git diff --cached --check
+          git commit -m 'Fix V-012D finite-opening consistency gate'
+          git push origin HEAD:agent/stage6-v012d-closing-ramp
