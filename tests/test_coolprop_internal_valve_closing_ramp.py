@@ -207,7 +207,6 @@ def test_closing_ramp_mini_run_and_artifacts(tmp_path: Path) -> None:
         ramp_start_s=0.001,
         ramp_duration_s=0.002,
         post_closure_hold_s=0.005,
-        t_end_s=0.015,
         max_steps=1000,
         relative_budget_tolerance=1.0e-8,
     )
