@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - agent/stage6-v012d-closing-ramp
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -91,7 +94,7 @@ jobs:
               'upstream_compression_observed': metrics.get('upstream_compression_observed'),
               'downstream_decompression_observed': metrics.get('downstream_decompression_observed'),
               'final_applied_q_m3_s': metrics.get('final_applied_q_m3_s'),
-              'post_closure_max_abs_applied_q_m3_s': metrics.get('post_closure_max_abs_applied_q_m3_s'),
+              'max_abs_post_closure_applied_q_m3_s': metrics.get('max_abs_post_closure_applied_q_m3_s'),
           }
           print(json.dumps(summary, indent=2))
           if summary['verification_item'] != 'V-012D':
