@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - agent/stage6-v012d-closing-ramp
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
