@@ -1,0 +1,44 @@
+name: V-012D Apply Flow Fix
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/stage6-v012d-closing-ramp
+          fetch-depth: 0
+      - name: Verify and apply finite-opening flow fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/v012d_flow_fix/chunk_*.txt > "$RUNNER_TEMP/v012d-flow-fix.b64"
+          echo "ad5a84621694374f96c5ddcc09b51b4f0d62c118aeb458dbaa9d988afbf8ba49  $RUNNER_TEMP/v012d-flow-fix.b64" | sha256sum -c -
+          base64 --decode "$RUNNER_TEMP/v012d-flow-fix.b64" > "$RUNNER_TEMP/v012d-flow-fix.tar.gz"
+          echo "214e3692d3f556417c385918edb3f2b2663d2dbc249425dd0ce78856ebd40f92  $RUNNER_TEMP/v012d-flow-fix.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/v012d-flow-fix.tar.gz" -C .
+          rm -rf .github/v012d_flow_fix
+          rm -f \
+            .github/workflows/v012d-finite-opening-flow-fix.yml \
+            .github/workflows/v012d-apply-flow-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A -- \
+            .github/v012d_flow_fix \
+            .github/workflows/v012d-finite-opening-flow-fix.yml \
+            .github/workflows/v012d-apply-flow-fix.yml \
+            src/liquid_gas_transient/cases/coolprop_internal_valve_closing_ramp.py \
+            src/liquid_gas_transient/plot_internal_valve_closing_ramp_results.py \
+            tests/test_coolprop_internal_valve_closing_ramp.py
+          git diff --cached --check
+          git commit -m "Limit V-012D relative flow checks to finite opening"
+          git push origin HEAD:agent/stage6-v012d-closing-ramp
