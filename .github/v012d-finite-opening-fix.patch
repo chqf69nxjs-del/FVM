@@ -1,0 +1,144 @@
+--- a/src/liquid_gas_transient/cases/coolprop_internal_valve_closing_ramp.py
++++ b/src/liquid_gas_transient/cases/coolprop_internal_valve_closing_ramp.py
+@@ -382,6 +382,8 @@
+         f"- post-closure sample count: `{metrics['post_closure_sample_count']}`",
+         f"- post-closure hydraulic-separation fraction: `{metrics['post_closure_hydraulic_separation_fraction']:.6f}`",
+         f"- maximum post-closure |Q|: `{metrics['max_abs_post_closure_applied_q_m3_s']:.9e} m3/s`",
++        f"- maximum finite-opening raw/applied relative difference: `{metrics['max_finite_opening_raw_applied_relative_difference']:.9e}`",
++        f"- maximum finite-opening applied/flux relative difference: `{metrics['max_finite_opening_applied_flux_relative_difference']:.9e}`",
+         f"- primary characteristic direction pass: `{metrics['primary_characteristic_direction_pass']}`",
+         f"- upstream compression observed: `{metrics['upstream_compression_observed']}`",
+         f"- downstream decompression observed: `{metrics['downstream_decompression_observed']}`",
+@@ -597,20 +599,22 @@
+     opening_monotonic = bool(
+         opening_values.size > 0 and np.all(np.diff(opening_values) <= opening_tolerance)
+     )
++    finite_flow_rows = [
++        {
++            "raw_target_q_m3_s": valve["raw_target_q_m3_s"],
++            "applied_q_m3_s": valve["applied_q_m3_s"],
++            "flux_derived_q_m3_s": flux["flux_derived_q_m3_s"],
++        }
++        for valve, flux in finite_pairs
++    ]
+     raw_applied_difference = _max_series_relative_difference(
+-        valve_history,
++        finite_flow_rows,
+         "raw_target_q_m3_s",
+         "applied_q_m3_s",
+         q_tolerance,
+     )
+     applied_flux_difference = _max_series_relative_difference(
+-        [
+-            {
+-                "applied_q_m3_s": valve["applied_q_m3_s"],
+-                "flux_derived_q_m3_s": flux["flux_derived_q_m3_s"],
+-            }
+-            for valve, flux in zip(valve_history, flux_history)
+-        ],
++        finite_flow_rows,
+         "applied_q_m3_s",
+         "flux_derived_q_m3_s",
+         q_tolerance,
+@@ -751,6 +755,16 @@
+         "final_applied_q_m3_s": final_applied_q,
+         "max_applied_q_m3_s": float(max_applied_q),
+         "min_finite_opening_applied_q_m3_s": float(min_finite_applied_q),
++        "flow_relative_comparison_scope": "finite_opening_only",
++        "max_finite_opening_raw_applied_relative_difference": float(
++            raw_applied_difference
++        ),
++        "max_finite_opening_applied_flux_relative_difference": float(
++            applied_flux_difference
++        ),
++        # Compatibility aliases retained for plot/report consumers. Both are
++        # deliberately scoped to finite-opening rows; complete closure is
++        # verified with the explicit absolute through-flux gates below.
+         "max_raw_applied_relative_difference": float(raw_applied_difference),
+         "max_applied_flux_relative_difference": float(applied_flux_difference),
+         "flow_relative_tolerance": cfg.flow_relative_tolerance,
+@@ -893,9 +907,9 @@
+         metrics["post_closure_no_flow_direction_fraction"] == 1.0,
+         metrics["initial_applied_q_m3_s"] > metrics["q_roundoff_tolerance_m3_s"],
+         abs(metrics["final_applied_q_m3_s"]) <= metrics["q_roundoff_tolerance_m3_s"],
+-        metrics["max_raw_applied_relative_difference"]
++        metrics["max_finite_opening_raw_applied_relative_difference"]
+         <= metrics["flow_relative_tolerance"],
+-        metrics["max_applied_flux_relative_difference"]
++        metrics["max_finite_opening_applied_flux_relative_difference"]
+         <= metrics["flow_relative_tolerance"],
+         metrics["flow_sign_consistency_count"] == metrics["valve_history_row_count"],
+         metrics["mach_cap_activation_count"] == 0,
+--- a/src/liquid_gas_transient/plot_internal_valve_closing_ramp_results.py
++++ b/src/liquid_gas_transient/plot_internal_valve_closing_ramp_results.py
+@@ -92,8 +92,15 @@
+         a_minus = _float_values(rows, "A_minus_pa") - float(
+             summary["baseline_A_minus_pa"]
+         )
+-        axis.plot(time_s, a_plus, label="delta A+ right-going")
+-        axis.plot(time_s, a_minus, label="delta A- left-going")
++        arrival_start_s = float(summary["arrival_start_s"])
++        post_arrival = time_s >= arrival_start_s
++        plot_time_s = np.concatenate(
++            ([float(summary["baseline_time_s"])], time_s[post_arrival])
++        )
++        plot_a_plus = np.concatenate(([0.0], a_plus[post_arrival]))
++        plot_a_minus = np.concatenate(([0.0], a_minus[post_arrival]))
++        axis.plot(plot_time_s, plot_a_plus, label="delta A+ right-going")
++        axis.plot(plot_time_s, plot_a_minus, label="delta A- left-going")
+         axis.axhline(0.0, linewidth=0.8)
+         axis.axvline(
+             float(summary["arrival_start_s"]),
+@@ -406,12 +413,12 @@
+         ("opening", "max_abs_opening_error", "opening_roundoff_tolerance"),
+         (
+             "raw-applied",
+-            "max_raw_applied_relative_difference",
++            "max_finite_opening_raw_applied_relative_difference",
+             "flow_relative_tolerance",
+         ),
+         (
+             "applied-flux",
+-            "max_applied_flux_relative_difference",
++            "max_finite_opening_applied_flux_relative_difference",
+             "flow_relative_tolerance",
+         ),
+         (
+--- a/tests/test_coolprop_internal_valve_closing_ramp.py
++++ b/tests/test_coolprop_internal_valve_closing_ramp.py
+@@ -207,7 +207,7 @@
+         ramp_start_s=0.001,
+         ramp_duration_s=0.002,
+         post_closure_hold_s=0.005,
+-        t_end_s=0.015,
++        t_end_s=0.030,
+         max_steps=1000,
+         relative_budget_tolerance=1.0e-8,
+     )
+@@ -235,6 +235,15 @@
+     assert (
+         metrics["max_abs_post_closure_vapor_mass_flux_kg_m2_s"]
+         <= metrics["vapor_flux_roundoff_tolerance_kg_m2_s"]
++    )
++    assert metrics["flow_relative_comparison_scope"] == "finite_opening_only"
++    assert (
++        metrics["max_finite_opening_raw_applied_relative_difference"]
++        <= metrics["flow_relative_tolerance"]
++    )
++    assert (
++        metrics["max_finite_opening_applied_flux_relative_difference"]
++        <= metrics["flow_relative_tolerance"]
+     )
+     assert metrics["flow_sign_consistency_fraction"] == 1.0
+     assert metrics["mach_cap_activation_count"] == 0
+--- a/tests/test_coolprop_internal_valve_closing_ramp_plots.py
++++ b/tests/test_coolprop_internal_valve_closing_ramp_plots.py
+@@ -29,7 +29,7 @@
+         ramp_start_s=0.001,
+         ramp_duration_s=0.002,
+         post_closure_hold_s=0.005,
+-        t_end_s=0.015,
++        t_end_s=0.030,
+         max_steps=1000,
+         relative_budget_tolerance=1.0e-8,
+     )
