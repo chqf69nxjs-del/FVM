@@ -1,4 +1,5 @@
 """Configuration helpers for V-012D controlled internal-valve closing."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -49,9 +50,7 @@ class CoolPropInternalValveClosingRampConfig:
         if self.right_pressure_pa <= 0.0 or self.initial_temperature_K <= 0.0:
             raise ValueError("pressures and temperature must be positive")
         if not 0.0 <= self.open_final < self.open_initial <= 1.0:
-            raise ValueError(
-                "closing ramp must satisfy 0 <= final < initial <= 1"
-            )
+            raise ValueError("closing ramp must satisfy 0 <= final < initial <= 1")
         if self.ramp_start_s < 0.0:
             raise ValueError("ramp_start_s must be non-negative")
         if self.ramp_duration_s <= 0.0:
@@ -61,9 +60,7 @@ class CoolPropInternalValveClosingRampConfig:
         if self.calibration_delta_p_pa <= 0.0:
             raise ValueError("calibration_delta_p_pa must be positive")
         if self.target_full_open_face_velocity_m_s <= 0.0:
-            raise ValueError(
-                "target_full_open_face_velocity_m_s must be positive"
-            )
+            raise ValueError("target_full_open_face_velocity_m_s must be positive")
         if not 0.0 < self.max_mach <= 1.0:
             raise ValueError("max_mach must be in (0, 1]")
         if not self.probe_fractions or any(
@@ -79,11 +76,9 @@ class CoolPropInternalValveClosingRampConfig:
         if self.post_probe_margin_fraction <= 0.0:
             raise ValueError("post_probe_margin_fraction must be positive")
         if not 0.0 < self.boundary_arrival_safety_fraction < 1.0:
-            raise ValueError(
-                "boundary_arrival_safety_fraction must lie in (0, 1)"
-            )
-        if self.t_end_s is not None and self.t_end_s <= self.ramp_end_s:
-            raise ValueError("t_end_s must be later than the ramp end")
+            raise ValueError("boundary_arrival_safety_fraction must lie in (0, 1)")
+        if self.t_end_s is not None and self.t_end_s < self.minimum_post_closure_end_s:
+            raise ValueError("t_end_s must include the configured post-closure hold")
         if self.sample_every <= 0 or self.field_sample_every <= 0:
             raise ValueError("sample intervals must be positive")
         if self.max_steps <= 0:
