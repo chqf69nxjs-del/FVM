@@ -20,12 +20,12 @@ jobs:
 
       - name: Create source archive
         shell: bash
-        run: tar --exclude=.git -czf v012d-source.tar.gz .
+        run: tar --exclude=.git -czf "$RUNNER_TEMP/v012d-source.tar.gz" .
 
       - name: Upload source archive
         uses: actions/upload-artifact@v4
         with:
           name: v012d-source-${{ github.run_id }}
-          path: v012d-source.tar.gz
+          path: ${{ runner.temp }}/v012d-source.tar.gz
           retention-days: 1
           if-no-files-found: error
