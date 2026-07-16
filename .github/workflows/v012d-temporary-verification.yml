@@ -25,8 +25,8 @@ jobs:
       - name: Prepare diagnostics directory
         shell: bash
         run: |
-          rm -rf .ci-v012d verification/internal_valve_closing_ramp_baseline
-          mkdir -p .ci-v012d
+          rm -rf ci-v012d verification/internal_valve_closing_ramp_baseline
+          mkdir -p ci-v012d
       - name: Install verification dependencies
         id: install
         continue-on-error: true
@@ -34,7 +34,7 @@ jobs:
         run: |
           set -o pipefail
           python -m pip install -e . 'CoolProp==8.0.0' 'matplotlib>=3.7' pytest ruff \
-            2>&1 | tee .ci-v012d/install.txt
+            2>&1 | tee ci-v012d/install.txt
       - name: Static checks
         id: static
         if: always() && steps.install.outcome == 'success'
@@ -64,7 +64,7 @@ jobs:
               src/liquid_gas_transient/plot_internal_valve_closing_ramp_results.py \
               tests/test_coolprop_internal_valve_closing_ramp.py \
               tests/test_coolprop_internal_valve_closing_ramp_plots.py
-          } 2>&1 | tee .ci-v012d/static-checks.txt
+          } 2>&1 | tee ci-v012d/static-checks.txt
       - name: Focused V-012D tests
         id: focused
         if: always() && steps.install.outcome == 'success'
@@ -78,7 +78,7 @@ jobs:
           python -m pytest -q \
             tests/test_coolprop_internal_valve_closing_ramp.py \
             tests/test_coolprop_internal_valve_closing_ramp_plots.py \
-            2>&1 | tee .ci-v012d/focused-tests.txt
+            2>&1 | tee ci-v012d/focused-tests.txt
       - name: Generate V-012D baseline and review plots
         id: artifacts
         if: always() && steps.install.outcome == 'success'
@@ -91,14 +91,14 @@ jobs:
           set -o pipefail
           python -m liquid_gas_transient.cases.coolprop_internal_valve_closing_ramp_artifacts \
             verification/internal_valve_closing_ramp_baseline \
-            2>&1 | tee .ci-v012d/artifact-wrapper.txt
+            2>&1 | tee ci-v012d/artifact-wrapper.txt
       - name: Validate baseline metrics
         id: metrics
         if: always() && steps.artifacts.outcome == 'success'
         continue-on-error: true
         shell: bash
         run: |
-          python - <<'PY' 2>&1 | tee .ci-v012d/metrics-summary.txt
+          python - <<'PY' 2>&1 | tee ci-v012d/metrics-summary.txt
           import json
           from pathlib import Path
           path = Path('verification/internal_valve_closing_ramp_baseline/coolprop_internal_valve_closing_ramp_metrics.json')
@@ -132,7 +132,7 @@ jobs:
           MPLBACKEND: Agg
         run: |
           set -o pipefail
-          python -m pytest -q 2>&1 | tee .ci-v012d/full-tests.txt
+          python -m pytest -q 2>&1 | tee ci-v012d/full-tests.txt
       - name: Write verification status
         if: always()
         shell: bash
@@ -150,7 +150,7 @@ jobs:
           keys = ('INSTALL', 'STATIC', 'FOCUSED', 'ARTIFACTS', 'METRICS', 'FULL')
           status = {key.lower(): os.environ[key] for key in keys}
           status['overall_pass'] = all(value == 'success' for value in status.values())
-          with open('.ci-v012d/status.json', 'w', encoding='utf-8') as stream:
+          with open('ci-v012d/status.json', 'w', encoding='utf-8') as stream:
               json.dump(status, stream, indent=2)
               stream.write('\n')
           print(json.dumps(status, indent=2))
@@ -161,7 +161,7 @@ jobs:
         with:
           name: v012d-diagnostics-${{ github.sha }}
           path: |
-            .ci-v012d
+            ci-v012d
             verification/internal_valve_closing_ramp_baseline
           if-no-files-found: warn
           retention-days: 14
@@ -171,6 +171,6 @@ jobs:
         run: |
           python - <<'PY'
           import json
-          status = json.load(open('.ci-v012d/status.json', encoding='utf-8'))
+          status = json.load(open('ci-v012d/status.json', encoding='utf-8'))
           raise SystemExit(0 if status['overall_pass'] else 1)
           PY
