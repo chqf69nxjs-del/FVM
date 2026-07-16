@@ -235,5 +235,87 @@ Decision:
 
 - no solver-physics, governing-equation, Kv-law, Mach-cap, fixed-pressure-boundary, or conserved-energy change occurred
 - no regression band was introduced or relaxed
-- PR #37 is ready for review after documentation synchronization
+- PR #37 was merged at `f933479658d61b30d2214a2ceb9cd64d0efa671a`
 - V-012 remains `IN_PROGRESS`; V-012D controlled closing ramp is next
+
+## 2026-07-16 — V-012D controlled closing-ramp observation
+
+PR #38 implements the specification-defined complete closing operation:
+
+```text
+opening:          1.0 -> 0.0
+initial hold:     0.005 s
+ramp duration:    0.010 s
+post-closure hold: 0.005 s
+```
+
+The V-012B/C pipe, CoolProp states, Kv calibration, fixed-pressure numerical
+boundaries, and baseline `n=100`, `CFL=0.5` are retained. The closing schedule is
+prescribed component operation, not actuator dynamics or ESD-event verification.
+
+Implemented evidence:
+
+- monotonic full-open-to-zero schedule telemetry
+- finite-opening raw/applied/flux-derived Q consistency
+- exact two-sided interface-flux history
+- explicit post-closure hydraulic-separation and no-flow checks
+- independent reflective-wall momentum reactions after complete closure
+- probe characteristic increments rebased to the pre-arrival state
+- full pressure / velocity / temperature / density field history
+- nine human-review plots
+
+GitHub Actions observation:
+
+```text
+focused tests:        7 passed in 7.53s
+full repository:      252 passed in 106.74s
+static checks:        success
+baseline metrics gate: success
+plot count:           9
+overall observation:  True
+CoolProp version:     8.0.0
+```
+
+Key numerical results:
+
+- target time: `0.06971437311556053 s`
+- first initial-state boundary arrival: `0.08969295335583746 s`
+- opening monotonic non-increasing: `True`
+- initial / final applied Q: `7.068583469428279e-05 / 0 m3/s`
+- finite-opening raw/applied relative difference: `0`
+- finite-opening applied/flux relative difference: `1.8702192872045635e-16`
+- post-closure sample count: `61`
+- post-closure hydraulic-separation fraction: `1.0`
+- post-closure no-flow-direction fraction: `1.0`
+- maximum post-closure mass through-flux: `5.421010862427522e-20 kg/m2/s`
+- maximum post-closure energy / vapor-mass through-flux: `0 / 0`
+- maximum post-closure flux-derived Q: `4.151910405935732e-24 m3/s`
+- all closure through quantities remained below their roundoff tolerances
+- flow-sign consistency: `1.0`
+- Mach-cap activation count: `0`
+- maximum applied face Mach: `1.7939138723497895e-06`
+- primary characteristic direction pass: `True`
+- maximum opposite-direction characteristic ratio: `1.2305912228546978e-06`
+- upstream compression and downstream decompression observed
+- mass / energy / vapor-mass budget relative residuals: `0 / 0 / 0`
+- the case remained finite, positive, and single phase
+
+The relative Q-consistency gate is deliberately evaluated only on finite-opening
+rows. At complete closure, Q is numerically zero and is verified with explicit
+absolute through-flux tolerances; a relative ratio at zero has no useful numerical
+meaning. No tolerance was relaxed.
+
+Human review found the expected left-going compression and right-going
+decompression, smooth flow decay, complete-closure wall reactions, and no growing
+oscillation, checkerboard pattern, isolated non-valve spike, or premature boundary
+return. The delta-p/Q event marker remains a nearest-sample presentation detail and
+does not change the schedule or numerical result.
+
+Decision:
+
+- no solver-physics, governing-equation, Kv-law, Mach-cap, fixed-pressure-boundary,
+  or conserved-energy change occurred
+- hydraulic-loss proxy remains diagnostic and is not removed from `rhoE`
+- no regression band was introduced before mesh/CFL observation
+- PR #38 is ready for review after documentation synchronization
+- V-012 remains `IN_PROGRESS`; mesh/CFL observation is next
