@@ -158,3 +158,82 @@ Identified telemetry gap:
 This is a diagnostic gap only. Closing it must not change the applied numerical flux.
 
 No critical solver-physics or data-integrity blocker was found. No regression band is defined at this stage. V-012 remains `IN_PROGRESS`.
+
+## 2026-07-15 — V-012A uniform-state baseline
+
+PR #35 introduced diagnostic-only raw/applied/capped-flow telemetry, exact two-sided interface-flux telemetry, the V-012A uniform-state runner, four human-review plots, and installed-CoolProp tests.
+
+Observed result:
+
+- nonzero opening `0.5` with zero pressure difference produced zero raw/applied/flux-derived Q
+- no material probe pressure or velocity disturbance occurred
+- mass, energy, vapor-mass, and momentum-difference residuals stayed at numerical zero
+- the case remained finite, positive, and single phase
+- the software observation pass was `True`
+- Windows full suite: `234 passed`
+
+PR #35 was merged at `128596593ae99e61289475cb79a39ec2127f72aa`.
+
+## 2026-07-16 — V-012B small driven-flow baseline
+
+PR #36 added the constant-opening `1 kPa` driven-flow observation using separate consistent CoolProp `(p,T)` states and a pre-boundary-arrival evaluation window.
+
+Observed result:
+
+- initial raw/applied/flux-derived Q all equalled `3.534291735286872e-05 m3/s`
+- flow-sign consistency was `1.0`
+- Mach cap did not activate
+- interface mass, energy, vapor-mass, and momentum-difference residuals were zero
+- maximum `flux Q - applied Q` was `3.3881317890172014e-21 m3/s`
+- upstream probes decompressed, downstream probes compressed, and velocity remained positive
+- energy budget relative residual was `-1.7941570435960072e-16`
+- the case remained single phase
+- Windows full suite: `239 passed in 69.97s`
+
+PR #36 was merged at `8cb3deee003b141c0cb8e8d56ccc3eaa77c01d8f`.
+
+## 2026-07-16 — V-012C controlled opening-ramp observation
+
+PR #37 implements the prescribed opening operation:
+
+```text
+opening:       0.0 -> 1.0
+initial hold:  0.005 s
+ramp duration: 0.010 s
+```
+
+Added evidence:
+
+- exact opening schedule telemetry
+- raw/applied/flux-derived Q histories
+- two-sided interface-flux histories
+- probe `A_plus / A_minus` histories and direction summary
+- full pressure, velocity, temperature, and density field history
+- nine human-review plots, including pressure/velocity x-t maps, profile snapshots, and the delta-p/Q path
+
+Windows observation:
+
+- focused tests: `6 passed in 4.27s`
+- full repository suite: `245 passed in 72.53s`
+- supplied working tree was clean
+- `overall_observation_execution_pass = True`
+- opening monotonic non-decreasing: `True`
+- initial/final applied Q: `0 / 4.3125747224746e-05 m3/s`
+- flow-sign consistency: `1.0`
+- Mach-cap activation count: `0`
+- primary characteristic direction pass: `True`
+- maximum opposite-direction characteristic ratio: `1.6229101813567113e-06`
+- upstream decompression and downstream compression observed
+- all documented interface residuals were zero
+- mass budget relative residual: `-1.394135662426362e-16`
+- the case remained finite, positive, and single phase
+- target time `0.0697143731 s` preceded first boundary arrival `0.0946929534 s`
+
+Human review found no growing oscillation, checkerboard pattern, isolated non-valve spike, premature boundary return, direction error, or conservation blocker. The nearest-sample `ramp start` label in the delta-p/Q figure is a presentation-only limitation and does not change numerical data or acceptance.
+
+Decision:
+
+- no solver-physics, governing-equation, Kv-law, Mach-cap, fixed-pressure-boundary, or conserved-energy change occurred
+- no regression band was introduced or relaxed
+- PR #37 is ready for review after documentation synchronization
+- V-012 remains `IN_PROGRESS`; V-012D controlled closing ramp is next
