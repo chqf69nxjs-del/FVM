@@ -1,0 +1,150 @@
+name: V-012D Finite-Opening Flow Fix
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/stage6-v012d-closing-ramp
+          fetch-depth: 0
+      - name: Apply finite-opening relative-flow correction
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          runner = Path('src/liquid_gas_transient/cases/coolprop_internal_valve_closing_ramp.py')
+          text = runner.read_text(encoding='utf-8')
+          old = '''    raw_applied_difference = _max_series_relative_difference(
+              valve_history,
+              "raw_target_q_m3_s",
+              "applied_q_m3_s",
+              q_tolerance,
+          )
+          applied_flux_difference = _max_series_relative_difference(
+              [
+                  {
+                      "applied_q_m3_s": valve["applied_q_m3_s"],
+                      "flux_derived_q_m3_s": flux["flux_derived_q_m3_s"],
+                  }
+                  for valve, flux in zip(valve_history, flux_history)
+              ],
+              "applied_q_m3_s",
+              "flux_derived_q_m3_s",
+              q_tolerance,
+          )
+          '''
+          new = '''    finite_valve_rows = [valve for valve, _ in finite_pairs]
+          raw_applied_difference = _max_series_relative_difference(
+              finite_valve_rows,
+              "raw_target_q_m3_s",
+              "applied_q_m3_s",
+              q_tolerance,
+          )
+          applied_flux_difference = _max_series_relative_difference(
+              [
+                  {
+                      "applied_q_m3_s": valve["applied_q_m3_s"],
+                      "flux_derived_q_m3_s": flux["flux_derived_q_m3_s"],
+                  }
+                  for valve, flux in finite_pairs
+              ],
+              "applied_q_m3_s",
+              "flux_derived_q_m3_s",
+              q_tolerance,
+          )
+          '''
+          if old not in text:
+              raise SystemExit('relative-flow block not found')
+          text = text.replace(old, new, 1)
+          old = '''        "max_raw_applied_relative_difference": float(raw_applied_difference),
+                  "max_applied_flux_relative_difference": float(applied_flux_difference),
+                  "flow_relative_tolerance": cfg.flow_relative_tolerance,
+          '''
+          new = '''        "max_raw_applied_relative_difference": float(raw_applied_difference),
+                  "max_applied_flux_relative_difference": float(applied_flux_difference),
+                  "relative_flow_consistency_evaluated_on_finite_opening_rows": True,
+                  "post_closure_flow_consistency_uses_absolute_zero_tolerances": True,
+                  "flow_relative_tolerance": cfg.flow_relative_tolerance,
+          '''
+          if old not in text:
+              raise SystemExit('flow-consistency metrics block not found')
+          text = text.replace(old, new, 1)
+          old = '''        "At finite opening, the documented momentum-flux-difference relation is",
+                  "checked. At zero opening, the implementation changes to two independent",
+          '''
+          new = '''        "At finite opening, raw/applied/flux-derived Q relative consistency and",
+                  "the documented momentum-flux-difference relation are checked. At zero",
+                  "opening, the implementation changes to two independent",
+          '''
+          if old not in text:
+              raise SystemExit('report explanation block not found')
+          runner.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          plotter = Path('src/liquid_gas_transient/plot_internal_valve_closing_ramp_results.py')
+          text = plotter.read_text(encoding='utf-8')
+          old = '''        (
+                      "raw-applied",
+                      "max_raw_applied_relative_difference",
+          '''
+          new = '''        (
+                      "finite raw-applied",
+                      "max_raw_applied_relative_difference",
+          '''
+          if old not in text:
+              raise SystemExit('raw-applied plot label not found')
+          text = text.replace(old, new, 1)
+          old = '''        (
+                      "applied-flux",
+                      "max_applied_flux_relative_difference",
+          '''
+          new = '''        (
+                      "finite applied-flux",
+                      "max_applied_flux_relative_difference",
+          '''
+          if old not in text:
+              raise SystemExit('applied-flux plot label not found')
+          plotter.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          test_path = Path('tests/test_coolprop_internal_valve_closing_ramp.py')
+          text = test_path.read_text(encoding='utf-8')
+          old = '''    assert metrics["finite_opening_momentum_relation_applied_to_closed_rows"] is False
+          '''
+          new = '''    assert metrics["finite_opening_momentum_relation_applied_to_closed_rows"] is False
+              assert metrics["relative_flow_consistency_evaluated_on_finite_opening_rows"] is True
+              assert metrics["post_closure_flow_consistency_uses_absolute_zero_tolerances"] is True
+          '''
+          if old not in text:
+              raise SystemExit('guardrail assertion location not found')
+          test_path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          python -m pip install ruff
+          ruff format \
+            src/liquid_gas_transient/cases/coolprop_internal_valve_closing_ramp.py \
+            src/liquid_gas_transient/plot_internal_valve_closing_ramp_results.py \
+            tests/test_coolprop_internal_valve_closing_ramp.py
+          ruff check \
+            src/liquid_gas_transient/cases/coolprop_internal_valve_closing_ramp.py \
+            src/liquid_gas_transient/plot_internal_valve_closing_ramp_results.py \
+            tests/test_coolprop_internal_valve_closing_ramp.py
+          rm -f .github/workflows/v012d-finite-opening-flow-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A -- \
+            .github/workflows/v012d-finite-opening-flow-fix.yml \
+            src/liquid_gas_transient/cases/coolprop_internal_valve_closing_ramp.py \
+            src/liquid_gas_transient/plot_internal_valve_closing_ramp_results.py \
+            tests/test_coolprop_internal_valve_closing_ramp.py
+          git diff --cached --check
+          git commit -m "Limit V-012D relative flow checks to finite opening"
+          git push origin HEAD:agent/stage6-v012d-closing-ramp
