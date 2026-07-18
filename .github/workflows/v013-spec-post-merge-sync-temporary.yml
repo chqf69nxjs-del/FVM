@@ -1,0 +1,107 @@
+name: V-013 Specification Post-Merge Sync Temporary
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  synchronize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout work branch
+        uses: actions/checkout@v7
+        with:
+          ref: agent/stage7-v013-spec-post-merge-sync
+          fetch-depth: 0
+
+      - name: Synchronize V-013 specification merge status
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          merge_commit = "349bdefe16816b55b0b64495b1ebf17bedab71e5"
+
+          def replace_once(path: Path, old: str, new: str) -> None:
+              text = path.read_text(encoding="utf-8")
+              if old not in text:
+                  raise SystemExit(f"replacement source not found in {path}: {old[:100]!r}")
+              path.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          master = Path("docs/verification/MASTER_VERIFICATION_INDEX.md")
+          replace_once(
+              master,
+              "- Stage 7 / V-013 MOC / linear-acoustic cross-verification specificationを固定し、branch上で`IN_PROGRESS; SPECIFICATION READY FOR REVIEW`。",
+              f"- Stage 7 / V-013 MOC / linear-acoustic cross-verification specificationはPR #44でマージ済み。merge commitは`{merge_commit}`。\n- Stage 7 / V-013は`IN_PROGRESS`。次は独立analytical / MOC referenceのpure implementation。",
+          )
+          replace_once(
+              master,
+              """1. V-013 specificationをレビューしてマージする。
+          2. characteristic変数、analytical Gaussian evaluator、independent CFL=1 MOC translatorをpure testsから実装する。
+          3. V-013A incident propagationを実行し、FVM / MOC / analytical referenceを比較する。
+          4. V-013B rigid-wall reflectionとV-013C fixed-pressure reflectionを実行する。
+          5. n=100 / 200 / 400観測後にのみCI-light bandを提案する。""",
+              """1. characteristic変数とpressure / velocity reconstructionをpure testsから実装する。
+          2. analytical Gaussian evaluatorをproduction solver非依存で実装する。
+          3. independent `CFL=1` MOC translatorとrigid / fixed-pressure boundary identityを実装する。
+          4. reference self-tests完了後にV-013A incident propagationを接続する。
+          5. V-013B / V-013Cと100 / 200 / 400観測後にのみCI-light bandを提案する。""",
+          )
+          replace_once(
+              master,
+              "| V-013 | MOC / linear-acoustic cross verification | IN_PROGRESS | implementation-ready specification、独立reference規則、V-013A/B/C、100/200/400観測matrixを固定 | reference implementationと観測は未実施。MOCはverification用限定 | analytical / MOC reference pure implementation |",
+              f"| V-013 | MOC / linear-acoustic cross verification | IN_PROGRESS | PR #44 specification merged at `{merge_commit}`、独立reference規則、V-013A/B/C、100/200/400観測matrixを固定 | reference implementationと観測は未実施。MOCはverification用限定 | analytical / MOC reference pure implementation |",
+          )
+          marker = f"- PR #44 merge commit: `{merge_commit}`。V-013 implementation-ready specificationとStage 7 execution logをmainへ反映。次は独立analytical / MOC reference implementation。"
+          text = master.read_text(encoding="utf-8")
+          if marker not in text:
+              if not text.endswith("\n"):
+                  text += "\n"
+              master.write_text(text + "\n" + marker + "\n", encoding="utf-8")
+
+          spec = Path("docs/verification/v013_moc_linear_acoustic_cross_verification_spec.md")
+          replace_once(
+              spec,
+              "`PLANNED; IMPLEMENTATION READY`",
+              "`MERGED; IMPLEMENTATION READY`",
+          )
+          spec_text = spec.read_text(encoding="utf-8")
+          note = f"\nMerged by PR #44 at `{merge_commit}`.\n"
+          if note.strip() not in spec_text:
+              spec.write_text(spec_text + note, encoding="utf-8")
+
+          log = Path("docs/verification/stage7_execution_log.md")
+          replace_once(
+              log,
+              "PLANNED; IMPLEMENTATION READY",
+              "IN_PROGRESS; SPECIFICATION MERGED",
+          )
+          log_text = log.read_text(encoding="utf-8")
+          block = f"""\n## 2026-07-18 — V-013 specification merged\n\n- PR: `#44`\n- merge commit: `{merge_commit}`\n- next action: pure analytical / MOC reference implementation\n- production solver changes: none\n"""
+          if "## 2026-07-18 — V-013 specification merged" not in log_text:
+              log.write_text(log_text.rstrip() + "\n" + block, encoding="utf-8")
+          PY
+
+      - name: Commit synchronized documentation
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            docs/verification/MASTER_VERIFICATION_INDEX.md \
+            docs/verification/v013_moc_linear_acoustic_cross_verification_spec.md \
+            docs/verification/stage7_execution_log.md
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "No documentation changes to commit"
+            exit 0
+          fi
+          git commit -m "Record V-013 specification merge"
+          git push origin HEAD:agent/stage7-v013-spec-post-merge-sync
