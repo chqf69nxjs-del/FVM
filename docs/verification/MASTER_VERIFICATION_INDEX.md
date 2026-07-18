@@ -24,7 +24,8 @@
 - V-012 CI-light regression band、4-case runner、permanent GitHub ActionsはPR #42で整備し、skipなしでsuccess。
 - V-012 formal report / SHA256 manifest generatorを整備し、実13-run成果物から193 artifactを索引化した。
 - formalization確認ではfocused 14 tests、全repository 276 testsがskipなしでsuccess。
-- Stage 6全体およびV-012全体はbranch上で`COMPLETE; READY FOR REVIEW`。
+- V-012 CI-light and formalizationはPR #42でマージ済み。merge commitは`c6155d8ea959abbcf90e8e1692dd2710b6b33666`。
+- Stage 6全体およびV-012全体は`COMPLETE`。
 - `property_backend_design_status = not_approved_for_design_use`。
 - physical Validation、design acceptance、two-phase verificationは未実施。
 
@@ -95,7 +96,8 @@ V-012 single-phase internal-valve mesh/CFL observation
 V-012 single-phase internal-valve CI-light and formalization
 
 - PR: `#42`
-- status: `COMPLETE; READY FOR REVIEW`
+- status: `COMPLETE; MERGED`
+- merge commit: `c6155d8ea959abbcf90e8e1692dd2710b6b33666`
 - CI-light profile: V-012A/B/C/D at `n=50`, `CFL=0.5`
 - permanent workflow: `CoolProp Internal Valve Regression`
 - installed CoolProp regression: success, skip `0`
@@ -124,10 +126,10 @@ Stage 7 / V-013 MOC / linear-acoustic cross verification
 
 ### Next action
 
-1. PR #42のCI-light、formal report、manifest、completion gateをレビューしてマージする。
-2. PR #42マージ後にMASTER INDEXへmerge commitを同期する。
-3. Stage 7 / V-013のMOC / linear-acoustic cross-verification specificationを作成する。
-4. MOCはverification用の独立比較経路に限定し、production solverへ混入させない。
+1. Stage 7 / V-013のMOC / linear-acoustic cross-verification specificationを作成する。
+2. 比較対象、線形化条件、波形・到達時刻・反射条件の評価量を固定する。
+3. MOCはverification用の独立比較経路に限定し、production solverへ混入させない。
+4. FVMとMOCの双方が同じ誤りを共有しないよう独立実装・独立入力を維持する。
 5. Stage 8以降のphase-change問題へ進む前にV-013 evidenceを確定する。
 
 Stage 6ではESD event、pump trip、flashing、two-phase dischargeへ進まない。これらは後続stageで扱う。
@@ -401,3 +403,5 @@ verification関連PRでは同じPR内で本書を更新する。status、artifac
 - PR #40: V-012 mesh/CFL observation implementationをマージ。merge commit `ddc83bc390cbb712900017e9ff82112fae81200f`。13-run execution、aggregate analysis、9-figure review、264-test evidenceを記録。V-012は`IN_PROGRESS`を維持し、次はCI-light band specification。
 
 - PR #42: V-012 CI-light regression band、4-case permanent GitHub Actions、formal report、193-artifact SHA256 manifest、276-test evidenceを整備。branch上でV-012およびStage 6を`COMPLETE; READY FOR REVIEW`へ移行。
+
+- PR #42 merge commit: `c6155d8ea959abbcf90e8e1692dd2710b6b33666`。V-012 CI-light、permanent GitHub Actions、formal report、193-artifact manifestをmainへ反映し、V-012およびStage 6を`COMPLETE`へ移行。
