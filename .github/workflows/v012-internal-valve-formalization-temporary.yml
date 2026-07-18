@@ -1,0 +1,172 @@
+name: V-012 Internal Valve Formalization Temporary
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  formalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      PYTHONPATH: src
+      MPLBACKEND: Agg
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install verification dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -e .
+          python -m pip install pytest "CoolProp==8.0.0" matplotlib
+
+      - name: Compile source and tests
+        run: python -m compileall -q src tests
+
+      - name: Run focused formalization tests
+        run: |
+          mkdir -p artifacts
+          python -m pytest -q \
+            tests/test_internal_valve_regression.py \
+            tests/test_internal_valve_verification_report.py \
+            tests/test_verification_import_order.py \
+            --junitxml=artifacts/v012-formalization-focused-junit.xml
+
+      - name: Run complete 13-case V-012 sweep
+        run: |
+          python -m liquid_gas_transient.cases.coolprop_internal_valve_mesh_cfl_sweep \
+            artifacts/internal_valve_verification
+
+      - name: Generate comparison plots from saved artifacts
+        run: |
+          python -m liquid_gas_transient.plot_internal_valve_mesh_cfl_results \
+            artifacts/internal_valve_verification
+
+      - name: Run four-case CI-light profile
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from liquid_gas_transient.verification import run_internal_valve_regression
+
+          root = Path("artifacts/internal_valve_verification")
+          result = run_internal_valve_regression(
+              output_path=root / "coolprop_internal_valve_ci_light_result.json",
+              artifact_dir=root / "ci_light_cases",
+          )
+          assert result["overall_regression_pass"] is True
+          assert result["case_result"]["failed_checks"] == []
+          assert result["executed_run_count"] == 4
+          PY
+
+      - name: Generate formal report and SHA256 manifest
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from liquid_gas_transient.reporting_internal_valve_verification import (
+              generate_internal_valve_verification_report,
+          )
+
+          root = Path("artifacts/internal_valve_verification")
+          result = generate_internal_valve_verification_report(
+              sweep_metrics_path=(
+                  root / "v012_internal_valve_mesh_cfl_sweep_metrics.json"
+              ),
+              sweep_summary_path=(
+                  root / "v012_internal_valve_mesh_cfl_sweep_summary.csv"
+              ),
+              output_path=(
+                  root / "coolprop_internal_valve_verification_report_v1.md"
+              ),
+              manifest_path=(
+                  root / "coolprop_internal_valve_verification_manifest_v1.json"
+              ),
+              artifact_root=root,
+              ci_result_path=(
+                  root / "coolprop_internal_valve_ci_light_result.json"
+              ),
+          )
+          assert result["overall_sweep_execution_pass"] is True
+          assert result["ci_light_regression_pass"] is True
+          assert result["artifact_count"] > 0
+          print(json.dumps(result, indent=2))
+          (root / "formalization_result.json").write_text(
+              json.dumps(result, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Validate formal artifacts
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path("artifacts/internal_valve_verification")
+          metrics = json.loads(
+              (root / "v012_internal_valve_mesh_cfl_sweep_metrics.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          manifest = json.loads(
+              (root / "coolprop_internal_valve_verification_manifest_v1.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          ci = json.loads(
+              (root / "coolprop_internal_valve_ci_light_result.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          assert metrics["planned_run_count"] == 13
+          assert metrics["executed_run_count"] == 13
+          assert metrics["overall_sweep_execution_pass"] is True
+          assert metrics["aggregate_trend_analysis_complete"] is True
+          assert metrics["comparison_plots_complete"] is True
+          assert len(metrics["generated_comparison_plots"]) == 9
+          assert ci["overall_regression_pass"] is True
+          assert manifest["manifest_version"] == (
+              "coolprop_internal_valve_verification_manifest_v1"
+          )
+          assert manifest["validation"] is False
+          assert manifest["design_evaluation"] is False
+          assert manifest["acceptance_gate"] is False
+          assert manifest["property_backend_design_status"] == (
+              "not_approved_for_design_use"
+          )
+          assert len(manifest["entries"]) > 0
+          PY
+
+      - name: Run full repository tests
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m pytest -q --tb=short \
+            --junitxml=artifacts/full-repository-junit.xml \
+            2>&1 | tee artifacts/full-repository-tests.txt
+
+      - name: Upload temporary formalization artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: v012-internal-valve-formalization-${{ github.sha }}
+          path: artifacts
+          if-no-files-found: error
+          retention-days: 14
