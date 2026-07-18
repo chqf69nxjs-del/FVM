@@ -1,0 +1,132 @@
+name: CoolProp Internal Valve Regression
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coolprop-internal-valve-regression-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  internal-valve-regression:
+    name: internal-valve-regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      MPLBACKEND: Agg
+      PYTHONPATH: src
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -e .
+          python -m pip install pytest "CoolProp==8.0.0" matplotlib
+
+      - name: Smoke check CoolProp environment
+        run: |
+          python - <<'PY'
+          import math
+          import CoolProp
+          import CoolProp.CoolProp as CP
+
+          rho = CP.PropsSI("D", "P", 8.0e6, "T", 280.0, "CO2")
+          print("CoolProp:", CoolProp.__version__)
+          print("CO2 density smoke kg/m3:", rho)
+          assert CoolProp.__version__ == "8.0.0"
+          assert math.isfinite(rho) and rho > 0.0
+          PY
+
+      - name: Run V-012 CI-light pure tests
+        run: |
+          python -m pytest -q \
+            tests/test_internal_valve_regression.py \
+            tests/test_verification_import_order.py \
+            -m "not numerical_regression"
+
+      - name: Run installed CoolProp V-012 regression test
+        run: |
+          mkdir -p artifacts
+          python -m pytest -q \
+            tests/test_internal_valve_regression.py \
+            -m numerical_regression \
+            --strict-markers \
+            --junitxml=artifacts/internal-valve-regression-junit.xml
+
+      - name: Assert installed regression was not skipped
+        run: |
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+
+          path = "artifacts/internal-valve-regression-junit.xml"
+          root = ET.parse(path).getroot()
+          testcases = root.findall(".//testcase")
+          skipped = root.findall(".//skipped")
+          failures = root.findall(".//failure")
+          errors = root.findall(".//error")
+          print(
+              f"testcases={len(testcases)} skipped={len(skipped)} "
+              f"failures={len(failures)} errors={len(errors)}"
+          )
+          assert len(testcases) >= 1
+          assert len(skipped) == 0
+          assert len(failures) == 0
+          assert len(errors) == 0
+          PY
+
+      - name: Run V-012 CI-light artifact runner
+        run: |
+          mkdir -p artifacts/internal-valve-regression
+          python - <<'PY'
+          from pathlib import Path
+          from liquid_gas_transient.verification import run_internal_valve_regression
+
+          root = Path("artifacts/internal-valve-regression")
+          output = root / "coolprop_internal_valve_ci_light_result.json"
+          result = run_internal_valve_regression(
+              output_path=output,
+              artifact_dir=root / "cases",
+          )
+          assert result["overall_regression_pass"] is True
+          assert result["case_result"]["failed_checks"] == []
+          assert result["executed_run_count"] == 4
+          assert result["sweep_execution_pass"] is True
+          assert result["validation"] is False
+          assert result["design_evaluation"] is False
+          assert result["acceptance_gate"] is False
+          assert (
+              result["property_backend_design_status"]
+              == "not_approved_for_design_use"
+          )
+          PY
+
+      - name: Upload V-012 regression artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: coolprop-internal-valve-regression-${{ github.run_id }}
+          path: |
+            artifacts/internal-valve-regression-junit.xml
+            artifacts/internal-valve-regression/coolprop_internal_valve_ci_light_result.json
+            artifacts/internal-valve-regression/cases/v012_internal_valve_mesh_cfl_sweep_metrics.json
+            artifacts/internal-valve-regression/cases/v012_internal_valve_mesh_cfl_sweep_summary.csv
+          if-no-files-found: error
+          retention-days: 14
