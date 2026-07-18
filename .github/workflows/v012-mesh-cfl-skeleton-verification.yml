@@ -75,7 +75,12 @@ jobs:
           PY
 
       - name: Run full repository tests
-        run: python -m pytest -q
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m pytest -q --tb=short \
+            --junitxml=artifacts/full-repository-junit.xml \
+            2>&1 | tee artifacts/full-repository-tests.txt
 
       - name: Upload temporary verification artifacts
         if: always()
