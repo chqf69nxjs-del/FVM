@@ -385,3 +385,14 @@ Completion decision:
 - Stage 6 is `COMPLETE; READY FOR REVIEW`;
 - physical Validation and design-use acceptance remain false and deferred;
 - next stage is V-013 MOC / linear-acoustic cross verification.
+
+## 2026-07-18 — V-012 formalization merged
+
+PR #42 was merged at `c6155d8ea959abbcf90e8e1692dd2710b6b33666`.
+
+- V-012 status: `COMPLETE`
+- Stage 6 status: `COMPLETE`
+- permanent CI-light workflow is active on `main`
+- formal report and 193-entry SHA256 manifest remain traceable by the recorded hashes
+- physical Validation and design-use acceptance remain false and deferred
+- next item: V-013 MOC / linear-acoustic cross verification

@@ -2,7 +2,9 @@
 
 ## Status
 
-`COMPLETE; READY FOR REVIEW`
+`COMPLETE; MERGED`
+
+Merge commit: `c6155d8ea959abbcf90e8e1692dd2710b6b33666`
 
 ## Scope
 
