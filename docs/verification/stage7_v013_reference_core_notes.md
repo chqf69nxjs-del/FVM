@@ -2,7 +2,9 @@
 
 ## Status
 
-`IMPLEMENTED; TESTED; READY FOR REVIEW`
+`IMPLEMENTED; TESTED; MERGED`
+
+Merge commit: `3945136dbe26db98044e49fb093b37122bf8b1fd`
 
 ## Scope
 
@@ -90,7 +92,7 @@ artifact SHA256: eeaccfdccf8b791b037b28b46b41e3446dc4e70bec5b5beb8b9d9b3868c245e
 deterministic JSON SHA256: a5d2a5764b4c65613aed9d6254f315b41055fa51968a89d9cf7d5b290c3cbd64
 ```
 
-The temporary workflow is removed before review and is not a permanent CI-light gate.
+The temporary workflow was removed before review and is not a permanent CI-light gate.
 
 ## Guardrails retained
 
