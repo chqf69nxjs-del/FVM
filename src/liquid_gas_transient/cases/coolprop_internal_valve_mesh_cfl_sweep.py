@@ -1,9 +1,9 @@
-"""Stage 6 V-012 single-phase internal-valve mesh/CFL sweep skeleton.
+"""Stage 6 V-012 single-phase internal-valve mesh/CFL observation.
 
-This module coordinates existing V-012A/B/C/D runners. It does not change solver
-physics, the Kv law, the Mach cap, boundary meaning, or conserved-energy
-treatment. The finest mesh is a comparison reference rather than an exact
-solution, and lower CFL is not treated as truth.
+This module coordinates existing V-012A/B/C/D runners and analyzes their saved
+artifacts. It does not change solver physics, the Kv law, the Mach cap, boundary
+meaning, or conserved-energy treatment. The finest mesh is a comparison
+reference rather than an exact solution, and lower CFL is not treated as truth.
 """
 from __future__ import annotations
 
@@ -16,6 +16,11 @@ import time
 from typing import Any, Callable, Mapping
 
 import numpy as np
+
+from .internal_valve_mesh_cfl_analysis import (
+    build_aggregate_observation,
+    extract_case_artifacts,
+)
 
 
 RunAdapter = Callable[[Path, dict[str, Any]], dict[str, Any]]
@@ -33,7 +38,7 @@ class CoolPropInternalValveMeshCflSweepConfig:
     """Inputs for the planned 13-run V-012 mesh/CFL observation."""
 
     case_name: str = "v012_internal_valve_mesh_cfl_sweep"
-    output_version: str = "v012_internal_valve_mesh_cfl_sweep_v1"
+    output_version: str = "v012_internal_valve_mesh_cfl_sweep_v2"
     mesh_cells: tuple[int, ...] = (50, 100, 200)
     cfl_values: tuple[float, ...] = (0.25, 0.5)
     mesh_comparison_cfl: float = 0.5
@@ -177,10 +182,7 @@ def _default_run_adapters() -> dict[str, RunAdapter]:
             n_cells=int(item["n_cells"]),
             cfl=float(item["cfl"]),
         )
-        return run_coolprop_internal_valve_uniform(
-            output_dir,
-            run_config,
-        )
+        return run_coolprop_internal_valve_uniform(output_dir, run_config)
 
     def run_driven(
         output_dir: Path,
@@ -198,10 +200,7 @@ def _default_run_adapters() -> dict[str, RunAdapter]:
             n_cells=int(item["n_cells"]),
             cfl=float(item["cfl"]),
         )
-        return run_coolprop_internal_valve_driven(
-            output_dir,
-            run_config,
-        )
+        return run_coolprop_internal_valve_driven(output_dir, run_config)
 
     def run_opening(
         output_dir: Path,
@@ -288,25 +287,9 @@ _OPTIONAL_METRIC_FIELDS = (
     "max_abs_momentum_difference_residual_pa",
     "max_abs_finite_opening_momentum_difference_residual_pa",
     "max_abs_flux_q_minus_applied_q_m3_s",
-    "max_abs_raw_target_q_m3_s",
-    "max_abs_applied_q_m3_s",
-    "hydraulic_separation_count",
-    "initial_raw_target_q_m3_s",
-    "initial_applied_q_m3_s",
-    "initial_flux_derived_q_m3_s",
-    "initial_raw_applied_relative_difference",
-    "initial_applied_flux_relative_difference",
-    "min_delta_p_valve_pa",
-    "min_applied_q_m3_s",
     "opening_monotonic_non_decreasing",
     "opening_monotonic_non_increasing",
-    "max_applied_q_m3_s",
-    "final_applied_q_m3_s",
-    "max_raw_applied_relative_difference",
-    "max_applied_flux_relative_difference",
     "primary_characteristic_direction_pass",
-    "primary_characteristic_max_leakage_ratio",
-    "primary_characteristic_max_increment_leakage_ratio",
     "upstream_decompression_observed",
     "downstream_compression_observed",
     "upstream_compression_observed",
@@ -314,18 +297,13 @@ _OPTIONAL_METRIC_FIELDS = (
     "post_closure_sample_count",
     "post_closure_hydraulic_separation_fraction",
     "post_closure_no_flow_direction_fraction",
-    "max_abs_post_closure_raw_target_q_m3_s",
-    "max_abs_post_closure_applied_q_m3_s",
-    "max_abs_post_closure_flux_derived_q_m3_s",
-    "max_abs_post_closure_mass_flux_kg_m2_s",
-    "max_abs_post_closure_energy_flux_w_m2",
-    "max_abs_post_closure_vapor_mass_flux_kg_m2_s",
 )
 
 
 def _summary_row(
     item: dict[str, Any],
     metrics: Mapping[str, Any],
+    run_dir: Path,
     runtime_s: float,
 ) -> dict[str, Any]:
     missing = [
@@ -376,7 +354,9 @@ def _summary_row(
             metrics["overall_observation_execution_pass"]
         ),
         "remained_single_phase": bool(metrics["remained_single_phase"]),
-        "missing_budget_fields": ";".join(str(value) for value in budget_fields),
+        "missing_budget_fields": ";".join(
+            str(value) for value in budget_fields
+        ),
         "budget_mass_relative_residual": float(
             metrics["budget_mass_relative_residual"]
         ),
@@ -396,18 +376,16 @@ def _summary_row(
         "source_metrics_path": (
             f"{item['case_id']}/{item['case_id']}_metrics.json"
         ),
-        "summary_extraction_complete": True,
     }
     for field in _OPTIONAL_METRIC_FIELDS:
         if field in metrics:
             row[field] = metrics[field]
+    row.update(extract_case_artifacts(run_dir, item, metrics))
+    row["summary_extraction_complete"] = True
     return row
 
 
-def _single_identity(
-    rows: list[dict[str, Any]],
-    key: str,
-) -> str:
+def _single_identity(rows: list[dict[str, Any]], key: str) -> str:
     values = {str(row.get(key, "")) for row in rows}
     values.discard("")
     if len(values) != 1:
@@ -424,10 +402,7 @@ def _csv_value(value: Any) -> Any:
     return value
 
 
-def _write_csv(
-    path: Path,
-    rows: list[dict[str, Any]],
-) -> None:
+def _write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
     if not rows:
         raise ValueError("cannot write an empty V-012 sweep summary")
     fields: list[str] = []
@@ -458,37 +433,51 @@ def _report_lines(metrics: dict[str, Any]) -> list[str]:
         f"`{metrics['overall_selected_execution_pass']}`",
         f"- full sweep execution pass: "
         f"`{metrics['overall_sweep_execution_pass']}`",
+        f"- aggregate trend analysis complete: "
+        f"`{metrics['aggregate_trend_analysis_complete']}`",
         "- formal regression band applied: `false`",
         "- finest mesh is an exact solution: `false`",
         "- lower CFL is truth: `false`",
         "",
         "## Executed rows",
         "",
-        "| case | item | n | CFL | pass | single phase | runtime [s] |",
-        "|---|---|---:|---:|---|---|---:|",
+        "| case | item | n | CFL | pass | analysis | single phase | runtime [s] |",
+        "|---|---|---:|---:|---|---|---|---:|",
     ]
     for row in metrics["summary_rows"]:
         lines.append(
             "| {case_id} | {verification_item} | {n_cells} | "
-            "{cfl:.6g} | {execution_pass} | {single_phase} | "
-            "{runtime:.6g} |".format(
+            "{cfl:.6g} | {execution_pass} | {analysis_complete} | "
+            "{single_phase} | {runtime:.6g} |".format(
                 case_id=row["case_id"],
                 verification_item=row["verification_item"],
                 n_cells=row["n_cells"],
                 cfl=float(row["cfl"]),
                 execution_pass=row["execution_pass"],
+                analysis_complete=row["analysis_complete"],
                 single_phase=row["remained_single_phase"],
                 runtime=float(row["runtime_s"]),
             )
         )
-    lines.extend(
-        [
-            "",
-            "Aggregate trend analysis and comparison plots are deferred until "
-            "the complete planned run set is executed.",
-            "",
-        ]
-    )
+    if metrics["partial_execution"]:
+        lines.extend(
+            [
+                "",
+                "Aggregate trend analysis and comparison plots require the "
+                "complete planned run set.",
+                "",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "",
+                "## 400-cell decision",
+                "",
+                f"- `{metrics['aggregate_observation']['cell_400_decision']}`",
+                "",
+            ]
+        )
     return lines
 
 
@@ -533,14 +522,12 @@ def run_coolprop_internal_valve_mesh_cfl_sweep(
     for item in selected_plan:
         verification_item = str(item["verification_item"])
         if verification_item not in adapters:
-            raise KeyError(
-                f"missing runner adapter for {verification_item}"
-            )
+            raise KeyError(f"missing runner adapter for {verification_item}")
         run_dir = directory / str(item["case_id"])
         run_started = time.perf_counter()
         run_metrics = adapters[verification_item](run_dir, item)
         runtime_s = time.perf_counter() - run_started
-        rows.append(_summary_row(item, run_metrics, runtime_s))
+        rows.append(_summary_row(item, run_metrics, run_dir, runtime_s))
 
     backend_name = _single_identity(rows, "property_backend_name")
     coolprop_version = _single_identity(rows, "coolprop_version")
@@ -553,9 +540,24 @@ def run_coolprop_internal_valve_mesh_cfl_sweep(
         and bool(row["remained_single_phase"])
         and not str(row["missing_budget_fields"])
         and bool(row["summary_extraction_complete"])
+        and bool(row["analysis_complete"])
         for row in rows
     )
     partial_execution = len(rows) != len(full_plan)
+    aggregate = (
+        build_aggregate_observation(rows)
+        if not partial_execution
+        else {
+            "mesh_observation_complete": False,
+            "cfl_observation_complete": False,
+            "cell_400_decision": "deferred_until_complete_sweep",
+        }
+    )
+    aggregate_complete = bool(
+        not partial_execution
+        and aggregate["mesh_observation_complete"]
+        and aggregate["cfl_observation_complete"]
+    )
     metrics: dict[str, Any] = {
         "case_name": cfg.case_name,
         "output_version": cfg.output_version,
@@ -578,9 +580,10 @@ def run_coolprop_internal_valve_mesh_cfl_sweep(
         "summary_rows": rows,
         "overall_selected_execution_pass": bool(selected_pass),
         "overall_sweep_execution_pass": bool(
-            selected_pass and not partial_execution
+            selected_pass and not partial_execution and aggregate_complete
         ),
-        "aggregate_trend_analysis_complete": False,
+        "aggregate_trend_analysis_complete": aggregate_complete,
+        "aggregate_observation": aggregate,
         "comparison_plots_complete": False,
         "runtime_s": float(time.perf_counter() - started),
         "finest_mesh_is_exact_solution": False,
@@ -589,7 +592,7 @@ def run_coolprop_internal_valve_mesh_cfl_sweep(
             "finest mesh is a comparison reference, not an exact solution",
             "lower CFL is not treated as truth",
             "no formal regression band is applied",
-            "aggregate trend analysis requires the complete planned run set",
+            "comparison plots are added after summary review",
             "not physical Validation or design-use acceptance",
         ],
     }
