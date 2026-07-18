@@ -247,6 +247,6 @@ def test_real_uniform_sentinel_mini_run(tmp_path: Path) -> None:
     assert row["execution_pass"] is True
     assert row["analysis_complete"] is True
     assert row["remained_single_phase"] is True
-    assert row["max_abs_raw_target_q_m3_s"] == pytest.approx(0.0)
-    assert row["max_abs_applied_q_m3_s"] == pytest.approx(0.0)
+    assert row["max_abs_raw_target_q_m3_s_extracted"] == pytest.approx(0.0)
+    assert row["max_abs_applied_q_m3_s_extracted"] == pytest.approx(0.0)
     assert row["max_abs_flux_derived_q_m3_s_extracted"] == pytest.approx(0.0)
