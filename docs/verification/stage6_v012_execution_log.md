@@ -331,3 +331,32 @@ Numerical decision:
 - PR #38 is `OBSERVED; READY FOR REVIEW`
 - V-012 remains `IN_PROGRESS`; mesh/CFL observation, CI-light, formal report, and
   SHA256 manifest remain
+
+## 2026-07-18 — V-012 mesh/CFL observation
+
+PR #40 executed the fixed 13-run V-012A/B/C/D mesh/CFL matrix.
+
+```text
+planned / executed runs:     13 / 13
+overall sweep pass:          True
+aggregate analysis:          complete
+comparison plots:            9
+focused tests:               12 passed, 0 skipped
+full repository:             264 passed in 121.80 s
+CoolProp:                    8.0.0
+source head:                 9a63dd2bafc264c2a9e41ba68769b5b38cfafe78
+artifact sha256:             c1cdf41cde8697cdecbd368ee380d925922921fbc77c1c8b77cb8820feb0d372
+```
+
+Observed decisions:
+
+- V-012B/C/D near-probe p50 timing offsets improved with mesh refinement;
+- finite-opening flow and interface-Q consistency remained stable;
+- V-012D complete-closure through quantities remained at numerical zero;
+- all runs remained single phase with positive states and required budgets;
+- halving CFL approximately doubled step count and runtime but was not uniformly closer to the mesh trend;
+- `n=400` is not required for this observation increment after human review;
+- no solver-physics, Kv-law, boundary-meaning, or energy-treatment change occurred;
+- no CI-light band was defined in this observation increment.
+
+V-012 remains `IN_PROGRESS`; CI-light, permanent GitHub Actions, formal report, and SHA256 manifest remain.
