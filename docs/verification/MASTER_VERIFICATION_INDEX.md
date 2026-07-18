@@ -13,21 +13,22 @@
 - V-012A telemetry / uniform-state baselineはPR #35でマージ済み。merge commitは`128596593ae99e61289475cb79a39ec2127f72aa`。
 - V-012B small driven-flow constant-opening baselineはPR #36でマージ済み。merge commitは`8cb3deee003b141c0cb8e8d56ccc3eaa77c01d8f`。
 - V-012C controlled opening rampはPR #37でマージ済み。merge commitは`f933479658d61b30d2214a2ceb9cd64d0efa671a`。
-- V-012D controlled closing rampはPR #38で`OBSERVED; READY FOR REVIEW`。branchは`agent/stage6-v012d-closing-ramp`。
+- V-012D controlled closing rampはPR #38でマージ済み。merge commitは`56591c60d7ea91c2ba9872681115ededac8aff15`。
 - V-012Dでは開度`1 -> 0`、初期hold `0.005 s`、ramp duration `0.010 s`、完全閉止後hold `0.005 s`を実行し、`overall_observation_execution_pass = True`を確認済み。
 - V-012D focused testsは`7 passed in 7.53s`、GitHub Actions全体testは`252 passed in 106.74s`。static checks、baseline metrics gate、9図生成もsuccess。
 - V-012Dの9図を目視確認済み。上流の左向き圧縮波、下流の右向き減圧波、流量減少、完全閉止後のindependent reflective-wall stateとzero through-fluxを確認した。
-- 最新観測headのCoolProp Controlled Pressure Ramp Regression、CoolProp Wave Regression、CoolProp Boundary Reflection Regressionはすべてsuccess。
+- PR #38最終headのCoolProp Controlled Pressure Ramp Regression、CoolProp Wave Regression、CoolProp Boundary Reflection Regressionはすべてsuccess。
+- V-012 mesh/CFL observation planを`PLANNED; IMPLEMENTATION READY`として固定した。
 - Stage 6全体およびV-012全体は`IN_PROGRESS`。
 - `property_backend_design_status = not_approved_for_design_use`。
 - physical Validation、design acceptance、two-phase verificationは未実施。
 
-### 直近完了・観測段階
+### 直近完了段階
 
 V-012D controlled internal-valve closing ramp
 
 - PR: `#38`
-- branch: `agent/stage6-v012d-closing-ramp`
+- merge commit: `56591c60d7ea91c2ba9872681115ededac8aff15`
 - schedule: opening `1.0 -> 0.0`
 - initial hold: `0.005 s`
 - ramp duration: `0.010 s`
@@ -66,11 +67,12 @@ V-012 mesh/CFL observation
 
 ### Next action
 
-1. PR #38をレビューしてマージする。
-2. V-012A〜Dの代表caseに対するmesh/CFL observation planを固定する。
-3. finite-opening flow、wave direction/timing、complete-closure zero through-flux、budget residualのmesh/CFL傾向を比較する。
-4. finest meshを厳密解、lower CFLを真値と扱わず、観測結果からCI-light bandを定義する。
-5. CI-light、formal report、SHA256 manifestを整備し、V-012全体のcompletion gateを判定する。
+1. de-duplicated 13-run planとstable case IDを実装する。
+2. V-012Aは`n=50`, `CFL=0.5`のuniform-state sentinelとして実行する。
+3. V-012B/C/Dは`n=50 / 100 / 200`、`CFL=0.5`と、`n=100`、`CFL=0.25`を実行する。
+4. finite-opening flow、wave direction/timing/amplitude、complete-closure zero through-flux、budget residual、runtimeのmesh/CFL傾向を比較する。
+5. finest meshを厳密解、lower CFLを真値と扱わず、観測完了後にCI-light bandを提案する。
+6. CI-light、formal report、SHA256 manifestを整備し、V-012全体のcompletion gateを判定する。
 
 Stage 6ではESD event、pump trip、flashing、two-phase dischargeへ進まない。これらは後続stageで扱う。
 
@@ -110,7 +112,7 @@ git switch -c <new-work-branch>
 | V-009 | Rigid-wall reflection | COMPLETE | sign、flux、mesh、CI、formal artifacts | ideal wall | boundary変更時に再実行 |
 | V-010 | Fixed-pressure reflection | COMPLETE | sign、exchange、mesh、CI、formal artifacts | ideal pressure boundary | boundary変更時に再実行 |
 | V-011 | Controlled pressure step/ramp | COMPLETE | baseline、4-run sweep、CI-light、GitHub Actions、traceable formal report/manifest | physical Validationとdesign-use approvalは別問題 | solver/BC変更時に再実行 |
-| V-012 | Single-phase valve operation | IN_PROGRESS | PR #34 specification、PR #35 V-012A、PR #36 V-012B、PR #37 V-012C、PR #38 V-012D、252 tests、opening/closing各9 review plots | mesh/CFL、CI-light、formal report、manifest未完了 | V-012 mesh/CFL observation |
+| V-012 | Single-phase valve operation | IN_PROGRESS | PR #34 specification、PR #35 V-012A、PR #36 V-012B、PR #37 V-012C、PR #38 V-012D、252 tests、opening/closing各9 review plots、mesh/CFL plan | mesh/CFL execution、CI-light、formal report、manifest未完了 | 13-run mesh/CFL observation |
 | V-013 | MOC / linear-acoustic cross verification | PLANNED | 未着手 | MOCはverification用限定 | Stage 7 |
 | V-014 | Saturation-near property sanity | PLANNED | 未着手 | reference gate未定 | Stage 8前 |
 | V-015 | HEM minimum phase-change problem | PLANNED | 未着手 | Validation未実施 | Stage 8/9 |
@@ -147,6 +149,7 @@ Stage 5 formal artifacts:
 ```text
 docs/verification/stage6_single_phase_boundary_operation_spec.md
 docs/verification/v012_single_phase_internal_valve_operation_spec.md
+docs/verification/v012_single_phase_internal_valve_mesh_cfl_observation_plan.md
 docs/verification/stage6_execution_log.md
 docs/verification/stage6_v012_execution_log.md
 ```
@@ -250,12 +253,27 @@ Human-review figures:
 - representative field profiles
 - pressure-difference / flow path
 
+### Stage 6 / V-012 mesh/CFL observation plan
+
+```text
+docs/verification/v012_single_phase_internal_valve_mesh_cfl_observation_plan.md
+```
+
+Fixed plan:
+
+- V-012A: one `n=50`, `CFL=0.5` preservation sentinel
+- V-012B/C/D: `n=50 / 100 / 200` at `CFL=0.5`
+- V-012B/C/D: `n=100` at `CFL=0.25`
+- unique planned run count: `13`
+- `n=400` is conditional on unclear `50 / 100 / 200` trends
+- no formal regression band is defined before observation review
+
 ## 6. Roadmap
 
 | Stage | Status | Remaining work |
 |---|---|---|
 | Stage 1〜5 | COMPLETE | Validation / design-use approvalは別問題 |
-| Stage 6 | IN_PROGRESS | V-012 mesh/CFL observation、CI-light、formal report、SHA256 manifest |
+| Stage 6 | IN_PROGRESS | V-012 mesh/CFL execution、CI-light、formal report、SHA256 manifest |
 | Stage 7 | PLANNED | MOC / linear acoustic cross verification |
 | Stage 8 | PLANNED | saturation-near property sanity、minimum phase-change |
 | Stage 9 | PLANNED | HEM/HNE、ESD/pump trip |
@@ -291,4 +309,5 @@ verification関連PRでは同じPR内で本書を更新する。status、artifac
 - PR #35: V-012A telemetry / uniform baseline / plottingをマージ。merge commit `128596593ae99e61289475cb79a39ec2127f72aa`。
 - PR #36: V-012B driven-flow baselineをマージ。merge commit `8cb3deee003b141c0cb8e8d56ccc3eaa77c01d8f`。
 - PR #37: V-012C opening-ramp implementationをマージ。merge commit `f933479658d61b30d2214a2ceb9cd64d0efa671a`。
-- PR #38: V-012D complete-closing-ramp implementation、GitHub Actions observation、9-figure review、252-test evidenceを記録。V-012は`IN_PROGRESS`を維持。
+- PR #38: V-012D complete-closing-ramp implementationをマージ。merge commit `56591c60d7ea91c2ba9872681115ededac8aff15`。GitHub Actions observation、9-figure review、252-test evidenceを記録。
+- V-012 mesh/CFL observation planを固定。V-012は`IN_PROGRESS`を維持し、次は13-run sweep implementation。
