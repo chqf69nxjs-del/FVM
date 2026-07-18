@@ -1,0 +1,115 @@
+name: V-013 Specification Docs Temporary
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  synchronize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout work branch
+        uses: actions/checkout@v7
+        with:
+          ref: agent/stage7-v013-moc-linear-acoustic-spec
+          fetch-depth: 0
+
+      - name: Synchronize V-013 specification status
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("docs/verification/MASTER_VERIFICATION_INDEX.md")
+          text = path.read_text(encoding="utf-8")
+
+          def replace_once(old: str, new: str) -> None:
+              global text
+              if old not in text:
+                  raise SystemExit(f"replacement source not found: {old[:100]!r}")
+              text = text.replace(old, new, 1)
+
+          replace_once(
+              "- Stage 6全体およびV-012全体は`COMPLETE`。",
+              "- Stage 6全体およびV-012全体は`COMPLETE`。\n"
+              "- Stage 7 / V-013 MOC / linear-acoustic cross-verification specificationを固定し、branch上で`IN_PROGRESS; SPECIFICATION READY FOR REVIEW`。",
+          )
+
+          replace_once(
+              """1. Stage 7 / V-013のMOC / linear-acoustic cross-verification specificationを作成する。
+          2. 比較対象、線形化条件、波形・到達時刻・反射条件の評価量を固定する。
+          3. MOCはverification用の独立比較経路に限定し、production solverへ混入させない。
+          4. FVMとMOCの双方が同じ誤りを共有しないよう独立実装・独立入力を維持する。
+          5. Stage 8以降のphase-change問題へ進む前にV-013 evidenceを確定する。""",
+              """1. V-013 specificationをレビューしてマージする。
+          2. characteristic変数、analytical Gaussian evaluator、independent CFL=1 MOC translatorをpure testsから実装する。
+          3. V-013A incident propagationを実行し、FVM / MOC / analytical referenceを比較する。
+          4. V-013B rigid-wall reflectionとV-013C fixed-pressure reflectionを実行する。
+          5. n=100 / 200 / 400観測後にのみCI-light bandを提案する。""",
+          )
+
+          replace_once(
+              "| V-013 | MOC / linear-acoustic cross verification | PLANNED | 未着手 | MOCはverification用限定 | Stage 7 |",
+              "| V-013 | MOC / linear-acoustic cross verification | IN_PROGRESS | implementation-ready specification、独立reference規則、V-013A/B/C、100/200/400観測matrixを固定 | reference implementationと観測は未実施。MOCはverification用限定 | analytical / MOC reference pure implementation |",
+          )
+
+          replace_once(
+              "- V-012 completion status: `COMPLETE; READY FOR REVIEW`",
+              "- V-012 completion status: `COMPLETE; MERGED`",
+          )
+
+          stage7_block = """### Stage 7 / V-013 MOC / linear-acoustic cross verification
+
+          ```text
+          docs/verification/v013_moc_linear_acoustic_cross_verification_spec.md
+          docs/verification/stage7_execution_log.md
+          ```
+
+          Initial specification:
+
+          - analytical characteristic evaluator and discrete `CFL=1` MOC are separately testable;
+          - MOC does not import the production FVM solver, numerical flux, or boundary classes;
+          - MOC receives explicit `rho0` and `c0` and does not call CoolProp;
+          - V-013A incident propagation, V-013B rigid-wall reflection, and V-013C fixed-pressure reflection;
+          - FVM `n=100 / 200 / 400`, `CFL=0.5`;
+          - MOC `n=100 / 200 / 400`, `CFL=1.0`;
+          - no FVM regression band before observation review;
+          - no production solver behaviour change in the specification increment.
+
+          """
+          replace_once("## 6. Roadmap\n", stage7_block + "## 6. Roadmap\n")
+
+          replace_once(
+              "| Stage 7 | PLANNED | MOC / linear acoustic cross verification |",
+              "| Stage 7 | IN_PROGRESS | V-013 specification fixed; analytical / MOC reference implementation and observation remain |",
+          )
+
+          marker = "- V-013 implementation-ready MOC / linear-acoustic cross-verification specificationを固定。独立reference規則、3ケース、100/200/400観測matrix、artifact、stop conditionを記録。"
+          if marker not in text:
+              if not text.endswith("\n"):
+                  text += "\n"
+              text += "\n" + marker + "\n"
+
+          path.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Commit synchronized documentation
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add docs/verification/MASTER_VERIFICATION_INDEX.md
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "No documentation changes to commit"
+            exit 0
+          fi
+          git commit -m "Synchronize V-013 specification status"
+          git push origin HEAD:agent/stage7-v013-moc-linear-acoustic-spec
