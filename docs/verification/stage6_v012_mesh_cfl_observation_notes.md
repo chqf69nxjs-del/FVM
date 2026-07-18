@@ -2,7 +2,7 @@
 
 ## Status
 
-`OBSERVED; READY FOR REVIEW`
+`OBSERVED; MERGED`
 
 Work branch:
 
@@ -13,7 +13,7 @@ agent/stage6-v012-mesh-cfl-observation
 Pull request:
 
 ```text
-#40 Start V-012 mesh/CFL sweep implementation
+#40 Add V-012 internal-valve mesh/CFL observation
 ```
 
 The observation follows the merged V-012A through V-012D baseline cases. It is
@@ -262,7 +262,7 @@ verification scope.
 ## Review decision
 
 No solver-physics, conservation, sign, timing, phase-state, reproducibility, or
-data-integrity blocker was found. The V-012 mesh/CFL observation is ready for PR
-review. V-012 overall remains `IN_PROGRESS`; CI-light band specification,
+data-integrity blocker was found. PR #40 was merged at
+`ddc83bc390cbb712900017e9ff82112fae81200f`. V-012 overall remains `IN_PROGRESS`; CI-light band specification,
 permanent GitHub Actions coverage, formal report, and SHA256 manifest remain before
 V-012 completion.
