@@ -26,6 +26,7 @@
 - formalization確認ではfocused 14 tests、全repository 276 testsがskipなしでsuccess。
 - V-012 CI-light and formalizationはPR #42でマージ済み。merge commitは`c6155d8ea959abbcf90e8e1692dd2710b6b33666`。
 - Stage 6全体およびV-012全体は`COMPLETE`。
+- Stage 7 / V-013 MOC / linear-acoustic cross-verification specificationを固定し、branch上で`IN_PROGRESS; SPECIFICATION READY FOR REVIEW`。
 - `property_backend_design_status = not_approved_for_design_use`。
 - physical Validation、design acceptance、two-phase verificationは未実施。
 
@@ -126,11 +127,11 @@ Stage 7 / V-013 MOC / linear-acoustic cross verification
 
 ### Next action
 
-1. Stage 7 / V-013のMOC / linear-acoustic cross-verification specificationを作成する。
-2. 比較対象、線形化条件、波形・到達時刻・反射条件の評価量を固定する。
-3. MOCはverification用の独立比較経路に限定し、production solverへ混入させない。
-4. FVMとMOCの双方が同じ誤りを共有しないよう独立実装・独立入力を維持する。
-5. Stage 8以降のphase-change問題へ進む前にV-013 evidenceを確定する。
+1. V-013 specificationをレビューしてマージする。
+2. characteristic変数、analytical Gaussian evaluator、independent CFL=1 MOC translatorをpure testsから実装する。
+3. V-013A incident propagationを実行し、FVM / MOC / analytical referenceを比較する。
+4. V-013B rigid-wall reflectionとV-013C fixed-pressure reflectionを実行する。
+5. n=100 / 200 / 400観測後にのみCI-light bandを提案する。
 
 Stage 6ではESD event、pump trip、flashing、two-phase dischargeへ進まない。これらは後続stageで扱う。
 
@@ -171,7 +172,7 @@ git switch -c <new-work-branch>
 | V-010 | Fixed-pressure reflection | COMPLETE | sign、exchange、mesh、CI、formal artifacts | ideal pressure boundary | boundary変更時に再実行 |
 | V-011 | Controlled pressure step/ramp | COMPLETE | baseline、4-run sweep、CI-light、GitHub Actions、traceable formal report/manifest | physical Validationとdesign-use approvalは別問題 | solver/BC変更時に再実行 |
 | V-012 | Single-phase valve operation | COMPLETE | PR #34 specification、PR #35 V-012A、PR #36 V-012B、PR #37 V-012C、PR #38 V-012D、PR #40 13-run mesh/CFL、PR #42 CI-light / permanent Actions / formal report / 193-artifact manifest、276 tests | physical Validationとdesign-use approvalは別問題 | solver/interface/schema変更時に再実行 |
-| V-013 | MOC / linear-acoustic cross verification | PLANNED | 未着手 | MOCはverification用限定 | Stage 7 |
+| V-013 | MOC / linear-acoustic cross verification | IN_PROGRESS | implementation-ready specification、独立reference規則、V-013A/B/C、100/200/400観測matrixを固定 | reference implementationと観測は未実施。MOCはverification用限定 | analytical / MOC reference pure implementation |
 | V-014 | Saturation-near property sanity | PLANNED | 未着手 | reference gate未定 | Stage 8前 |
 | V-015 | HEM minimum phase-change problem | PLANNED | 未着手 | Validation未実施 | Stage 8/9 |
 | V-016 | HNE / relaxation | PLANNED | 未着手 | `tau`未確定 | Stage 9 |
@@ -354,7 +355,25 @@ Final formal artifacts generated from the traceable 13-run artifact set:
 - CI-light artifact SHA256: `6513dc51c5692e8b6a20fe3e980f8872c9d0f9ceff419f083510c27c8bda4047`
 - source CoolProp version: `8.0.0`
 - property backend design status: `not_approved_for_design_use`
-- V-012 completion status: `COMPLETE; READY FOR REVIEW`
+- V-012 completion status: `COMPLETE; MERGED`
+
+### Stage 7 / V-013 MOC / linear-acoustic cross verification
+
+```text
+docs/verification/v013_moc_linear_acoustic_cross_verification_spec.md
+docs/verification/stage7_execution_log.md
+```
+
+Initial specification:
+
+- analytical characteristic evaluator and discrete `CFL=1` MOC are separately testable;
+- MOC does not import the production FVM solver, numerical flux, or boundary classes;
+- MOC receives explicit `rho0` and `c0` and does not call CoolProp;
+- V-013A incident propagation, V-013B rigid-wall reflection, and V-013C fixed-pressure reflection;
+- FVM `n=100 / 200 / 400`, `CFL=0.5`;
+- MOC `n=100 / 200 / 400`, `CFL=1.0`;
+- no FVM regression band before observation review;
+- no production solver behaviour change in the specification increment.
 
 ## 6. Roadmap
 
@@ -362,7 +381,7 @@ Final formal artifacts generated from the traceable 13-run artifact set:
 |---|---|---|
 | Stage 1〜5 | COMPLETE | Validation / design-use approvalは別問題 |
 | Stage 6 | COMPLETE | V-011 / V-012 software・numerical verificationとformalizationを完了。Validation / design-use approvalは別問題 |
-| Stage 7 | PLANNED | MOC / linear acoustic cross verification |
+| Stage 7 | IN_PROGRESS | V-013 specification fixed; analytical / MOC reference implementation and observation remain |
 | Stage 8 | PLANNED | saturation-near property sanity、minimum phase-change |
 | Stage 9 | PLANNED | HEM/HNE、ESD/pump trip |
 | Stage 10 | PLANNED | physical Validation、design-use acceptance |
@@ -405,3 +424,5 @@ verification関連PRでは同じPR内で本書を更新する。status、artifac
 - PR #42: V-012 CI-light regression band、4-case permanent GitHub Actions、formal report、193-artifact SHA256 manifest、276-test evidenceを整備。branch上でV-012およびStage 6を`COMPLETE; READY FOR REVIEW`へ移行。
 
 - PR #42 merge commit: `c6155d8ea959abbcf90e8e1692dd2710b6b33666`。V-012 CI-light、permanent GitHub Actions、formal report、193-artifact manifestをmainへ反映し、V-012およびStage 6を`COMPLETE`へ移行。
+
+- V-013 implementation-ready MOC / linear-acoustic cross-verification specificationを固定。独立reference規則、3ケース、100/200/400観測matrix、artifact、stop conditionを記録。
