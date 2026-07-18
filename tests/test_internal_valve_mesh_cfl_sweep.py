@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 from pathlib import Path
 
@@ -36,9 +37,7 @@ def test_default_v012_mesh_cfl_plan_has_13_unique_runs() -> None:
             if row["verification_item"] == verification_item
         ]
         assert len(rows) == 4
-        assert {
-            (row["n_cells"], row["cfl"]) for row in rows
-        } == {
+        assert {(row["n_cells"], row["cfl"]) for row in rows} == {
             (50, 0.5),
             (100, 0.25),
             (100, 0.5),
@@ -106,7 +105,49 @@ def _fake_metrics(item: dict) -> dict:
         "mach_cap_activation_count": 0,
         "max_abs_raw_target_q_m3_s": 0.0,
         "max_abs_applied_q_m3_s": 0.0,
+        "q_roundoff_tolerance_m3_s": 1.0e-14,
     }
+
+
+def _write_csv(path: Path, rows: list[dict]) -> None:
+    with path.open("w", encoding="utf-8", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _write_fake_sentinel_artifacts(output_dir: Path, case_id: str) -> None:
+    valve = {
+        "time_s": 0.0,
+        "opening_actual": 0.5,
+        "delta_p_pa": 0.0,
+        "raw_target_q_m3_s": 0.0,
+        "applied_q_m3_s": 0.0,
+        "applied_face_mach": 0.0,
+        "mach_cap_active": False,
+        "hydraulic_separation_active": True,
+        "flow_direction": "none",
+    }
+    flux = {
+        "time_s": 0.0,
+        "left_mass_flux_kg_m2_s": 0.0,
+        "right_mass_flux_kg_m2_s": 0.0,
+        "mass_flux_mismatch_kg_m2_s": 0.0,
+        "left_energy_flux_w_m2": 0.0,
+        "right_energy_flux_w_m2": 0.0,
+        "energy_flux_mismatch_w_m2": 0.0,
+        "left_vapor_mass_flux_kg_m2_s": 0.0,
+        "right_vapor_mass_flux_kg_m2_s": 0.0,
+        "vapor_mass_flux_mismatch_kg_m2_s": 0.0,
+        "momentum_difference_residual_pa": 0.0,
+        "flux_derived_q_m3_s": 0.0,
+        "flux_q_minus_applied_q_m3_s": 0.0,
+    }
+    _write_csv(output_dir / f"{case_id}_valve_history.csv", [valve])
+    _write_csv(
+        output_dir / f"{case_id}_interface_flux_history.csv",
+        [flux],
+    )
 
 
 def test_selected_fake_sentinel_writes_one_summary_row(
@@ -125,6 +166,7 @@ def test_selected_fake_sentinel_writes_one_summary_row(
             json.dumps(metrics, indent=2) + "\n",
             encoding="utf-8",
         )
+        _write_fake_sentinel_artifacts(output_dir, item["case_id"])
         return metrics
 
     metrics = run_coolprop_internal_valve_mesh_cfl_sweep(
@@ -141,6 +183,10 @@ def test_selected_fake_sentinel_writes_one_summary_row(
     assert metrics["overall_sweep_execution_pass"] is False
     assert len(metrics["summary_rows"]) == 1
     assert metrics["summary_rows"][0]["case_id"] == sentinel_id
+    assert metrics["summary_rows"][0]["analysis_complete"] is True
+    assert metrics["summary_rows"][0][
+        "relative_flow_comparison_evaluated"
+    ] is False
 
     stem = config.case_name
     for filename in (
@@ -199,6 +245,8 @@ def test_real_uniform_sentinel_mini_run(tmp_path: Path) -> None:
     row = metrics["summary_rows"][0]
     assert row["verification_item"] == "V-012A"
     assert row["execution_pass"] is True
+    assert row["analysis_complete"] is True
     assert row["remained_single_phase"] is True
     assert row["max_abs_raw_target_q_m3_s"] == pytest.approx(0.0)
     assert row["max_abs_applied_q_m3_s"] == pytest.approx(0.0)
+    assert row["max_abs_flux_derived_q_m3_s_extracted"] == pytest.approx(0.0)
