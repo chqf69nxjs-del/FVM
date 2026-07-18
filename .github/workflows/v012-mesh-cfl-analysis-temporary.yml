@@ -13,7 +13,7 @@ jobs:
   verify:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       PYTHONPATH: src
       MPLBACKEND: Agg
@@ -37,51 +37,64 @@ jobs:
       - name: Compile source and tests
         run: python -m compileall -q src tests
 
-      - name: Run focused mesh/CFL analysis tests
+      - name: Run focused mesh/CFL tests
         run: |
           mkdir -p artifacts
           python -m pytest -q \
             tests/test_internal_valve_mesh_cfl_sweep.py \
             tests/test_internal_valve_mesh_cfl_analysis.py \
-            --junitxml=artifacts/v012-mesh-cfl-analysis-junit.xml
+            tests/test_internal_valve_mesh_cfl_plots.py \
+            --junitxml=artifacts/v012-mesh-cfl-focused-junit.xml
 
-      - name: Run four-case V-012 analysis mini sweep
+      - name: Run complete 13-case V-012 sweep
         run: |
+          set -o pipefail
           python -m liquid_gas_transient.cases.coolprop_internal_valve_mesh_cfl_sweep \
-            artifacts/internal_valve_mesh_cfl_analysis_mini \
-            --case-id v012a_n0050_cfl0p5 \
-            --case-id v012b_n0050_cfl0p5 \
-            --case-id v012c_n0050_cfl0p5 \
-            --case-id v012d_n0050_cfl0p5
+            artifacts/internal_valve_mesh_cfl_sweep \
+            2>&1 | tee artifacts/v012-mesh-cfl-sweep.txt
 
-      - name: Validate dynamic extraction
+      - name: Generate comparison plots from saved artifacts
+        run: |
+          python -m liquid_gas_transient.plot_internal_valve_mesh_cfl_results \
+            artifacts/internal_valve_mesh_cfl_sweep
+
+      - name: Validate aggregate observation
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
 
-          path = Path(
-              "artifacts/internal_valve_mesh_cfl_analysis_mini/"
+          directory = Path("artifacts/internal_valve_mesh_cfl_sweep")
+          metrics_path = directory / (
               "v012_internal_valve_mesh_cfl_sweep_metrics.json"
           )
-          metrics = json.loads(path.read_text(encoding="utf-8"))
+          manifest_path = directory / (
+              "v012_internal_valve_mesh_cfl_sweep_plot_manifest.json"
+          )
+          metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
           assert metrics["planned_run_count"] == 13
-          assert metrics["executed_run_count"] == 4
-          assert metrics["partial_execution"] is True
+          assert metrics["executed_run_count"] == 13
+          assert metrics["partial_execution"] is False
           assert metrics["overall_selected_execution_pass"] is True
-          assert metrics["overall_sweep_execution_pass"] is False
-          rows = {row["verification_item"]: row for row in metrics["summary_rows"]}
-          assert set(rows) == {"V-012A", "V-012B", "V-012C", "V-012D"}
-          assert rows["V-012A"]["analysis_complete"] is True
-          for item in ("V-012B", "V-012C", "V-012D"):
-              assert rows[item]["analysis_complete"] is True
-              assert rows[item]["near_probe_characteristic_direction_pass"] is True
-              assert rows[item]["near_left_p50_time_s"] is not None
-              assert rows[item]["near_right_p50_time_s"] is not None
-          assert rows["V-012D"][
-              "finite_opening_momentum_relation_applied_to_closed_rows_extracted"
-          ] is False
-          print(json.dumps(metrics, indent=2))
+          assert metrics["overall_sweep_execution_pass"] is True
+          assert metrics["aggregate_trend_analysis_complete"] is True
+          assert metrics["comparison_plots_complete"] is True
+          assert metrics["property_backend_design_status"] == (
+              "not_approved_for_design_use"
+          )
+          assert metrics["finest_mesh_is_exact_solution"] is False
+          assert metrics["lower_cfl_is_truth"] is False
+          assert len(metrics["summary_rows"]) == 13
+          assert all(
+              row["analysis_complete"] is True
+              for row in metrics["summary_rows"]
+          )
+          assert manifest["plot_count"] == 9
+          assert manifest["solver_rerun"] is False
+          assert manifest["numerical_results_changed"] is False
+          print(json.dumps(metrics["aggregate_observation"], indent=2))
+          print(json.dumps(manifest, indent=2))
           PY
 
       - name: Run full repository tests
@@ -95,7 +108,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: v012-mesh-cfl-analysis-${{ github.sha }}
+          name: v012-mesh-cfl-full-${{ github.sha }}
           path: artifacts
           if-no-files-found: error
           retention-days: 14
