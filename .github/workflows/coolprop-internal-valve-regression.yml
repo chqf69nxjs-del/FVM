@@ -57,12 +57,17 @@ jobs:
           PY
 
       - name: Run V-012 CI-light pure tests
+        shell: bash
         run: |
-          python -m pytest -q \
+          mkdir -p artifacts
+          set -o pipefail
+          python -m pytest -q --tb=short \
             tests/test_internal_valve_regression.py \
             tests/test_internal_valve_verification_report.py \
             tests/test_verification_import_order.py \
-            -m "not numerical_regression"
+            -m "not numerical_regression" \
+            --junitxml=artifacts/internal-valve-pure-junit.xml \
+            2>&1 | tee artifacts/internal-valve-pure-tests.txt
 
       - name: Run installed CoolProp V-012 regression test
         run: |
@@ -121,10 +126,13 @@ jobs:
           PY
 
       - name: Upload V-012 regression artifacts
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: coolprop-internal-valve-regression-${{ github.run_id }}
           path: |
+            artifacts/internal-valve-pure-junit.xml
+            artifacts/internal-valve-pure-tests.txt
             artifacts/internal-valve-regression-junit.xml
             artifacts/internal-valve-regression/coolprop_internal_valve_ci_light_result.json
             artifacts/internal-valve-regression/cases/v012_internal_valve_mesh_cfl_sweep_metrics.json
