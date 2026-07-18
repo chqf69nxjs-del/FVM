@@ -31,9 +31,8 @@ Case sequence fixed by the specification:
 1. V-012A uniform-state constant-opening preservation
 2. V-012B small driven-flow constant-opening baseline
 3. V-012C controlled opening ramp
-4. V-012D controlled closing ramp
-5. zero-opening / closed-limit review after the controlled closing case
-6. mesh/CFL, CI-light, formal report, and manifest
+4. V-012D controlled closing ramp through complete closure and post-closure review
+5. mesh/CFL, CI-light, formal report, and manifest
 
 Stop rules:
 
@@ -229,6 +228,106 @@ Current decision:
 - no critical numerical, conservation, sign, timing, phase-state, or data-integrity
   blocker was found
 - no solver-physics or regression-band change occurred
-- PR #37 is ready for review after documentation synchronization
+- PR #37 was merged at `f933479658d61b30d2214a2ceb9cd64d0efa671a`
 - V-012 remains `IN_PROGRESS`
 - V-012D controlled closing ramp is the next implementation increment
+
+## 2026-07-16 — V-012D controlled closing ramp through complete closure
+
+PR #38 implements the primary closing operation without splitting complete closure
+into a separate verification item:
+
+```text
+opening:           1.0 -> 0.0
+initial hold:      0.005 s
+ramp duration:     0.010 s
+post-closure hold: 0.005 s
+```
+
+Complete closure uses the existing `InternalValveInterface` zero-opening branch,
+which supplies two independent reflective-wall fluxes. The finite-opening and
+post-closure states are evaluated separately:
+
+- finite opening: Kv-law tracking, applied-flow/flux consistency, common mass /
+  energy / vapor-mass flux, and documented momentum-flux difference
+- complete closure: hydraulic separation, no flow direction, zero mass / energy /
+  vapor-mass through-flux, and independent side-specific wall reactions
+
+GitHub Actions evidence:
+
+```text
+focused tests:        7 passed in 7.53s
+full repository:      252 passed in 106.74s
+static checks:        success
+baseline metrics gate: success
+nine review plots:    generated
+V-012D overall pass:  True
+```
+
+Baseline configuration and timing:
+
+- left/right pressure: `8,000,500 / 7,999,500 Pa`
+- temperature: `280 K`
+- mesh / CFL: `n=100 / 0.5`
+- target time: `0.06971437311556053 s`
+- first initial-state boundary arrival: `0.08969295335583746 s`
+- accepted window precedes boundary contamination
+
+Schedule and flow:
+
+- opening monotonic non-increasing: `True`
+- maximum opening error: `0`
+- initial / maximum applied Q: `7.068583469428279e-05 m3/s`
+- final applied Q: `0 m3/s`
+- finite-opening raw/applied relative difference: `0`
+- finite-opening applied/flux relative difference: `1.8702192872045635e-16`
+- flow-sign consistency: `1.0`
+- Mach-cap activation count: `0`
+- maximum applied face Mach: `1.7939138723497895e-06`
+
+Complete-closure observation:
+
+- post-closure sample count: `61`
+- hydraulic-separation fraction: `1.0`
+- no-flow-direction fraction: `1.0`
+- maximum raw / applied Q: `0 / 0 m3/s`
+- maximum flux-derived Q: `4.151910405935732e-24 m3/s`
+- maximum mass through-flux: `5.421010862427522e-20 kg/m2/s`
+- maximum energy through-flux: `0 W/m2`
+- maximum vapor-mass through-flux: `0 kg/m2/s`
+- each through quantity remained below its numerical roundoff tolerance
+- finite-opening momentum relation was not applied to closed rows
+
+Interface, budgets, and state:
+
+- maximum mass-flux mismatch: `5.421010862427522e-20 kg/m2/s`
+- maximum energy / vapor-mass mismatch: `0 / 0`
+- maximum flux-Q minus applied-Q: `6.776263578034403e-21 m3/s`
+- mass / energy / vapor-mass budget relative residual: `0 / 0 / 0`
+- required budget fields missing: none
+- remained single phase: `True`
+- pressure, temperature, density, and sound speed remained positive
+
+Wave observation:
+
+- upstream compression observed: `True`
+- downstream decompression observed: `True`
+- primary characteristic-direction pass: `True`
+- maximum opposite-direction characteristic ratio: `1.2305912228546978e-06`
+
+The characteristic comparison is rebased to each probe's pre-arrival state so the
+closure-generated increment is separated from the initial full-open startup wave.
+Human review of all nine figures found the expected directions and timing, smooth
+flow decay, stable complete closure, and no early external-boundary return.
+
+Numerical decision:
+
+- the finite-opening relative-flow gate excludes complete-closure rows because a
+  relative ratio at numerical zero is ill-conditioned
+- complete closure is instead protected by explicit absolute Q and through-flux
+  tolerances
+- this is a scope correction, not a relaxed acceptance threshold
+- no solver physics or energy treatment changed
+- PR #38 is `OBSERVED; READY FOR REVIEW`
+- V-012 remains `IN_PROGRESS`; mesh/CFL observation, CI-light, formal report, and
+  SHA256 manifest remain
