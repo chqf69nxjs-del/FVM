@@ -159,7 +159,7 @@ def test_generate_internal_valve_report_and_manifest(tmp_path: Path) -> None:
     assert result["report_sha256"] == _sha256(report)
     assert result["manifest_sha256"] == _sha256(manifest)
     text = report.read_text(encoding="utf-8")
-    assert "Software/numerical verification" in text
+    assert "software/numerical verification" in text
     assert "physical Validation = false" in text
     assert "V-012B: 4.5636 ms" in text
     assert "CI-light regression profile" in text
