@@ -124,7 +124,7 @@ def test_missing_case_is_explicit_failure() -> None:
     assert result["overall_regression_pass"] is False
     assert "row_count" in result["failed_checks"]
     assert "expected_items_present_once" in result["failed_checks"]
-    assert result["checks"]["v012d.row_present"]["missing"] is True
+    assert result["checks"]["V-012D.row_present"]["missing"] is True
 
 
 def test_wrong_backend_status_fails() -> None:
