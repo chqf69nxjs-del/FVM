@@ -1,0 +1,119 @@
+name: V-012 Formalization Post-Merge Sync Temporary
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  synchronize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout work branch
+        uses: actions/checkout@v7
+        with:
+          ref: agent/stage6-v012-formalization-post-merge-sync
+          fetch-depth: 0
+
+      - name: Synchronize V-012 formalization merge status
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          MERGE = "c6155d8ea959abbcf90e8e1692dd2710b6b33666"
+
+          def replace_exact(path: Path, old: str, new: str) -> None:
+              text = path.read_text(encoding="utf-8")
+              if old not in text:
+                  raise SystemExit(f"source not found in {path}: {old[:100]!r}")
+              path.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          def append_once(path: Path, marker: str, block: str) -> None:
+              text = path.read_text(encoding="utf-8")
+              if marker in text:
+                  return
+              if not text.endswith("\n"):
+                  text += "\n"
+              path.write_text(text + "\n" + block.rstrip() + "\n", encoding="utf-8")
+
+          master = Path("docs/verification/MASTER_VERIFICATION_INDEX.md")
+          replace_exact(
+              master,
+              "- Stage 6全体およびV-012全体はbranch上で`COMPLETE; READY FOR REVIEW`。",
+              f"- V-012 CI-light and formalizationはPR #42でマージ済み。merge commitは`{MERGE}`。\n"
+              "- Stage 6全体およびV-012全体は`COMPLETE`。",
+          )
+          replace_exact(
+              master,
+              "- status: `COMPLETE; READY FOR REVIEW`",
+              f"- status: `COMPLETE; MERGED`\n- merge commit: `{MERGE}`",
+          )
+          replace_exact(
+              master,
+              """1. PR #42のCI-light、formal report、manifest、completion gateをレビューしてマージする。
+          2. PR #42マージ後にMASTER INDEXへmerge commitを同期する。
+          3. Stage 7 / V-013のMOC / linear-acoustic cross-verification specificationを作成する。
+          4. MOCはverification用の独立比較経路に限定し、production solverへ混入させない。
+          5. Stage 8以降のphase-change問題へ進む前にV-013 evidenceを確定する。""".replace("          ", ""),
+              """1. Stage 7 / V-013のMOC / linear-acoustic cross-verification specificationを作成する。
+          2. 比較対象、線形化条件、波形・到達時刻・反射条件の評価量を固定する。
+          3. MOCはverification用の独立比較経路に限定し、production solverへ混入させない。
+          4. FVMとMOCの双方が同じ誤りを共有しないよう独立実装・独立入力を維持する。
+          5. Stage 8以降のphase-change問題へ進む前にV-013 evidenceを確定する。""".replace("          ", ""),
+          )
+          append_once(
+              master,
+              "PR #42 merge commit",
+              f"- PR #42 merge commit: `{MERGE}`。V-012 CI-light、permanent GitHub Actions、formal report、193-artifact manifestをmainへ反映し、V-012およびStage 6を`COMPLETE`へ移行。",
+          )
+
+          notes = Path("docs/verification/stage6_v012_formalization_notes.md")
+          replace_exact(notes, "`COMPLETE; READY FOR REVIEW`", "`COMPLETE; MERGED`")
+          replace_exact(
+              notes,
+              "## Scope\n",
+              f"Merge commit: `{MERGE}`\n\n## Scope\n",
+          )
+
+          block = f"""## 2026-07-18 — V-012 formalization merged
+
+          PR #42 was merged at `{MERGE}`.
+
+          - V-012 status: `COMPLETE`
+          - Stage 6 status: `COMPLETE`
+          - permanent CI-light workflow is active on `main`
+          - formal report and 193-entry SHA256 manifest remain traceable by the recorded hashes
+          - physical Validation and design-use acceptance remain false and deferred
+          - next item: V-013 MOC / linear-acoustic cross verification
+          """.replace("          ", "")
+          for path in (
+              Path("docs/verification/stage6_execution_log.md"),
+              Path("docs/verification/stage6_v012_execution_log.md"),
+          ):
+              append_once(path, "## 2026-07-18 — V-012 formalization merged", block)
+          PY
+
+      - name: Commit synchronized documentation
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            docs/verification/MASTER_VERIFICATION_INDEX.md \
+            docs/verification/stage6_execution_log.md \
+            docs/verification/stage6_v012_execution_log.md \
+            docs/verification/stage6_v012_formalization_notes.md
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git commit -m "Synchronize V-012 formalization merge status"
+          git push origin HEAD:agent/stage6-v012-formalization-post-merge-sync
