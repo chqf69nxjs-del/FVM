@@ -1,9 +1,9 @@
 """Verification helpers for liquid-gas transient software-path checks.
 
-Boundary-reflection and controlled-pressure-ramp regression exports are loaded
-lazily because those modules import case runners that may import verification
-submodules. Eager package-level imports would create import-order-dependent
-cycles.
+Boundary-reflection, controlled-pressure-ramp, and internal-valve regression exports
+are loaded lazily because those modules import case runners that may import
+verification submodules. Eager package-level imports would create
+import-order-dependent cycles.
 """
 from __future__ import annotations
 
@@ -22,6 +22,9 @@ __all__ = [
     "ControlledPressureRampRegressionLimits",
     "evaluate_controlled_pressure_ramp_regression",
     "run_controlled_pressure_ramp_regression",
+    "InternalValveRegressionLimits",
+    "evaluate_internal_valve_regression",
+    "run_internal_valve_regression",
     "WaveRegressionLimits",
     "evaluate_coolprop_wave_regression",
     "run_coolprop_wave_regression",
@@ -43,6 +46,14 @@ def __getattr__(name: str) -> Any:
         "run_controlled_pressure_ramp_regression",
     }:
         from . import controlled_pressure_ramp_regression as module
+
+        return getattr(module, name)
+    if name in {
+        "InternalValveRegressionLimits",
+        "evaluate_internal_valve_regression",
+        "run_internal_valve_regression",
+    }:
+        from . import internal_valve_regression as module
 
         return getattr(module, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

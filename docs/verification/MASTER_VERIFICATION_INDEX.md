@@ -21,7 +21,10 @@
 - V-012 mesh/CFL observationはPR #40でマージ済み。merge commitは`ddc83bc390cbb712900017e9ff82112fae81200f`。
 - 13 / 13 runs、aggregate analysis、9 comparison plots、264 testsをsuccessで確認した。
 - `n=400`追加は人間レビューの結果、初期50 / 100 / 200観測で主要傾向が明確なため不要と判断した。
-- Stage 6全体およびV-012全体は`IN_PROGRESS`。
+- V-012 CI-light regression band、4-case runner、permanent GitHub ActionsはPR #42で整備し、skipなしでsuccess。
+- V-012 formal report / SHA256 manifest generatorを整備し、実13-run成果物から193 artifactを索引化した。
+- formalization確認ではfocused 14 tests、全repository 276 testsがskipなしでsuccess。
+- Stage 6全体およびV-012全体はbranch上で`COMPLETE; READY FOR REVIEW`。
 - `property_backend_design_status = not_approved_for_design_use`。
 - physical Validation、design acceptance、two-phase verificationは未実施。
 
@@ -87,17 +90,45 @@ V-012 single-phase internal-valve mesh/CFL observation
 - all runs remained single phase with required budgets present
 - `n=400` decision: not required for this observation increment
 
+### 直近formalization段階
+
+V-012 single-phase internal-valve CI-light and formalization
+
+- PR: `#42`
+- status: `COMPLETE; READY FOR REVIEW`
+- CI-light profile: V-012A/B/C/D at `n=50`, `CFL=0.5`
+- permanent workflow: `CoolProp Internal Valve Regression`
+- installed CoolProp regression: success, skip `0`
+- CI-light artifact SHA256: `6513dc51c5692e8b6a20fe3e980f8872c9d0f9ceff419f083510c27c8bda4047`
+- formalization source head: `6e6a096dba2cfc2e8613cb0d775cd2668fd830b5`
+- full 13-run sweep: success
+- comparison plots: `9`
+- CI-light regression pass: `True`
+- focused formalization tests: `14 passed`, `0 skipped`
+- full repository tests: `276 passed in 126.56 s`
+- formal artifact count: `193`
+- report: `coolprop_internal_valve_verification_report_v1.md`
+- report SHA256: `ef33fe47074a21048d1bb31bdc8a206d0dc4d0d7c559445bf0f49115727e3a18`
+- manifest: `coolprop_internal_valve_verification_manifest_v1.json`
+- manifest SHA256: `368cdaa4a033d837123e668677c477379fd7666425032c6ac46754fc51a60b81`
+- formalization artifact SHA256: `479168b98ddeaa89c07384db6877e2a6ada37fdc4db063ad8d11b1703f2d4572`
+- property backend: `coolprop_co2`
+- CoolProp version: `8.0.0`
+- property backend design status: `not_approved_for_design_use`
+- physical Validation: `False`
+- design-use acceptance: `False`
+
 ### 次の段階
 
-V-012 CI-light band specification and formalization
+Stage 7 / V-013 MOC / linear-acoustic cross verification
 
 ### Next action
 
-1. 観測済み13-run結果からCI-light候補caseとregression band案を仕様化する。
-2. bandはtest通過目的で緩めず、mesh/CFL差とnumerical floorから根拠を記録する。
-3. permanent GitHub Actions CI-lightを追加し、skipなしで確認する。
-4. V-012 formal reportとSHA256 manifestを整備する。
-5. V-012全体のcompletion gateをレビューする。
+1. PR #42のCI-light、formal report、manifest、completion gateをレビューしてマージする。
+2. PR #42マージ後にMASTER INDEXへmerge commitを同期する。
+3. Stage 7 / V-013のMOC / linear-acoustic cross-verification specificationを作成する。
+4. MOCはverification用の独立比較経路に限定し、production solverへ混入させない。
+5. Stage 8以降のphase-change問題へ進む前にV-013 evidenceを確定する。
 
 Stage 6ではESD event、pump trip、flashing、two-phase dischargeへ進まない。これらは後続stageで扱う。
 
@@ -137,7 +168,7 @@ git switch -c <new-work-branch>
 | V-009 | Rigid-wall reflection | COMPLETE | sign、flux、mesh、CI、formal artifacts | ideal wall | boundary変更時に再実行 |
 | V-010 | Fixed-pressure reflection | COMPLETE | sign、exchange、mesh、CI、formal artifacts | ideal pressure boundary | boundary変更時に再実行 |
 | V-011 | Controlled pressure step/ramp | COMPLETE | baseline、4-run sweep、CI-light、GitHub Actions、traceable formal report/manifest | physical Validationとdesign-use approvalは別問題 | solver/BC変更時に再実行 |
-| V-012 | Single-phase valve operation | IN_PROGRESS | PR #34 specification、PR #35 V-012A、PR #36 V-012B、PR #37 V-012C、PR #38 V-012D、PR #40 13-run mesh/CFL observation、264 tests、9 comparison plots | CI-light、permanent Actions、formal report、manifest未完了 | CI-light band specification |
+| V-012 | Single-phase valve operation | COMPLETE | PR #34 specification、PR #35 V-012A、PR #36 V-012B、PR #37 V-012C、PR #38 V-012D、PR #40 13-run mesh/CFL、PR #42 CI-light / permanent Actions / formal report / 193-artifact manifest、276 tests | physical Validationとdesign-use approvalは別問題 | solver/interface/schema変更時に再実行 |
 | V-013 | MOC / linear-acoustic cross verification | PLANNED | 未着手 | MOCはverification用限定 | Stage 7 |
 | V-014 | Saturation-near property sanity | PLANNED | 未着手 | reference gate未定 | Stage 8前 |
 | V-015 | HEM minimum phase-change problem | PLANNED | 未着手 | Validation未実施 | Stage 8/9 |
@@ -302,12 +333,33 @@ Fixed plan:
 - `n=400` was reviewed and is not required for the current observation increment
 - no formal regression band is defined before observation review
 
+### Stage 6 / V-012 CI-light and formalization
+
+```text
+docs/verification/v012_internal_valve_regression_band_spec.md
+docs/verification/stage6_v012_formalization_notes.md
+.github/workflows/coolprop-internal-valve-regression.yml
+```
+
+Final formal artifacts generated from the traceable 13-run artifact set:
+
+- `coolprop_internal_valve_verification_report_v1.md`
+- `coolprop_internal_valve_verification_manifest_v1.json`
+- artifact count: `193`
+- report SHA256: `ef33fe47074a21048d1bb31bdc8a206d0dc4d0d7c559445bf0f49115727e3a18`
+- manifest SHA256: `368cdaa4a033d837123e668677c477379fd7666425032c6ac46754fc51a60b81`
+- formalization artifact SHA256: `479168b98ddeaa89c07384db6877e2a6ada37fdc4db063ad8d11b1703f2d4572`
+- CI-light artifact SHA256: `6513dc51c5692e8b6a20fe3e980f8872c9d0f9ceff419f083510c27c8bda4047`
+- source CoolProp version: `8.0.0`
+- property backend design status: `not_approved_for_design_use`
+- V-012 completion status: `COMPLETE; READY FOR REVIEW`
+
 ## 6. Roadmap
 
 | Stage | Status | Remaining work |
 |---|---|---|
 | Stage 1〜5 | COMPLETE | Validation / design-use approvalは別問題 |
-| Stage 6 | IN_PROGRESS | V-012 CI-light、permanent GitHub Actions、formal report、SHA256 manifest |
+| Stage 6 | COMPLETE | V-011 / V-012 software・numerical verificationとformalizationを完了。Validation / design-use approvalは別問題 |
 | Stage 7 | PLANNED | MOC / linear acoustic cross verification |
 | Stage 8 | PLANNED | saturation-near property sanity、minimum phase-change |
 | Stage 9 | PLANNED | HEM/HNE、ESD/pump trip |
@@ -347,3 +399,5 @@ verification関連PRでは同じPR内で本書を更新する。status、artifac
 - V-012 mesh/CFL observation planを固定。V-012は`IN_PROGRESS`を維持し、次は13-run sweep implementation。
 
 - PR #40: V-012 mesh/CFL observation implementationをマージ。merge commit `ddc83bc390cbb712900017e9ff82112fae81200f`。13-run execution、aggregate analysis、9-figure review、264-test evidenceを記録。V-012は`IN_PROGRESS`を維持し、次はCI-light band specification。
+
+- PR #42: V-012 CI-light regression band、4-case permanent GitHub Actions、formal report、193-artifact SHA256 manifest、276-test evidenceを整備。branch上でV-012およびStage 6を`COMPLETE; READY FOR REVIEW`へ移行。
