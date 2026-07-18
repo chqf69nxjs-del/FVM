@@ -1,0 +1,281 @@
+name: V-012 Formalization Docs Temporary
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  synchronize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout work branch
+        uses: actions/checkout@v7
+        with:
+          ref: agent/stage6-v012-ci-light-formalization
+          fetch-depth: 0
+
+      - name: Synchronize V-012 completion documentation
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_exact(path: Path, old: str, new: str) -> None:
+              text = path.read_text(encoding="utf-8")
+              if old not in text:
+                  raise SystemExit(
+                      f"replacement source not found in {path}: {old[:100]!r}"
+                  )
+              path.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          def append_once(path: Path, marker: str, block: str) -> None:
+              text = path.read_text(encoding="utf-8")
+              if marker in text:
+                  return
+              if not text.endswith("\n"):
+                  text += "\n"
+              path.write_text(text + "\n" + block.rstrip() + "\n", encoding="utf-8")
+
+          master = Path("docs/verification/MASTER_VERIFICATION_INDEX.md")
+          replace_exact(
+              master,
+              "- Stage 6全体およびV-012全体は`IN_PROGRESS`。",
+              "- V-012 CI-light regression band、4-case runner、permanent GitHub ActionsはPR #42で整備し、skipなしでsuccess。\n"
+              "- V-012 formal report / SHA256 manifest generatorを整備し、実13-run成果物から193 artifactを索引化した。\n"
+              "- formalization確認ではfocused 14 tests、全repository 276 testsがskipなしでsuccess。\n"
+              "- Stage 6全体およびV-012全体はbranch上で`COMPLETE; READY FOR REVIEW`。",
+          )
+
+          formal_section = """### 直近formalization段階
+
+          V-012 single-phase internal-valve CI-light and formalization
+
+          - PR: `#42`
+          - status: `COMPLETE; READY FOR REVIEW`
+          - CI-light profile: V-012A/B/C/D at `n=50`, `CFL=0.5`
+          - permanent workflow: `CoolProp Internal Valve Regression`
+          - installed CoolProp regression: success, skip `0`
+          - CI-light artifact SHA256: `6513dc51c5692e8b6a20fe3e980f8872c9d0f9ceff419f083510c27c8bda4047`
+          - formalization source head: `6e6a096dba2cfc2e8613cb0d775cd2668fd830b5`
+          - full 13-run sweep: success
+          - comparison plots: `9`
+          - CI-light regression pass: `True`
+          - focused formalization tests: `14 passed`, `0 skipped`
+          - full repository tests: `276 passed in 126.56 s`
+          - formal artifact count: `193`
+          - report: `coolprop_internal_valve_verification_report_v1.md`
+          - report SHA256: `ef33fe47074a21048d1bb31bdc8a206d0dc4d0d7c559445bf0f49115727e3a18`
+          - manifest: `coolprop_internal_valve_verification_manifest_v1.json`
+          - manifest SHA256: `368cdaa4a033d837123e668677c477379fd7666425032c6ac46754fc51a60b81`
+          - formalization artifact SHA256: `479168b98ddeaa89c07384db6877e2a6ada37fdc4db063ad8d11b1703f2d4572`
+          - property backend: `coolprop_co2`
+          - CoolProp version: `8.0.0`
+          - property backend design status: `not_approved_for_design_use`
+          - physical Validation: `False`
+          - design-use acceptance: `False`
+
+          """.replace("          ", "")
+          replace_exact(
+              master,
+              "### 次の段階\n\nV-012 CI-light band specification and formalization\n",
+              formal_section
+              + "### 次の段階\n\nStage 7 / V-013 MOC / linear-acoustic cross verification\n",
+          )
+
+          replace_exact(
+              master,
+              """1. 観測済み13-run結果からCI-light候補caseとregression band案を仕様化する。
+          2. bandはtest通過目的で緩めず、mesh/CFL差とnumerical floorから根拠を記録する。
+          3. permanent GitHub Actions CI-lightを追加し、skipなしで確認する。
+          4. V-012 formal reportとSHA256 manifestを整備する。
+          5. V-012全体のcompletion gateをレビューする。""".replace("          ", ""),
+              """1. PR #42のCI-light、formal report、manifest、completion gateをレビューしてマージする。
+          2. PR #42マージ後にMASTER INDEXへmerge commitを同期する。
+          3. Stage 7 / V-013のMOC / linear-acoustic cross-verification specificationを作成する。
+          4. MOCはverification用の独立比較経路に限定し、production solverへ混入させない。
+          5. Stage 8以降のphase-change問題へ進む前にV-013 evidenceを確定する。""".replace("          ", ""),
+          )
+
+          replace_exact(
+              master,
+              "| V-012 | Single-phase valve operation | IN_PROGRESS | PR #34 specification、PR #35 V-012A、PR #36 V-012B、PR #37 V-012C、PR #38 V-012D、PR #40 13-run mesh/CFL observation、264 tests、9 comparison plots | CI-light、permanent Actions、formal report、manifest未完了 | CI-light band specification |",
+              "| V-012 | Single-phase valve operation | COMPLETE | PR #34 specification、PR #35 V-012A、PR #36 V-012B、PR #37 V-012C、PR #38 V-012D、PR #40 13-run mesh/CFL、PR #42 CI-light / permanent Actions / formal report / 193-artifact manifest、276 tests | physical Validationとdesign-use approvalは別問題 | solver/interface/schema変更時に再実行 |",
+          )
+
+          formal_artifacts = """### Stage 6 / V-012 CI-light and formalization
+
+          ```text
+          docs/verification/v012_internal_valve_regression_band_spec.md
+          docs/verification/stage6_v012_formalization_notes.md
+          .github/workflows/coolprop-internal-valve-regression.yml
+          ```
+
+          Final formal artifacts generated from the traceable 13-run artifact set:
+
+          - `coolprop_internal_valve_verification_report_v1.md`
+          - `coolprop_internal_valve_verification_manifest_v1.json`
+          - artifact count: `193`
+          - report SHA256: `ef33fe47074a21048d1bb31bdc8a206d0dc4d0d7c559445bf0f49115727e3a18`
+          - manifest SHA256: `368cdaa4a033d837123e668677c477379fd7666425032c6ac46754fc51a60b81`
+          - formalization artifact SHA256: `479168b98ddeaa89c07384db6877e2a6ada37fdc4db063ad8d11b1703f2d4572`
+          - CI-light artifact SHA256: `6513dc51c5692e8b6a20fe3e980f8872c9d0f9ceff419f083510c27c8bda4047`
+          - source CoolProp version: `8.0.0`
+          - property backend design status: `not_approved_for_design_use`
+          - V-012 completion status: `COMPLETE; READY FOR REVIEW`
+
+          """.replace("          ", "")
+          replace_exact(
+              master,
+              "## 6. Roadmap\n",
+              formal_artifacts + "## 6. Roadmap\n",
+          )
+          replace_exact(
+              master,
+              "| Stage 6 | IN_PROGRESS | V-012 CI-light、permanent GitHub Actions、formal report、SHA256 manifest |",
+              "| Stage 6 | COMPLETE | V-011 / V-012 software・numerical verificationとformalizationを完了。Validation / design-use approvalは別問題 |",
+          )
+          append_once(
+              master,
+              "PR #42: V-012 CI-light and formalization",
+              "- PR #42: V-012 CI-light regression band、4-case permanent GitHub Actions、formal report、193-artifact SHA256 manifest、276-test evidenceを整備。branch上でV-012およびStage 6を`COMPLETE; READY FOR REVIEW`へ移行。",
+          )
+
+          notes = Path("docs/verification/stage6_v012_formalization_notes.md")
+          notes.write_text(
+              """# Stage 6 V-012 CI-light and Formalization Notes
+
+          ## Status
+
+          `COMPLETE; READY FOR REVIEW`
+
+          ## Scope
+
+          This formalization closes the V-012 single-phase internal-valve software /
+          numerical verification sequence. It does not establish physical Validation,
+          equipment fidelity, operating limits, a design mesh, or design-use acceptance.
+
+          ## CI-light profile
+
+          ```text
+          V-012A / V-012B / V-012C / V-012D
+          n_cells = 50
+          CFL = 0.5
+          CoolProp = 8.0.0
+          ```
+
+          The four cases protect uniform preservation, finite-opening driven flow,
+          controlled opening, controlled closing, and complete closure. Expected-zero
+          quantities use absolute limits rather than ill-conditioned relative ratios.
+
+          ## Permanent regression result
+
+          - workflow: `CoolProp Internal Valve Regression`
+          - installed CoolProp numerical test: success
+          - skipped tests: `0`
+          - overall regression pass: `True`
+          - failed checks: none
+          - CI-light artifact SHA256: `6513dc51c5692e8b6a20fe3e980f8872c9d0f9ceff419f083510c27c8bda4047`
+
+          ## Formal artifact result
+
+          The fixed 13-run sweep, nine comparison plots, CI-light profile, report, and
+          manifest were generated together on source head
+          `6e6a096dba2cfc2e8613cb0d775cd2668fd830b5`.
+
+          ```text
+          focused tests:        14 passed, 0 skipped
+          full repository:      276 passed in 126.56 s
+          formal artifacts:     193
+          report SHA256:         ef33fe47074a21048d1bb31bdc8a206d0dc4d0d7c559445bf0f49115727e3a18
+          manifest SHA256:       368cdaa4a033d837123e668677c477379fd7666425032c6ac46754fc51a60b81
+          workflow artifact:     479168b98ddeaa89c07384db6877e2a6ada37fdc4db063ad8d11b1703f2d4572
+          ```
+
+          The manifest records `coolprop_co2`, source CoolProp `8.0.0`, and
+          `not_approved_for_design_use`. Its Validation, design-evaluation, and
+          acceptance-gate flags are all false.
+
+          ## Completion decision
+
+          V-012 meets its software/numerical `COMPLETE` definition because baseline
+          cases, telemetry, mesh/CFL observation, human-review figures, regression
+          bands, permanent CI, formal report, manifest, and reproduction paths exist.
+
+          Persistent limitations remain unchanged:
+
+          - regression success is not physical Validation;
+          - the CI-light mesh is not a design mesh;
+          - the finest observed mesh is not an exact solution;
+          - lower CFL is not truth;
+          - the Kv relation is single-phase only;
+          - fixed-pressure boundaries are zero-impedance numerical idealizations;
+          - the hydraulic-loss proxy is diagnostic and is not removed from `rhoE`;
+          - prescribed opening schedules are not actuator-dynamics or hysteresis models.
+
+          ## Next stage
+
+          Stage 7 / V-013 MOC / linear-acoustic cross verification.
+          """.replace("          ", ""),
+              encoding="utf-8",
+          )
+
+          log_block = """## 2026-07-18 — V-012 CI-light and formalization completion
+
+          PR #42 adds the four-case V-012 CI-light regression path and formal artifacts.
+
+          ```text
+          CI profile:                  V-012A/B/C/D, n=50, CFL=0.5
+          permanent workflow:          CoolProp Internal Valve Regression
+          CI-light pass:               True
+          installed regression skip:   0
+          formalization source head:   6e6a096dba2cfc2e8613cb0d775cd2668fd830b5
+          focused tests:               14 passed, 0 skipped
+          full repository:             276 passed in 126.56 s
+          formal artifact count:       193
+          report SHA256:                ef33fe47074a21048d1bb31bdc8a206d0dc4d0d7c559445bf0f49115727e3a18
+          manifest SHA256:              368cdaa4a033d837123e668677c477379fd7666425032c6ac46754fc51a60b81
+          formalization artifact:       479168b98ddeaa89c07384db6877e2a6ada37fdc4db063ad8d11b1703f2d4572
+          ```
+
+          Completion decision:
+
+          - V-012 software/numerical verification is `COMPLETE; READY FOR REVIEW`;
+          - Stage 6 is `COMPLETE; READY FOR REVIEW`;
+          - physical Validation and design-use acceptance remain false and deferred;
+          - next stage is V-013 MOC / linear-acoustic cross verification.
+          """.replace("          ", "")
+          for path in (
+              Path("docs/verification/stage6_execution_log.md"),
+              Path("docs/verification/stage6_v012_execution_log.md"),
+          ):
+              append_once(
+                  path,
+                  "## 2026-07-18 — V-012 CI-light and formalization completion",
+                  log_block,
+              )
+          PY
+
+      - name: Commit synchronized documentation
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            docs/verification/MASTER_VERIFICATION_INDEX.md \
+            docs/verification/stage6_execution_log.md \
+            docs/verification/stage6_v012_execution_log.md \
+            docs/verification/stage6_v012_formalization_notes.md
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "No documentation changes to commit"
+            exit 0
+          fi
+          git commit -m "Record V-012 formalization completion"
+          git push origin HEAD:agent/stage6-v012-ci-light-formalization
