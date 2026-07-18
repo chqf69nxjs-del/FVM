@@ -27,7 +27,10 @@
 - V-012 CI-light and formalizationはPR #42でマージ済み。merge commitは`c6155d8ea959abbcf90e8e1692dd2710b6b33666`。
 - Stage 6全体およびV-012全体は`COMPLETE`。
 - Stage 7 / V-013 MOC / linear-acoustic cross-verification specificationはPR #44でマージ済み。merge commitは`349bdefe16816b55b0b64495b1ebf17bedab71e5`。
-- Stage 7 / V-013は`IN_PROGRESS`。次は独立analytical / MOC referenceのpure implementation。
+- Stage 7 / V-013 independent reference coreはPR #46で実装し、`IMPLEMENTED; TESTED; READY FOR REVIEW`。
+- characteristic algebra、Gaussian analytical evaluator、`CFL=1` MOC、rigid / fixed-pressure identityを23 self-testsで確認した。
+- 全repository `299 passed in 150.31 s`、deterministic reference JSON、prohibited-import guardをsuccess。
+- Stage 7 / V-013は`IN_PROGRESS`。次はV-013A incident propagation接続。
 - `property_backend_design_status = not_approved_for_design_use`。
 - physical Validation、design acceptance、two-phase verificationは未実施。
 
@@ -122,17 +125,36 @@ V-012 single-phase internal-valve CI-light and formalization
 - physical Validation: `False`
 - design-use acceptance: `False`
 
+### 直近reference-core段階
+
+V-013 independent analytical / MOC reference core
+
+- PR: `#46`
+- status: `IMPLEMENTED; TESTED; READY FOR REVIEW`
+- verification head: `f44b569b5dbe388840860415987486bef47602cf`
+- implementation: `linear_acoustic_reference.py`
+- self-tests: `23 passed`, `0 skipped`
+- full repository: `299 passed in 150.31 s`
+- analytical / MOC grid-aligned incident agreement: floating-point roundoff
+- rigid-wall and fixed-pressure reflection identities: pass
+- input mutation: none
+- production solver / flux / boundary / case imports: none
+- CoolProp calls from reference: none
+- deterministic JSON SHA256: `a5d2a5764b4c65613aed9d6254f315b41055fa51968a89d9cf7d5b290c3cbd64`
+- temporary artifact SHA256: `eeaccfdccf8b791b037b28b46b41e3446dc4e70bec5b5beb8b9d9b3868c245e3`
+- production solver changes: none
+
 ### 次の段階
 
 Stage 7 / V-013 MOC / linear-acoustic cross verification
 
 ### Next action
 
-1. characteristic変数とpressure / velocity reconstructionをpure testsから実装する。
-2. analytical Gaussian evaluatorをproduction solver非依存で実装する。
-3. independent `CFL=1` MOC translatorとrigid / fixed-pressure boundary identityを実装する。
-4. reference self-tests完了後にV-013A incident propagationを接続する。
-5. V-013B / V-013Cと100 / 200 / 400観測後にのみCI-light bandを提案する。
+1. stable V-013A case ID、run plan、matched-sample schemaを固定する。
+2. existing small-amplitude FVM source caseをsolver physics変更なしで接続する。
+3. independent referenceへ渡す`rho0` / `c0` provenanceを記録する。
+4. V-013A incident propagationを`n=100 / 200 / 400`で実行・比較する。
+5. V-013Aレビュー後にV-013B / V-013Cへ進み、全観測後にのみCI-light bandを提案する。
 
 Stage 6ではESD event、pump trip、flashing、two-phase dischargeへ進まない。これらは後続stageで扱う。
 
@@ -173,7 +195,7 @@ git switch -c <new-work-branch>
 | V-010 | Fixed-pressure reflection | COMPLETE | sign、exchange、mesh、CI、formal artifacts | ideal pressure boundary | boundary変更時に再実行 |
 | V-011 | Controlled pressure step/ramp | COMPLETE | baseline、4-run sweep、CI-light、GitHub Actions、traceable formal report/manifest | physical Validationとdesign-use approvalは別問題 | solver/BC変更時に再実行 |
 | V-012 | Single-phase valve operation | COMPLETE | PR #34 specification、PR #35 V-012A、PR #36 V-012B、PR #37 V-012C、PR #38 V-012D、PR #40 13-run mesh/CFL、PR #42 CI-light / permanent Actions / formal report / 193-artifact manifest、276 tests | physical Validationとdesign-use approvalは別問題 | solver/interface/schema変更時に再実行 |
-| V-013 | MOC / linear-acoustic cross verification | IN_PROGRESS | PR #44 specification merged at `349bdefe16816b55b0b64495b1ebf17bedab71e5`、独立reference規則、V-013A/B/C、100/200/400観測matrixを固定 | reference implementationと観測は未実施。MOCはverification用限定 | analytical / MOC reference pure implementation |
+| V-013 | MOC / linear-acoustic cross verification | IN_PROGRESS | PR #44 specification、PR #46 independent analytical / CFL=1 MOC reference core、23 self-tests、299 full tests、deterministic artifact | FVM接続とV-013A/B/C観測は未実施。MOCはverification用限定 | V-013A incident propagation integration |
 | V-014 | Saturation-near property sanity | PLANNED | 未着手 | reference gate未定 | Stage 8前 |
 | V-015 | HEM minimum phase-change problem | PLANNED | 未着手 | Validation未実施 | Stage 8/9 |
 | V-016 | HNE / relaxation | PLANNED | 未着手 | `tau`未確定 | Stage 9 |
@@ -363,6 +385,9 @@ Final formal artifacts generated from the traceable 13-run artifact set:
 ```text
 docs/verification/v013_moc_linear_acoustic_cross_verification_spec.md
 docs/verification/stage7_execution_log.md
+docs/verification/stage7_v013_reference_core_notes.md
+src/liquid_gas_transient/verification/linear_acoustic_reference.py
+tests/test_linear_acoustic_reference.py
 ```
 
 Initial specification:
@@ -376,13 +401,24 @@ Initial specification:
 - no FVM regression band before observation review;
 - no production solver behaviour change in the specification increment.
 
+Reference-core evidence:
+
+- `A+ / A-` conversion and pressure / velocity reconstruction;
+- bounded Gaussian analytical translation with at most one reflection;
+- independent nodal MOC exact one-cell translation at `CFL=1`;
+- transmissive, rigid-wall, and fixed-pressure characteristic identities;
+- 23 self-tests and 299 full repository tests;
+- AST guard confirms no production solver / flux / boundary / case or CoolProp imports;
+- deterministic JSON artifact output;
+- V-013A FVM integration remains the next action.
+
 ## 6. Roadmap
 
 | Stage | Status | Remaining work |
 |---|---|---|
 | Stage 1〜5 | COMPLETE | Validation / design-use approvalは別問題 |
 | Stage 6 | COMPLETE | V-011 / V-012 software・numerical verificationとformalizationを完了。Validation / design-use approvalは別問題 |
-| Stage 7 | IN_PROGRESS | V-013 specification fixed; analytical / MOC reference implementation and observation remain |
+| Stage 7 | IN_PROGRESS | V-013 reference core implemented and tested; V-013A/B/C FVM comparison and observation remain |
 | Stage 8 | PLANNED | saturation-near property sanity、minimum phase-change |
 | Stage 9 | PLANNED | HEM/HNE、ESD/pump trip |
 | Stage 10 | PLANNED | physical Validation、design-use acceptance |
@@ -429,3 +465,5 @@ verification関連PRでは同じPR内で本書を更新する。status、artifac
 - V-013 implementation-ready MOC / linear-acoustic cross-verification specificationを固定。独立reference規則、3ケース、100/200/400観測matrix、artifact、stop conditionを記録。
 
 - PR #44 merge commit: `349bdefe16816b55b0b64495b1ebf17bedab71e5`。V-013 implementation-ready specificationとStage 7 execution logをmainへ反映。次は独立analytical / MOC reference implementation。
+
+- PR #46: V-013 independent analytical / CFL=1 MOC reference core、23 self-tests、299-test full-suite evidenceを記録。V-013は`IN_PROGRESS`を維持し、次はV-013A incident propagation。
