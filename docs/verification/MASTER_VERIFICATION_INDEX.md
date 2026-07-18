@@ -18,7 +18,7 @@
 - V-012D focused testsは`7 passed in 7.53s`、GitHub Actions全体testは`252 passed in 106.74s`。static checks、baseline metrics gate、9図生成もsuccess。
 - V-012Dの9図を目視確認済み。上流の左向き圧縮波、下流の右向き減圧波、流量減少、完全閉止後のindependent reflective-wall stateとzero through-fluxを確認した。
 - PR #38最終headのCoolProp Controlled Pressure Ramp Regression、CoolProp Wave Regression、CoolProp Boundary Reflection Regressionはすべてsuccess。
-- V-012 mesh/CFL observationはPR #40で13-run計画を完走し、`OBSERVED; READY FOR REVIEW`。
+- V-012 mesh/CFL observationはPR #40でマージ済み。merge commitは`ddc83bc390cbb712900017e9ff82112fae81200f`。
 - 13 / 13 runs、aggregate analysis、9 comparison plots、264 testsをsuccessで確認した。
 - `n=400`追加は人間レビューの結果、初期50 / 100 / 200観測で主要傾向が明確なため不要と判断した。
 - Stage 6全体およびV-012全体は`IN_PROGRESS`。
@@ -68,6 +68,7 @@ V-012D controlled internal-valve closing ramp
 V-012 single-phase internal-valve mesh/CFL observation
 
 - PR: `#40`
+- merge commit: `ddc83bc390cbb712900017e9ff82112fae81200f`
 - observed source head: `9a63dd2bafc264c2a9e41ba68769b5b38cfafe78`
 - planned / executed runs: `13 / 13`
 - V-012A sentinel: `n=50`, `CFL=0.5`
@@ -92,12 +93,11 @@ V-012 CI-light band specification and formalization
 
 ### Next action
 
-1. PR #40のmesh/CFL observation implementationと人間レビューを確定する。
-2. 観測済み13-run結果からCI-light候補caseとregression band案を仕様化する。
-3. bandはtest通過目的で緩めず、mesh/CFL差とnumerical floorから根拠を記録する。
-4. permanent GitHub Actions CI-lightを追加し、skipなしで確認する。
-5. V-012 formal reportとSHA256 manifestを整備する。
-6. V-012全体のcompletion gateをレビューする。
+1. 観測済み13-run結果からCI-light候補caseとregression band案を仕様化する。
+2. bandはtest通過目的で緩めず、mesh/CFL差とnumerical floorから根拠を記録する。
+3. permanent GitHub Actions CI-lightを追加し、skipなしで確認する。
+4. V-012 formal reportとSHA256 manifestを整備する。
+5. V-012全体のcompletion gateをレビューする。
 
 Stage 6ではESD event、pump trip、flashing、two-phase dischargeへ進まない。これらは後続stageで扱う。
 
@@ -346,4 +346,4 @@ verification関連PRでは同じPR内で本書を更新する。status、artifac
 - PR #38: V-012D complete-closing-ramp implementationをマージ。merge commit `56591c60d7ea91c2ba9872681115ededac8aff15`。GitHub Actions observation、9-figure review、252-test evidenceを記録。
 - V-012 mesh/CFL observation planを固定。V-012は`IN_PROGRESS`を維持し、次は13-run sweep implementation。
 
-- PR #40: V-012 mesh/CFL observation implementation、13-run execution、aggregate analysis、9-figure review、264-test evidenceを記録。V-012は`IN_PROGRESS`を維持し、次はCI-light band specification。
+- PR #40: V-012 mesh/CFL observation implementationをマージ。merge commit `ddc83bc390cbb712900017e9ff82112fae81200f`。13-run execution、aggregate analysis、9-figure review、264-test evidenceを記録。V-012は`IN_PROGRESS`を維持し、次はCI-light band specification。

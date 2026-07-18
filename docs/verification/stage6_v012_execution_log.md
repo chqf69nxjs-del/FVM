@@ -360,3 +360,15 @@ Observed decisions:
 - no CI-light band was defined in this observation increment.
 
 V-012 remains `IN_PROGRESS`; CI-light, permanent GitHub Actions, formal report, and SHA256 manifest remain.
+
+## 2026-07-18 — PR #40 merged
+
+V-012 mesh/CFL observation was merged at:
+
+```text
+ddc83bc390cbb712900017e9ff82112fae81200f
+```
+
+The next V-012 increment is CI-light band specification followed by permanent
+GitHub Actions coverage, formal report, SHA256 manifest, and completion review.
+V-012 remains `IN_PROGRESS`.
