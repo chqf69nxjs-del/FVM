@@ -122,8 +122,13 @@ def _write_inputs(root: Path) -> tuple[Path, Path, Path]:
         "generated_comparison_plots": ["timing.png", "closure.png"],
     }
     metrics_path.write_text(json.dumps(metrics, indent=2) + "\n", encoding="utf-8")
+    fields: list[str] = []
+    for row in rows:
+        for key in row:
+            if key not in fields:
+                fields.append(key)
     with summary_path.open("w", encoding="utf-8", newline="") as stream:
-        writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
+        writer = csv.DictWriter(stream, fieldnames=fields)
         writer.writeheader()
         writer.writerows(rows)
     ci_path.write_text(
