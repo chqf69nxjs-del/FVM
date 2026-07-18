@@ -60,6 +60,7 @@ jobs:
         run: |
           python -m pytest -q \
             tests/test_internal_valve_regression.py \
+            tests/test_internal_valve_verification_report.py \
             tests/test_verification_import_order.py \
             -m "not numerical_regression"
 
