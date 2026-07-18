@@ -7,7 +7,7 @@ This log records V-013 MOC / linear-acoustic cross-verification work.
 Status:
 
 ```text
-PLANNED; IMPLEMENTATION READY
+IN_PROGRESS; SPECIFICATION MERGED
 ```
 
 Specification:
@@ -47,3 +47,10 @@ MOC meshes: 100 / 200 / 400 at CFL 1.0
 ```
 
 No production solver behaviour is changed by this specification increment.
+
+## 2026-07-18 — V-013 specification merged
+
+- PR: `#44`
+- merge commit: `349bdefe16816b55b0b64495b1ebf17bedab71e5`
+- next action: pure analytical / MOC reference implementation
+- production solver changes: none

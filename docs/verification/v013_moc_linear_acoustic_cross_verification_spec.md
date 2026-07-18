@@ -2,7 +2,7 @@
 
 ## 1. Status
 
-`PLANNED; IMPLEMENTATION READY`
+`MERGED; IMPLEMENTATION READY`
 
 This document defines Stage 7 / V-013. The implementation shall provide an
 independent method-of-characteristics and linear-acoustic comparison path for the
@@ -547,3 +547,5 @@ V-013 may move to `COMPLETE` only after:
 - a permanent CI-light workflow passes without skips;
 - a formal report and SHA256 manifest are generated;
 - MASTER VERIFICATION INDEX and Stage 7 logs are synchronized.
+
+Merged by PR #44 at `349bdefe16816b55b0b64495b1ebf17bedab71e5`.

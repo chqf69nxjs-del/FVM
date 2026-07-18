@@ -26,7 +26,8 @@
 - formalization確認ではfocused 14 tests、全repository 276 testsがskipなしでsuccess。
 - V-012 CI-light and formalizationはPR #42でマージ済み。merge commitは`c6155d8ea959abbcf90e8e1692dd2710b6b33666`。
 - Stage 6全体およびV-012全体は`COMPLETE`。
-- Stage 7 / V-013 MOC / linear-acoustic cross-verification specificationを固定し、branch上で`IN_PROGRESS; SPECIFICATION READY FOR REVIEW`。
+- Stage 7 / V-013 MOC / linear-acoustic cross-verification specificationはPR #44でマージ済み。merge commitは`349bdefe16816b55b0b64495b1ebf17bedab71e5`。
+- Stage 7 / V-013は`IN_PROGRESS`。次は独立analytical / MOC referenceのpure implementation。
 - `property_backend_design_status = not_approved_for_design_use`。
 - physical Validation、design acceptance、two-phase verificationは未実施。
 
@@ -127,11 +128,11 @@ Stage 7 / V-013 MOC / linear-acoustic cross verification
 
 ### Next action
 
-1. V-013 specificationをレビューしてマージする。
-2. characteristic変数、analytical Gaussian evaluator、independent CFL=1 MOC translatorをpure testsから実装する。
-3. V-013A incident propagationを実行し、FVM / MOC / analytical referenceを比較する。
-4. V-013B rigid-wall reflectionとV-013C fixed-pressure reflectionを実行する。
-5. n=100 / 200 / 400観測後にのみCI-light bandを提案する。
+1. characteristic変数とpressure / velocity reconstructionをpure testsから実装する。
+2. analytical Gaussian evaluatorをproduction solver非依存で実装する。
+3. independent `CFL=1` MOC translatorとrigid / fixed-pressure boundary identityを実装する。
+4. reference self-tests完了後にV-013A incident propagationを接続する。
+5. V-013B / V-013Cと100 / 200 / 400観測後にのみCI-light bandを提案する。
 
 Stage 6ではESD event、pump trip、flashing、two-phase dischargeへ進まない。これらは後続stageで扱う。
 
@@ -172,7 +173,7 @@ git switch -c <new-work-branch>
 | V-010 | Fixed-pressure reflection | COMPLETE | sign、exchange、mesh、CI、formal artifacts | ideal pressure boundary | boundary変更時に再実行 |
 | V-011 | Controlled pressure step/ramp | COMPLETE | baseline、4-run sweep、CI-light、GitHub Actions、traceable formal report/manifest | physical Validationとdesign-use approvalは別問題 | solver/BC変更時に再実行 |
 | V-012 | Single-phase valve operation | COMPLETE | PR #34 specification、PR #35 V-012A、PR #36 V-012B、PR #37 V-012C、PR #38 V-012D、PR #40 13-run mesh/CFL、PR #42 CI-light / permanent Actions / formal report / 193-artifact manifest、276 tests | physical Validationとdesign-use approvalは別問題 | solver/interface/schema変更時に再実行 |
-| V-013 | MOC / linear-acoustic cross verification | IN_PROGRESS | implementation-ready specification、独立reference規則、V-013A/B/C、100/200/400観測matrixを固定 | reference implementationと観測は未実施。MOCはverification用限定 | analytical / MOC reference pure implementation |
+| V-013 | MOC / linear-acoustic cross verification | IN_PROGRESS | PR #44 specification merged at `349bdefe16816b55b0b64495b1ebf17bedab71e5`、独立reference規則、V-013A/B/C、100/200/400観測matrixを固定 | reference implementationと観測は未実施。MOCはverification用限定 | analytical / MOC reference pure implementation |
 | V-014 | Saturation-near property sanity | PLANNED | 未着手 | reference gate未定 | Stage 8前 |
 | V-015 | HEM minimum phase-change problem | PLANNED | 未着手 | Validation未実施 | Stage 8/9 |
 | V-016 | HNE / relaxation | PLANNED | 未着手 | `tau`未確定 | Stage 9 |
@@ -426,3 +427,5 @@ verification関連PRでは同じPR内で本書を更新する。status、artifac
 - PR #42 merge commit: `c6155d8ea959abbcf90e8e1692dd2710b6b33666`。V-012 CI-light、permanent GitHub Actions、formal report、193-artifact manifestをmainへ反映し、V-012およびStage 6を`COMPLETE`へ移行。
 
 - V-013 implementation-ready MOC / linear-acoustic cross-verification specificationを固定。独立reference規則、3ケース、100/200/400観測matrix、artifact、stop conditionを記録。
+
+- PR #44 merge commit: `349bdefe16816b55b0b64495b1ebf17bedab71e5`。V-013 implementation-ready specificationとStage 7 execution logをmainへ反映。次は独立analytical / MOC reference implementation。
