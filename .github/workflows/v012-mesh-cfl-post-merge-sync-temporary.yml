@@ -1,0 +1,42 @@
+name: V-012 Mesh CFL Post-Merge Sync Temporary
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  synchronize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout work branch
+        uses: actions/checkout@v7
+        with:
+          ref: agent/stage6-v012-mesh-cfl-post-merge-sync
+          fetch-depth: 0
+
+      - name: Synchronize post-merge documentation
+        run: python tools/sync_v012_mesh_cfl_post_merge.py
+
+      - name: Commit synchronized documentation
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            docs/verification/MASTER_VERIFICATION_INDEX.md \
+            docs/verification/stage6_execution_log.md \
+            docs/verification/stage6_v012_execution_log.md \
+            docs/verification/stage6_v012_mesh_cfl_observation_notes.md
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "No documentation changes to commit"
+            exit 0
+          fi
+          git commit -m "Synchronize V-012 mesh/CFL merge status"
+          git push origin HEAD:agent/stage6-v012-mesh-cfl-post-merge-sync
