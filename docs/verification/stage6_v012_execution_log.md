@@ -372,3 +372,28 @@ ddc83bc390cbb712900017e9ff82112fae81200f
 The next V-012 increment is CI-light band specification followed by permanent
 GitHub Actions coverage, formal report, SHA256 manifest, and completion review.
 V-012 remains `IN_PROGRESS`.
+
+## 2026-07-18 — V-012 CI-light and formalization completion
+
+PR #42 adds the four-case V-012 CI-light regression path and formal artifacts.
+
+```text
+CI profile:        V-012A/B/C/D, n=50, CFL=0.5
+permanent workflow:CoolProp Internal Valve Regression
+CI-light pass:     True
+installed regression skip:   0
+formalization source head:   6e6a096dba2cfc2e8613cb0d775cd2668fd830b5
+focused tests:     14 passed, 0 skipped
+full repository:   276 passed in 126.56 s
+formal artifact count:       193
+report SHA256:      ef33fe47074a21048d1bb31bdc8a206d0dc4d0d7c559445bf0f49115727e3a18
+manifest SHA256:    368cdaa4a033d837123e668677c477379fd7666425032c6ac46754fc51a60b81
+formalization artifact:       479168b98ddeaa89c07384db6877e2a6ada37fdc4db063ad8d11b1703f2d4572
+```
+
+Completion decision:
+
+- V-012 software/numerical verification is `COMPLETE; READY FOR REVIEW`;
+- Stage 6 is `COMPLETE; READY FOR REVIEW`;
+- physical Validation and design-use acceptance remain false and deferred;
+- next stage is V-013 MOC / linear-acoustic cross verification.
