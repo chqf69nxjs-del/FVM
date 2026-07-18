@@ -1,0 +1,87 @@
+name: V-012 Mesh CFL Skeleton Verification
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PYTHONPATH: src
+      MPLBACKEND: Agg
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install verification dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -e .
+          python -m pip install pytest "CoolProp==8.0.0"
+
+      - name: Compile source and tests
+        run: python -m compileall -q src tests
+
+      - name: Run focused V-012 mesh/CFL skeleton tests
+        run: |
+          mkdir -p artifacts
+          python -m pytest -q \
+            tests/test_internal_valve_mesh_cfl_sweep.py \
+            --junitxml=artifacts/v012-mesh-cfl-skeleton-junit.xml
+
+      - name: Generate default V-012A sentinel mini-run
+        run: |
+          python -m liquid_gas_transient.cases.coolprop_internal_valve_mesh_cfl_sweep \
+            artifacts/internal_valve_mesh_cfl_sweep_mini \
+            --case-id v012a_n0050_cfl0p5
+
+      - name: Validate sentinel aggregate metrics
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path(
+              "artifacts/internal_valve_mesh_cfl_sweep_mini/"
+              "v012_internal_valve_mesh_cfl_sweep_metrics.json"
+          )
+          metrics = json.loads(path.read_text(encoding="utf-8"))
+          assert metrics["planned_run_count"] == 13
+          assert metrics["executed_run_count"] == 1
+          assert metrics["partial_execution"] is True
+          assert metrics["overall_selected_execution_pass"] is True
+          assert metrics["overall_sweep_execution_pass"] is False
+          assert metrics["property_backend_design_status"] == (
+              "not_approved_for_design_use"
+          )
+          assert metrics["finest_mesh_is_exact_solution"] is False
+          assert metrics["lower_cfl_is_truth"] is False
+          print(json.dumps(metrics, indent=2))
+          PY
+
+      - name: Run full repository tests
+        run: python -m pytest -q
+
+      - name: Upload temporary verification artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: v012-mesh-cfl-skeleton-${{ github.sha }}
+          path: artifacts
+          if-no-files-found: error
+          retention-days: 14
