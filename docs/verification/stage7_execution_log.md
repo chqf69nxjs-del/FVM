@@ -60,7 +60,7 @@ No production solver behaviour is changed by this specification increment.
 Status:
 
 ```text
-IMPLEMENTED; TESTED; READY FOR REVIEW
+IMPLEMENTED; TESTED; MERGED
 ```
 
 Implementation:
@@ -98,5 +98,12 @@ The module imports only Python standard-library modules and NumPy. It does not i
 production FVM solver, flux, boundary, case, timestep, telemetry, or CoolProp code.
 No production solver behaviour was changed.
 
-Next action: connect V-013A incident propagation to the existing small-amplitude FVM
-source case while preserving independent `rho0` / `c0` reference inputs.
+## 2026-07-18 — V-013 reference core merged
+
+- PR: `#46`
+- merge commit: `3945136dbe26db98044e49fb093b37122bf8b1fd`
+- reference-core self-tests: `23 passed`, `0 skipped`
+- full repository tests: `299 passed in 150.31 s`
+- production solver changes: none
+- V-013 status: `IN_PROGRESS`
+- next action: V-013A incident propagation integration
