@@ -10,7 +10,7 @@ Historical detail through the V-013 reference-core checkpoint is preserved in
 - V-013 independent analytical / CFL=1 MOC reference core: merged in PR #46
 - V-013A incident propagation: `OBSERVED; MERGED` in PR #48
 - PR #48 merge commit: `613b21622b22402fbf7b8d77b1d881db7ff5f28e`
-- V-013B rigid-wall reflection: `IN_PROGRESS; SPECIFICATION SCAFFOLD IMPLEMENTED`
+- V-013B rigid-wall reflection: `IN_PROGRESS; SPECIFICATION SCAFFOLD VERIFIED`
 - Active branch: `agent/stage7-v013b-rigid-wall-reflection`
 - Draft PR: `#49 Add V-013B rigid-wall reflection specification scaffold`
 - V-013C fixed-pressure reflection: `PLANNED`
@@ -67,13 +67,21 @@ Draft-review safeguards:
   the return pulse leading edge, not merely its centre;
 - a custom geometry fixes the equality-edge contamination case by test.
 
-The isolated pure-scaffold run passes `30` tests. This is not a substitute for the
-repository focused/full recheck. The actual FVM/MOC/analytical observation remains
-unexecuted.
+Repository validation on the current scaffold head:
 
-No workflow file is changed. Existing permanent workflows are used only as
-regression sentinels; the new V-013B pure tests and the full repository suite still
-require an explicit branch recheck.
+- focused reference/V-013B tests: `53 passed in 0.56 s`;
+- full repository: `346 passed in 121.38 s`;
+- failures / errors: `0 / 0`;
+- `git diff --check`: success;
+- local branch tracks `origin/agent/stage7-v013b-rigid-wall-reflection` with no
+  reported working-tree changes after the pull.
+
+All Draft review threads are resolved. The actual FVM/MOC/analytical observation
+remains unexecuted.
+
+No workflow file is changed. The four existing permanent workflows also pass on the
+current scaffold head; they remain regression sentinels rather than V-013B observation
+execution.
 
 ## Guardrails
 
@@ -84,12 +92,11 @@ mesh is not exact; no V-013 CI-light band has been selected.
 
 ## Next action
 
-1. pull the current Draft PR #49 head and run the focused V-013 reference/V-013B
-   tests plus the full repository suite and `git diff --check`;
-2. confirm public lazy-export compatibility through the repository suite;
-3. resolve Draft review threads while keeping the PR in Draft;
-4. connect a dedicated V-013B runner to the existing FVM and rigid-wall boundary
-   without changing solver physics;
-5. generate traceable FVM, MOC, analytical, matched-sample, probe, boundary, and
+1. connect a dedicated V-013B runner to the existing small-amplitude FVM and rigid-wall
+   boundary without changing solver physics;
+2. record `rho0`, `c0`, provenance, backend, and CoolProp version, and pass only scalar
+   reference inputs to the independent analytical/MOC path;
+3. generate traceable FVM, MOC, analytical, matched-sample, probe, boundary, and
    plotting artifacts;
-6. execute and review `n=100 / 200 / 400` before starting V-013C.
+4. add pure and installed-CoolProp integration tests for the runner and saved artifacts;
+5. execute and review `n=100 / 200 / 400` before starting V-013C.
