@@ -88,16 +88,26 @@ nearest probe, adjacent event centres are `10 m` apart while each window has a
 `4 m` path half-width, leaving a strict `2 m` gap. This avoids endpoint sharing
 under inclusive artifact-window selection.
 
-Stable case IDs, the run plan, matched-sample schema, incident/wall/reflected
-path-state mapping, strictly separated probe windows, conservative secondary-return
-times, expected rigid-wall identity, and a JSON-ready specification snapshot are
-implemented in `cases/v013_rigid_wall_reflection.py`. Pure tests fix these values
-and guard against production solver, production boundary, and CoolProp imports in
-the scaffold.
+Draft review produced two P2 findings and both are addressed in the current head:
 
-An isolated pure-scaffold run passes `28` tests. The four existing permanent
-workflows passed on the initial Draft PR head. Repository focused/full validation
-for the tightened head is still required. No workflow file is changed.
+1. **Runtime import independence.** The leaf-module AST check alone was
+   insufficient because eager package initializers loaded the production solver,
+   boundary module, and CoolProp wave cases. The top-level package and cases
+   compatibility exports now use lazy `__getattr__` resolution. A fresh-interpreter
+   subprocess imports the public V-013B module path and fails if solver, boundary,
+   CoolProp case, or CoolProp modules appear in `sys.modules`.
+2. **Secondary-return pulse margin.** The prior contamination flag compared against
+   the secondary-return pulse centre. It now subtracts the same event-window half
+   width and compares against the return pulse leading edge. A custom geometry fixes
+   the equality-edge case as contaminated.
+
+Stable case IDs, the run plan, matched-sample schema, path-state mapping, strictly
+separated probe windows, conservative return-pulse margins, expected rigid-wall
+identity, and a JSON-ready specification snapshot are implemented. No numerical
+solver or boundary source is modified.
+
+An isolated pure-scaffold run passes `30` tests. Repository focused/full validation
+for the current head is still required. No workflow file is changed.
 
 No FVM, MOC, or analytical observation has been executed for V-013B yet. No
 production solver behaviour has changed, and no FVM regression band has been
@@ -109,10 +119,11 @@ Next actions:
 2. run `tests/test_linear_acoustic_reference.py` and
    `tests/test_v013_rigid_wall_reflection.py`;
 3. run the full repository suite and `git diff --check`;
-4. address review findings while keeping the PR in Draft;
-5. connect a dedicated V-013B artifact runner to the existing small-amplitude FVM
+4. confirm lazy public exports remain compatible through the full suite;
+5. resolve the two Draft review threads when the branch evidence is available;
+6. connect a dedicated V-013B artifact runner to the existing small-amplitude FVM
    and `ReflectiveBoundary` without altering solver physics;
-6. execute and review the fixed `n=100 / 200 / 400` observation.
+7. execute and review the fixed `n=100 / 200 / 400` observation.
 
 Guardrails remain: software/numerical verification only; physical Validation
 and design-use acceptance `False`; backend `not_approved_for_design_use`; MOC
