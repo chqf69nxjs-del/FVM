@@ -2,12 +2,15 @@
 
 ## 1. Status
 
-`OBSERVED; READY FOR REVIEW`
+`OBSERVED; MERGED`
+
+PR #50 was merged with commit
+`f403103c46a1d618ce2f2345c986e29b921b664a`.
 
 The fixed V-013C production-FVM / independent-MOC / analytical observation has been
 executed and reviewed without changing the production solver, numerical flux, EOS
 inversion, or fixed-pressure boundary implementation. V-013 overall remains
-`IN_PROGRESS`.
+`IN_PROGRESS` pending joint A/B/C formalization.
 
 ## 2. Scope and guardrails
 
@@ -181,7 +184,8 @@ numerical_results_changed = false
 ```
 
 Temporary observation, finalization, and review-helper workflows were removed after
-evidence capture.
+evidence capture. Final-head permanent workflows passed `4 / 4`, and all review threads
+were resolved before merge.
 
 ## 9. Observation results
 
@@ -201,7 +205,7 @@ substantial, so the finest mesh is not an accuracy-acceptance result.
 
 ## 10. Completion boundary
 
-Complete for V-013C review:
+Complete and merged for V-013C:
 
 - fixed specification, IDs, samples, event windows, and contamination guards;
 - independent identities and runtime independence;
@@ -209,11 +213,12 @@ Complete for V-013C review:
 - saved-artifact-only seven-figure plotter;
 - finite error normalization;
 - focused/full tests, Windows recheck, three-mesh execution, and artifact digest;
-- temporary evidence/review helpers removed.
+- temporary evidence/review helpers removed;
+- final-head CI and review completed;
+- PR #50 merged to main.
 
 Physical Validation, design-use acceptance, and V-013 regression/design-accuracy bands
 remain outside this increment.
 
-Next: complete final review and merge PR #50, then formalize the combined V-013A/B/C
-baseline and propose cautious CI-light monitoring before beginning the numerical-diffusion
-improvement phase.
+Next: formalize the combined V-013A/B/C baseline and propose cautious CI-light monitoring
+before beginning the numerical-diffusion improvement phase.
