@@ -1,6 +1,7 @@
 name: V-013C Temporary Runner Validation
 
 on:
+  pull_request:
   push:
     branches:
       - agent/stage7-v013c-fixed-pressure-reflection
