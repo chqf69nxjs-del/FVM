@@ -36,10 +36,10 @@ full repository `316 passed, 0 skipped`, `git diff --check` success, and CoolPro
 `sha256:d531f959327f0c36b86223bc96fa2e85a5fb2727790f8739cb941643ccffa148`.
 The temporary validation helper was removed after evidence capture.
 
-## 2026-07-19 — V-013B rigid-wall reflection start
+## 2026-07-19 — V-013B rigid-wall reflection
 
-Status: `IN_PROGRESS; RUNNER VERIFIED; SAVED-ARTIFACT PLOTTER IMPLEMENTED; VALIDATION PENDING`
-on branch `agent/stage7-v013b-rigid-wall-reflection`; Draft PR #49 is open.
+Status: `IN_PROGRESS; PLOTTER KEY FIX APPLIED; RECHECK PENDING` on branch
+`agent/stage7-v013b-rigid-wall-reflection`; Draft PR #49 is open.
 
 Starting evidence:
 
@@ -49,18 +49,7 @@ working tree: clean
 full repository baseline: 316 passed in 141.44 s
 ```
 
-Existing assets were aligned before fixing the V-013B contract:
-
-- the independent reference uses pressure-dimension `A+ / A-` variables;
-- the right rigid-wall identity is `A-_reflected = A+_incident`;
-- the ideal pressure and velocity reflection coefficients are `+1 / -1`;
-- the reconstructed wall velocity perturbation is zero and total wall pressure
-  is twice the incident pressure amplitude;
-- the production `ReflectiveBoundary` mirrors ghost-cell momentum;
-- the Stage 5 boundary-reflection runner already exercises that production
-  boundary but uses a different `1000 Pa`, `x0=50 m`, `sigma=3 m` profile.
-
-The V-013B Stage 7 contract is fixed separately:
+The fixed Stage 7 contract is:
 
 ```text
 pulse: 100 Pa right-going Gaussian
@@ -77,31 +66,25 @@ wall-contact path travel: 35 m
 final reflected centre: 70 m
 ```
 
-The initial `30 m` pre-wall sample was tightened to `25 m`. At `25 m`, the
-Gaussian centre is `90 m` and its five-sigma leading edge reaches, but does not
-cross, the right wall. The symmetric first reflected sample at `45 m` also has
-centre `90 m`. The wall-contact sample is the only matched field whose five-sigma
-envelope overlaps the primary wall.
+The independent reference uses pressure-dimension `A+ / A-` variables. The right
+rigid-wall identity is `A-_reflected = A+_incident`; the ideal pressure and velocity
+reflection coefficients are `+1 / -1`; reconstructed wall velocity perturbation is
+zero and total wall pressure is twice the incident pressure amplitude. The production
+`ReflectiveBoundary` mirrors ghost-cell momentum and is not modified.
 
-The probe half width was tightened from `2.5 sigma` to `2.0 sigma`. At the
-nearest probe, adjacent event centres are `10 m` apart while each window has a
-`4 m` path half-width, leaving a strict `2 m` gap. This avoids endpoint sharing
-under inclusive artifact-window selection.
+The initial `30 m` pre-wall sample was tightened to `25 m`, and the probe half width
+was tightened from `2.5 sigma` to `2.0 sigma`. This keeps the accepted incident,
+wall-contact, and reflected windows strictly separated and before a secondary return.
 
-Draft review produced two P2 findings and both are addressed:
+Draft review produced two P2 findings and both are resolved:
 
-1. **Runtime import independence.** The leaf-module AST check alone was
-   insufficient because eager package initializers loaded the production solver,
-   boundary module, and CoolProp wave cases. The top-level package and cases
-   compatibility exports now use lazy `__getattr__` resolution. A fresh-interpreter
-   subprocess imports the public V-013B module path and fails if solver, boundary,
-   CoolProp case, or CoolProp modules appear in `sys.modules`.
-2. **Secondary-return pulse margin.** The prior contamination flag compared against
-   the secondary-return pulse centre. It now subtracts the same event-window half
-   width and compares against the return pulse leading edge. A custom geometry fixes
-   the equality-edge case as contaminated.
+1. package compatibility exports are lazy, and a fresh-interpreter test verifies that
+   importing the pure V-013B module does not load the production solver, production
+   boundary, CoolProp case runners, or CoolProp;
+2. secondary-return safety is measured from the return pulse leading edge rather than
+   its centre, including an equality-edge contamination test.
 
-The reviewed specification scaffold passed:
+Specification-scaffold validation:
 
 ```text
 focused reference/V-013B tests: 53 passed in 0.56 s
@@ -110,9 +93,7 @@ git diff --check:               success
 failures / errors:              0 / 0
 ```
 
-The dedicated production-connected runner was then implemented in
-`v013_rigid_wall_observation.py` and locally verified after fast-forwarding to
-head `8464dc5`:
+Production-connected runner validation at head `8464dc5`:
 
 ```text
 focused reference/specification/runner tests: 55 passed in 5.02 s
@@ -121,50 +102,47 @@ git diff --check:                           success
 failures / errors / skips:                  0 / 0 / 0
 ```
 
-The runner:
+`v013_rigid_wall_observation.py` uses the existing CoolProp initialization and
+`ReflectiveBoundary`, lands exactly on fixed matched times, records FVM field/probe/
+boundary/health/budget evidence, passes only scalar reference inputs to the independent
+analytical/MOC paths, and writes traceable JSON, CSV, and NPZ artifacts. No FVM
+regression or design-accuracy band is applied.
 
-- constructs the existing CoolProp small-amplitude state and existing
-  `ReflectiveBoundary` through `build_coolprop_boundary_reflection_solver`;
-- lands the FVM exactly on the fixed matched times and records full field, probe,
-  boundary, timestep, health, positivity, phase, and budget evidence;
-- passes only scalar `rho0`, `c0`, geometry, profile, and boundary inputs to the
-  independent analytical and CFL=1 MOC paths;
-- compares pressure, velocity, `A+`, `A-`, peaks, reflection coefficients,
-  arrival markers, leakage, wall residuals, and acoustic-energy proxy;
-- writes top-level and per-run JSON, CSV, and NPZ artifacts;
-- applies no FVM regression or design-accuracy band.
+`plot_v013_rigid_wall_results.py` reads saved artifacts only and targets seven figures:
+pressure, velocity, characteristics, probe history, reflection coefficients,
+field/energy differences, and rigid-wall residuals. Each figure includes case, model,
+backend, CoolProp version, output version, and the non-design-use disclaimer.
 
-A saved-artifact-only plotter is now implemented in
-`plot_v013_rigid_wall_results.py`. It does not import or call the runner and
-produces seven figures:
+The first Windows plotter recheck exposed one non-numerical defect:
 
-1. rigid-wall pressure profiles;
-2. velocity profiles;
-3. reflected `A+ / A-` characteristics;
-4. near-wall probe pressure history and theoretical timing markers;
-5. pressure/velocity reflection coefficients versus mesh spacing;
-6. field and acoustic-energy differences versus mesh spacing;
-7. normalized wall-condition residuals versus mesh spacing.
+```text
+focused result:       56 passed, 1 failed
+full repository:      349 passed, 1 failed
+observed plot count:  6 / 7
+failed figure:        near-wall probe pressure history
+```
 
-Every figure includes case, model, backend, CoolProp version, output version, and
-the non-design-use disclaimer. Plot metadata explicitly records
-`solver_rerun = false` and `numerical_results_changed = false`. The plotter and
-updated installed-CoolProp integration test still require the focused/full branch
-recheck.
+The runner and saved comparison artifact use the timing field
+`theoretical_wall_time_s`. The plotter requested the nonexistent
+`theoretical_boundary_time_s`, so the probe-history figure was caught by the local
+`try/except`, leaving six valid figures and one plotting error. FVM execution,
+reflection signs, saved artifacts, and the other six figures succeeded.
 
-No accepted `n=100 / 200 / 400` V-013B observation has been reviewed yet. No
-production solver or boundary behaviour has changed, and no FVM regression band
-has been introduced.
+The plotter fix now reads `theoretical_wall_time_s` and accepts
+`theoretical_boundary_time_s` only as a compatibility alias. The integration test also
+asserts the saved wall-time schema and reports `plotting_errors` before the plot count.
+No numerical result, solver behaviour, or saved observation value is changed.
 
 Next actions:
 
-1. pull the plotter head and run the focused reference/specification/runner tests;
-2. run the full repository suite and `git diff --check`;
-3. fix any plotter or artifact failure;
-4. execute the fixed `n=100 / 200 / 400` observation;
-5. generate the seven figures from saved artifacts and review the reflection result.
+1. pull the fix head and rerun focused tests, the full repository suite, and
+   `git diff --check`;
+2. require `7/7` figures, empty plotting errors, zero failures, and zero skips;
+3. execute the fixed `n=100 / 200 / 400` observation;
+4. generate all seven figures from saved artifacts and review signs, coefficients,
+   timing, wall residuals, numerical diffusion, and traceability.
 
-Guardrails remain: software/numerical verification only; physical Validation
-and design-use acceptance `False`; backend `not_approved_for_design_use`; MOC
+Guardrails remain: software/numerical verification only; physical Validation and
+design-use acceptance `False`; backend `not_approved_for_design_use`; MOC
 verification-only; finest mesh not exact; no V-013 CI-light band. V-013C remains
 later work.
