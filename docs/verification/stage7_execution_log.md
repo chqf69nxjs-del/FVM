@@ -38,8 +38,8 @@ The temporary validation helper was removed after evidence capture.
 
 ## 2026-07-19 — V-013B rigid-wall reflection
 
-Status: `IN_PROGRESS; PLOTTER KEY FIX APPLIED; RECHECK PENDING` on branch
-`agent/stage7-v013b-rigid-wall-reflection`; Draft PR #49 is open.
+Status: `IN_PROGRESS; RUNNER AND SAVED-ARTIFACT PLOTTER VERIFIED; THREE-MESH OBSERVATION PENDING`
+on branch `agent/stage7-v013b-rigid-wall-reflection`; Draft PR #49 is open.
 
 Starting evidence:
 
@@ -84,22 +84,19 @@ Draft review produced two P2 findings and both are resolved:
 2. secondary-return safety is measured from the return pulse leading edge rather than
    its centre, including an equality-edge contamination test.
 
-Specification-scaffold validation:
+Validation history:
 
 ```text
-focused reference/V-013B tests: 53 passed in 0.56 s
-full repository:                346 passed in 121.38 s
-git diff --check:               success
-failures / errors:              0 / 0
-```
-
-Production-connected runner validation at head `8464dc5`:
-
-```text
-focused reference/specification/runner tests: 55 passed in 5.02 s
-full repository:                            348 passed in 89.39 s
-git diff --check:                           success
-failures / errors / skips:                  0 / 0 / 0
+specification scaffold focused: 53 passed in 0.56 s
+specification scaffold full:    346 passed in 121.38 s
+runner focused:                  55 passed in 5.02 s
+runner full:                     348 passed in 89.39 s
+first plotter recheck focused:   56 passed, 1 failed
+first plotter recheck full:      349 passed, 1 failed
+final plotter recheck focused:   57 passed in 17.65 s
+final plotter recheck full:      350 passed in 165.79 s
+final failures/errors/skips:     0 / 0 / 0
+git diff --check:                success
 ```
 
 `v013_rigid_wall_observation.py` uses the existing CoolProp initialization and
@@ -108,39 +105,35 @@ boundary/health/budget evidence, passes only scalar reference inputs to the inde
 analytical/MOC paths, and writes traceable JSON, CSV, and NPZ artifacts. No FVM
 regression or design-accuracy band is applied.
 
-`plot_v013_rigid_wall_results.py` reads saved artifacts only and targets seven figures:
+`plot_v013_rigid_wall_results.py` reads saved artifacts only and generates seven figures:
 pressure, velocity, characteristics, probe history, reflection coefficients,
 field/energy differences, and rigid-wall residuals. Each figure includes case, model,
 backend, CoolProp version, output version, and the non-design-use disclaimer.
 
-The first Windows plotter recheck exposed one non-numerical defect:
+The first plotter recheck generated `6 / 7` figures because the probe-history plot
+requested `theoretical_boundary_time_s` while the saved schema correctly used
+`theoretical_wall_time_s`. This was a plotting-key mismatch only. The fix uses the
+canonical wall-time key and retains the old name solely as a compatibility alias.
 
-```text
-focused result:       56 passed, 1 failed
-full repository:      349 passed, 1 failed
-observed plot count:  6 / 7
-failed figure:        near-wall probe pressure history
-```
+The final Windows recheck confirms:
 
-The runner and saved comparison artifact use the timing field
-`theoretical_wall_time_s`. The plotter requested the nonexistent
-`theoretical_boundary_time_s`, so the probe-history figure was caught by the local
-`try/except`, leaving six valid figures and one plotting error. FVM execution,
-reflection signs, saved artifacts, and the other six figures succeeded.
+- `7 / 7` figures are generated in the installed-CoolProp integration path;
+- `plotting_errors` is empty;
+- `solver_rerun = false`;
+- `numerical_results_changed = false`;
+- production solver execution, saved numerical results, and reflection calculations
+  are unchanged by the plotting fix.
 
-The plotter fix now reads `theoretical_wall_time_s` and accepts
-`theoretical_boundary_time_s` only as a compatibility alias. The integration test also
-asserts the saved wall-time schema and reports `plotting_errors` before the plot count.
-No numerical result, solver behaviour, or saved observation value is changed.
+No accepted full `n=100 / 200 / 400` V-013B observation has been reviewed yet.
 
 Next actions:
 
-1. pull the fix head and rerun focused tests, the full repository suite, and
-   `git diff --check`;
-2. require `7/7` figures, empty plotting errors, zero failures, and zero skips;
-3. execute the fixed `n=100 / 200 / 400` observation;
-4. generate all seven figures from saved artifacts and review signs, coefficients,
-   timing, wall residuals, numerical diffusion, and traceability.
+1. execute the fixed three-mesh observation into a dedicated artifact directory;
+2. generate all seven figures from those saved artifacts without rerunning the solvers;
+3. inspect reflection signs, coefficients, arrival timing, wall residuals, numerical
+   diffusion, traceability, and figure readability;
+4. preserve exact run/test/artifact evidence and update PR #49;
+5. keep V-013 `IN_PROGRESS` until V-013B review is complete.
 
 Guardrails remain: software/numerical verification only; physical Validation and
 design-use acceptance `False`; backend `not_approved_for_design_use`; MOC
