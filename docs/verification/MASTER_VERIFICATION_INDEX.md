@@ -57,13 +57,23 @@ Fixed observation contract:
 - no time shifting, parameter tuning, or FVM regression band;
 - production solver behaviour changes: none.
 
-The configuration, stable case IDs, run plan, path-state convention, probe windows,
-and pure tests are added. A separated pure-scaffold run passes `28` tests. This is
-not a substitute for the repository focused/full recheck. The actual
-FVM/MOC/analytical observation remains unexecuted.
+Draft-review safeguards:
 
-Permanent workflows triggered by Draft PR #49 pass on the initial scaffold head;
-the current tightened head must also remain green. No workflow file is changed.
+- top-level package and case compatibility exports are lazy, so importing the pure
+  V-013B module in a fresh interpreter does not load solver, boundary, CoolProp case,
+  or CoolProp modules;
+- runtime independence is asserted through a fresh-interpreter `sys.modules` test;
+- secondary-return safety compares the accepted reflected-window trailing edge with
+  the return pulse leading edge, not merely its centre;
+- a custom geometry fixes the equality-edge contamination case by test.
+
+The isolated pure-scaffold run passes `30` tests. This is not a substitute for the
+repository focused/full recheck. The actual FVM/MOC/analytical observation remains
+unexecuted.
+
+No workflow file is changed. Existing permanent workflows are used only as
+regression sentinels; the new V-013B pure tests and the full repository suite still
+require an explicit branch recheck.
 
 ## Guardrails
 
@@ -75,10 +85,11 @@ mesh is not exact; no V-013 CI-light band has been selected.
 ## Next action
 
 1. pull the current Draft PR #49 head and run the focused V-013 reference/V-013B
-   tests plus the full repository suite;
-2. address review findings while keeping the PR in Draft;
-3. connect a dedicated V-013B runner to the existing FVM and rigid-wall boundary
+   tests plus the full repository suite and `git diff --check`;
+2. confirm public lazy-export compatibility through the repository suite;
+3. resolve Draft review threads while keeping the PR in Draft;
+4. connect a dedicated V-013B runner to the existing FVM and rigid-wall boundary
    without changing solver physics;
-4. generate traceable FVM, MOC, analytical, matched-sample, probe, boundary, and
+5. generate traceable FVM, MOC, analytical, matched-sample, probe, boundary, and
    plotting artifacts;
-5. execute and review `n=100 / 200 / 400` before starting V-013C.
+6. execute and review `n=100 / 200 / 400` before starting V-013C.
