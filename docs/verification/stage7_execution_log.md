@@ -1,109 +1,41 @@
 # Stage 7 Execution Log
 
-This log records V-013 MOC / linear-acoustic cross-verification work.
+Earlier entries are preserved in
+[`archive/stage7_execution_log_through_v013_reference_core.md`](archive/stage7_execution_log_through_v013_reference_core.md).
 
-## 2026-07-18 — V-013 specification checkpoint
+## 2026-07-19 — V-013A incident propagation
 
-Status:
+Status: `OBSERVED; READY FOR REVIEW` (PR #48). V-013 remains `IN_PROGRESS`.
 
-```text
-IN_PROGRESS; SPECIFICATION MERGED
-```
+Primary observation evidence: GitHub Actions run `29647234616`; focused
+`39 passed, 0 skipped`; full repository `315 passed, 0 skipped`; runs `3/3`;
+figures `7/7`; CoolProp `8.0.0`; artifact SHA256
+`ee537e0e32a14d01501e36b427af68f94881905bc01f4a3b68684508c15c0961`.
 
-Specification:
+The FVM wave travels in the correct direction at approximately the recorded
+sound speed. The final `n=400` pressure peak ratio is `0.57499430`, showing
+strong numerical diffusion that decreases with refinement. No accepted
+incident-window boundary return was observed.
 
-```text
-docs/verification/v013_moc_linear_acoustic_cross_verification_spec.md
-```
+Finalization fixes provide NumPy 1.x/2.x-compatible trapezoidal integration,
+persist `coolprop_version`, use increasing mesh spacing `Δx` in plots, and
+remove temporary workflows. Production solver behaviour is unchanged.
 
-The initial Stage 7 scope is restricted to:
+Review-close plotting fixes embed case, model, property backend, CoolProp
+version, and output version in every one of the seven figures. The same fields
+are persisted in `v013a_plot_metrics.json`. The primary `n=100/200/400` saved
+artifacts were replotted without rerunning FVM, MOC, or analytical calculations;
+`7/7` figures were generated with no plotting errors and no numerical-result
+change.
 
-1. small-amplitude incident-wave propagation;
-2. rigid-wall reflection;
-3. fixed-pressure reflection.
+Close validation used GitHub Actions run `29673595870` at code/test head
+`14afc9add7c7bb8c7b141d62625c27c3700ea1f8`: focused `40 passed, 0 skipped`,
+full repository `316 passed, 0 skipped`, `git diff --check` success, and CoolProp
+`8.0.0`. Artifact digest:
+`sha256:d531f959327f0c36b86223bc96fa2e85a5fb2727790f8739cb941643ccffa148`.
+The temporary validation helper was removed after evidence capture.
 
-The reference path will contain two independently testable levels:
-
-- an analytical characteristic evaluator for a smooth Gaussian pulse and at most one
-  reflection;
-- a discrete nodal MOC translator with `CFL=1`.
-
-Independence rules:
-
-- the reference shall not import `FvmSolver`, production numerical fluxes, production
-  boundary classes, production case runners, or FVM telemetry recorders;
-- MOC shall receive explicit `rho0` and `c0` values and shall not call CoolProp;
-- comparison windows shall exclude secondary-boundary returns;
-- no FVM error band is selected before the initial observation matrix is reviewed;
-- MOC is a verification-only path and shall not be introduced into the production
-  solver.
-
-Planned initial matrix:
-
-```text
-cases: V-013A / V-013B / V-013C
-FVM meshes: 100 / 200 / 400 at CFL 0.5
-MOC meshes: 100 / 200 / 400 at CFL 1.0
-```
-
-No production solver behaviour is changed by this specification increment.
-
-## 2026-07-18 — V-013 specification merged
-
-- PR: `#44`
-- merge commit: `349bdefe16816b55b0b64495b1ebf17bedab71e5`
-- next action: pure analytical / MOC reference implementation
-- production solver changes: none
-
-## 2026-07-18 — V-013 independent reference core
-
-Status:
-
-```text
-IMPLEMENTED; TESTED; MERGED
-```
-
-Implementation:
-
-```text
-src/liquid_gas_transient/verification/linear_acoustic_reference.py
-tests/test_linear_acoustic_reference.py
-docs/verification/stage7_v013_reference_core_notes.md
-```
-
-Verification head and results:
-
-```text
-head:                       f44b569b5dbe388840860415987486bef47602cf
-reference-core self-tests:  23 passed, 0 skipped
-full repository tests:      299 passed in 150.31 s
-compileall:                  success
-deterministic JSON SHA256:  a5d2a5764b4c65613aed9d6254f315b41055fa51968a89d9cf7d5b290c3cbd64
-temporary artifact SHA256:  eeaccfdccf8b791b037b28b46b41e3446dc4e70bec5b5beb8b9d9b3868c245e3
-```
-
-Implemented and self-tested:
-
-- `A+ / A-` conversion and pressure / velocity reconstruction;
-- right-going and left-going Gaussian analytical translation;
-- at-most-one-reflection image formulas;
-- exact one-cell nodal MOC translation at `CFL=1`;
-- transmissive, rigid-wall, and fixed-pressure boundary identities;
-- MOC / analytical equality at grid-aligned incident and reflected samples;
-- acoustic-energy proxy;
-- input immutability and deterministic JSON output;
-- AST-based prohibited-import guard.
-
-The module imports only Python standard-library modules and NumPy. It does not import
-production FVM solver, flux, boundary, case, timestep, telemetry, or CoolProp code.
-No production solver behaviour was changed.
-
-## 2026-07-18 — V-013 reference core merged
-
-- PR: `#46`
-- merge commit: `3945136dbe26db98044e49fb093b37122bf8b1fd`
-- reference-core self-tests: `23 passed`, `0 skipped`
-- full repository tests: `299 passed in 150.31 s`
-- production solver changes: none
-- V-013 status: `IN_PROGRESS`
-- next action: V-013A incident propagation integration
+Guardrails remain: software/numerical verification only; physical Validation
+and design-use acceptance `False`; backend `not_approved_for_design_use`; MOC
+verification-only; finest mesh not exact; no V-013 CI-light band. Next:
+V-013B rigid-wall reflection.
