@@ -903,6 +903,12 @@ def _compare_run(
     field_rows: list[dict[str, Any]] = []
     analytical_rows: list[dict[str, Any]] = []
     field_metrics: list[dict[str, Any]] = []
+    field_error_normalization_policy = {
+        "pressure_perturbation_pa": "analytical_pressure_perturbation_pa",
+        "velocity_m_s": "analytical_pressure_perturbation_pa / (rho0 * c0)",
+        "a_plus_pa": "analytical_pressure_perturbation_pa",
+        "a_minus_pa": "analytical_pressure_perturbation_pa",
+    }
 
     for time_index, (time_value, sample) in enumerate(
         zip(matched_times, matched_plan)
@@ -947,20 +953,23 @@ def _compare_run(
             "path_travel_m": float(sample["path_travel_m"]),
             "phase": sample["phase"],
             "expected_center_x_m": float(sample["expected_center_x_m"]),
+            "normalization_policy": dict(field_error_normalization_policy),
             "fvm": {},
             "moc": {},
         }
-        characteristic_normalizer = np.asarray(
+        pressure_normalizer = np.asarray(
             analytical_fields["pressure_perturbation_pa"],
             dtype=float,
         )
+        velocity_normalizer = pressure_normalizer / (rho0 * c0)
         for implementation, fields in (("fvm", fvm_fields), ("moc", moc_fields)):
             for key in keys:
-                normalizer = (
-                    characteristic_normalizer
-                    if key in {"a_plus_pa", "a_minus_pa"}
-                    else analytical_fields[key]
-                )
+                if key == "velocity_m_s":
+                    normalizer = velocity_normalizer
+                elif key in {"a_plus_pa", "a_minus_pa"}:
+                    normalizer = pressure_normalizer
+                else:
+                    normalizer = analytical_fields[key]
                 metrics_at_time[implementation][key] = normalized_error_norms(
                     x,
                     fields[key],
@@ -1207,6 +1216,7 @@ def _compare_run(
     comparison = {
         "verification_item": "V-013B",
         "case_role": "rigid_wall_reflection",
+        "field_error_normalization_policy": field_error_normalization_policy,
         "field_metrics": field_metrics,
         "probe_reflection_metrics": probe_metrics,
         "boundary_metrics": fvm_metrics["boundary_metrics"],

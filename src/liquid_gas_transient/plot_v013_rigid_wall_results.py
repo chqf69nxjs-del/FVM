@@ -609,7 +609,6 @@ def plot_v013_rigid_wall_results(
         amplitude = float(
             _load_json(base / "v013b_config.json")["pressure_amplitude_pa"]
         )
-        floor = np.finfo(float).tiny
         velocity_residuals: list[float] = []
         pressure_errors: list[float] = []
         for row in run_data:
@@ -619,17 +618,10 @@ def plot_v013_rigid_wall_results(
                 float(fvm["rho0_kg_m3"]) * float(fvm["c0_m_s"])
             )
             velocity_residuals.append(
-                max(
-                    abs(float(wall["max_abs_wall_velocity_m_s"]))
-                    / velocity_scale,
-                    floor,
-                )
+                abs(float(wall["max_abs_wall_velocity_m_s"])) / velocity_scale
             )
             pressure_errors.append(
-                max(
-                    abs(float(wall["wall_pressure_amplification_ratio"]) - 2.0),
-                    floor,
-                )
+                abs(float(wall["wall_pressure_amplification_ratio"]) - 2.0)
             )
         ax.plot(
             dx,
@@ -643,11 +635,13 @@ def plot_v013_rigid_wall_results(
             marker="s",
             label="|wall pressure ratio - 2|",
         )
-        ax.set_yscale("log")
+        ax.axhline(0.0, linewidth=0.8)
+        ax.set_ylim(bottom=0.0)
         ax.set_title("V-013B rigid-wall condition residuals")
         ax.set_xlabel("mesh spacing Δx [m]")
         ax.set_ylabel("normalized residual [-]")
-        ax.grid(True, alpha=0.3, which="both")
+        ax.ticklabel_format(axis="y", style="sci", scilimits=(-3, 3))
+        ax.grid(True, alpha=0.3)
         ax.legend(fontsize=8)
         generated.append(
             _save(

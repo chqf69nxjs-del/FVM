@@ -3,6 +3,7 @@ from __future__ import annotations
 from importlib.metadata import version as distribution_version
 import inspect
 import json
+import math
 
 import pytest
 
@@ -136,6 +137,32 @@ def test_v013b_installed_runner_writes_traceable_artifacts(tmp_path) -> None:
     assert comparison["formal_fvm_regression_band_applied"] is False
     assert len(comparison["field_metrics"]) == 7
     assert len(comparison["probe_reflection_metrics"]) == 3
+    expected_velocity_policy = (
+        "analytical_pressure_perturbation_pa / (rho0 * c0)"
+    )
+    assert comparison["field_error_normalization_policy"]["velocity_m_s"] == (
+        expected_velocity_policy
+    )
+    wall_contact = next(
+        sample
+        for sample in comparison["field_metrics"]
+        if sample["phase"] == "wall_contact"
+    )
+    for sample in comparison["field_metrics"]:
+        assert sample["normalization_policy"]["velocity_m_s"] == (
+            expected_velocity_policy
+        )
+        for implementation in ("fvm", "moc"):
+            velocity_metrics = sample[implementation]["velocity_m_s"]
+            for metric_name in (
+                "l1_relative",
+                "l2_relative",
+                "linf_relative",
+                "linf_absolute",
+            ):
+                assert math.isfinite(float(velocity_metrics[metric_name]))
+    assert wall_contact["fvm"]["velocity_m_s"]["l2_relative"] < 1.0e6
+    assert wall_contact["moc"]["velocity_m_s"]["l2_relative"] < 1.0e6
     for probe in comparison["probe_reflection_metrics"]:
         assert "theoretical_wall_time_s" in probe["timing"]
         fvm_probe = probe["implementations"]["fvm"]
