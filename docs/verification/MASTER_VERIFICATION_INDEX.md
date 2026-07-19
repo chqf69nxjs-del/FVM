@@ -10,7 +10,7 @@ Historical detail through the V-013 reference-core checkpoint is preserved in
 - V-013 independent analytical / CFL=1 MOC reference core: merged in PR #46
 - V-013A incident propagation: `OBSERVED; MERGED` in PR #48
 - PR #48 merge commit: `613b21622b22402fbf7b8d77b1d881db7ff5f28e`
-- V-013B rigid-wall reflection: `IN_PROGRESS; PLOTTER KEY FIX APPLIED; RECHECK PENDING`
+- V-013B rigid-wall reflection: `IN_PROGRESS; RUNNER AND PLOTTER VERIFIED; THREE-MESH OBSERVATION PENDING`
 - Active branch: `agent/stage7-v013b-rigid-wall-reflection`
 - Draft PR: `#49 Add V-013B rigid-wall reflection observation and saved-artifact plots`
 - V-013C fixed-pressure reflection: `PLANNED`
@@ -50,15 +50,18 @@ Fixed observation contract:
 - no time shifting, parameter tuning, or FVM regression band;
 - production solver behaviour changes: none.
 
-Verified scaffold and runner evidence:
+Verified implementation evidence:
 
 - initial full repository baseline: `316 passed in 141.44 s`;
-- reviewed scaffold: focused `53 passed in 0.56 s`; full `346 passed in 121.38 s`;
+- reviewed specification scaffold: focused `53 passed in 0.56 s`; full `346 passed in 121.38 s`;
 - production-connected runner: focused `55 passed in 5.02 s`; full `348 passed in 89.39 s`;
-- failures / errors / skips: `0 / 0 / 0` at runner head;
+- final runner/plotter recheck: focused `57 passed in 17.65 s`; full `350 passed in 165.79 s`;
+- final failures / errors / skips: `0 / 0 / 0`;
 - `git diff --check`: success;
+- installed-CoolProp integration generated `7 / 7` figures with empty plotting errors;
+- plot metadata confirms `solver_rerun = false` and `numerical_results_changed = false`;
 - both Draft review threads resolved;
-- four existing permanent workflows passed; no workflow file changed.
+- no workflow file changed.
 
 Implemented observation path:
 
@@ -68,21 +71,13 @@ Implemented observation path:
   reference, which does not call CoolProp;
 - matched FVM, MOC, analytical, probe, boundary, comparison, JSON, CSV, and NPZ
   artifacts are written without changing production solver physics;
-- `plot_v013_rigid_wall_results.py` reads saved artifacts only and targets seven
-  traceable figures.
+- `plot_v013_rigid_wall_results.py` reads saved artifacts only and generates seven
+  traceable figures;
+- the earlier `6 / 7` result was caused only by a timing-key mismatch
+  (`theoretical_boundary_time_s` versus `theoretical_wall_time_s`); the corrected
+  plotter now passes the Windows project recheck without changing numerical results.
 
-Latest plotter validation result:
-
-- focused test run: `56 passed, 1 failed`;
-- full repository: `349 passed, 1 failed`;
-- FVM execution, saved artifacts, reflection signs, and six figures succeeded;
-- failure was limited to the near-wall probe-history figure;
-- saved comparison data records `theoretical_wall_time_s`, while the plotter requested
-  the nonexistent `theoretical_boundary_time_s`;
-- the plotter now reads `theoretical_wall_time_s` and accepts the old name only as a
-  compatibility alias;
-- numerical values, solver execution, and saved artifacts are unchanged;
-- focused/full Windows recheck is pending on the fix head.
+The fixed full `n=100 / 200 / 400` observation has not yet been executed or reviewed.
 
 ## Guardrails
 
@@ -93,9 +88,9 @@ mesh is not exact; no V-013 CI-light band has been selected.
 
 ## Next action
 
-1. pull the plotter-fix head and rerun the focused V-013B tests, full repository suite,
-   and `git diff --check`;
-2. require `7 / 7` figures, empty plotting errors, zero failures, and zero skips;
-3. execute the fixed `n=100 / 200 / 400` observation;
-4. generate and review all seven figures from saved artifacts;
+1. execute the fixed `n=100 / 200 / 400` V-013B observation into a dedicated artifact directory;
+2. generate all seven figures from the saved artifacts without rerunning the solvers;
+3. review reflection signs, coefficients, timing, wall residuals, numerical diffusion,
+   artifact traceability, and figure traceability;
+4. preserve exact run/test/artifact evidence and update PR #49;
 5. keep V-013 `IN_PROGRESS` and do not start V-013C before V-013B review.
