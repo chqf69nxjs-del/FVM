@@ -122,4 +122,66 @@ Validation and design-use acceptance are `False`; the property backend is
 `not_approved_for_design_use`; MOC is verification-only; no FVM regression, CI-light,
 or design-accuracy band is introduced.
 
-Next: start V-013C fixed-pressure reflection on a new branch.
+## 2026-07-19 — V-013C fixed-pressure reflection start
+
+Status: `IN_PROGRESS; SPECIFICATION SCAFFOLD IMPLEMENTED; VALIDATION PENDING` on
+branch `agent/stage7-v013c-fixed-pressure-reflection`. V-013 overall remains
+`IN_PROGRESS`.
+
+Starting point:
+
+```text
+base: post-PR #49 main
+base commit: 30ab7715e79d96c48f1cbe3ba7051815877e288a
+```
+
+The fixed V-013C case intentionally matches V-013B except for the right boundary:
+
+```text
+pulse: 100 Pa right-going Gaussian
+x0 / sigma: 65 / 2 m
+right boundary: fixed_pressure at p0
+left boundary: transmissive
+FVM mesh / CFL: 100, 200, 400 / 0.5
+MOC mesh / CFL: 100, 200, 400 / 1.0
+probes x/L: 0.75, 0.85, 0.90
+probe event-window half width: 2 sigma
+matched-field boundary guard: 5 sigma
+matched cumulative path travel: 0, 15, 25, 35, 45, 55, 65 m
+boundary-contact path travel: 35 m
+```
+
+The independent reference identity is
+`A-_reflected = -A+_incident`. Ideal pressure and velocity reflection coefficients are
+`-1 / +1`; the boundary pressure perturbation is zero and the ideal boundary velocity
+is twice the incident velocity amplitude.
+
+The production alignment is the existing Stage 5 path:
+`PressureTankBoundary(ConstantPressure(p0), flow_direction="bidirectional",
+velocity_policy="copy")`. V-013C will observe this existing idealization without
+changing the boundary, EOS inversion, flux, or solver.
+
+Unlike V-013B, fixed pressure is not a zero-flux boundary. Boundary mass and energy
+fluxes and their integrals will be recorded, but nonzero values will not be classified
+as a boundary-condition failure.
+
+The initial scaffold implements:
+
+- stable case IDs and the fixed three-mesh plan;
+- cumulative-path matched samples and strictly separated probe windows;
+- five-sigma field guards and secondary-return leading-edge protection;
+- fixed-pressure characteristic, pressure, velocity, and boundary identities;
+- fresh-interpreter runtime import-independence checks;
+- explicit false Validation, design-evaluation, acceptance, and regression-band flags.
+
+The scaffold requires the Windows focused/full recheck. A production-connected V-013C
+runner, saved numerical artifacts, seven figures, and the full three-mesh observation
+remain later increments.
+
+Next:
+
+1. pull the V-013C branch and run the focused reference/V-013C tests;
+2. run the full repository suite and `git diff --check`;
+3. fix any scaffold or compatibility defect;
+4. connect the existing fixed-pressure FVM boundary to the independent reference;
+5. preserve software/numerical-only guardrails through observation and review.
