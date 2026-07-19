@@ -69,6 +69,10 @@ def _counts(junit: Path) -> dict[str, int]:
 
 def _validate() -> None:
     _RESULT_DIR.mkdir(parents=True, exist_ok=True)
+    install = _run(
+        [sys.executable, "-m", "pip", "install", "matplotlib>=3.7"],
+        _RESULT_DIR / "install-matplotlib.txt",
+    )
     diff = _run(["git", "diff", "--check"], _RESULT_DIR / "git-diff-check.txt")
     junit = _RESULT_DIR / "full-repository-junit.xml"
     tests = _run(
@@ -84,13 +88,14 @@ def _validate() -> None:
     )
     counts = _counts(junit)
     summary = {
+        "matplotlib_install_returncode": install.returncode,
         "git_diff_check_returncode": diff.returncode,
         "pytest_returncode": tests.returncode,
         "coolprop_version": version("CoolProp"),
         **counts,
     }
     _MARKER.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    if diff.returncode != 0 or tests.returncode != 0:
+    if install.returncode != 0 or diff.returncode != 0 or tests.returncode != 0:
         raise RuntimeError(f"V-013A final validation failed: {summary}")
     if summary["full"] != {"total": 315, "passed": 315, "failures": 0, "errors": 0, "skipped": 0}:
         raise RuntimeError(f"unexpected full-suite counts: {summary['full']}")
@@ -115,5 +120,9 @@ if (
     and _coolprop_ready()
 ):
     if not _MARKER.is_file():
-        _validate()
+        try:
+            _validate()
+        except Exception as exc:
+            print(f"V-013A final validation error: {exc}", file=sys.stderr, flush=True)
+            os._exit(1)
     atexit.register(_bundle)
