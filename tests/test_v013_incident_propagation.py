@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from importlib.metadata import version as distribution_version
 import csv
 import json
 import math
@@ -121,6 +122,7 @@ def test_spacetime_interpolation_rejects_out_of_domain_query() -> None:
 def test_v013a_installed_cross_verification_run_and_artifacts(tmp_path) -> None:
     pytest.importorskip("CoolProp")
     pytest.importorskip("matplotlib")
+    coolprop_version = distribution_version("CoolProp")
     cfg = V013IncidentPropagationConfig(
         fvm_mesh_cells=(40,),
         generate_plots=True,
@@ -137,6 +139,7 @@ def test_v013a_installed_cross_verification_run_and_artifacts(tmp_path) -> None:
     assert metrics["design_evaluation"] is False
     assert metrics["acceptance_gate"] is False
     assert metrics["property_backend_design_status"] == "not_approved_for_design_use"
+    assert metrics["coolprop_version"] == coolprop_version
     assert len(metrics["generated_plots"]) == 7
 
     case_id = metrics["run_plan"][0]["case_id"]
@@ -164,9 +167,14 @@ def test_v013a_installed_cross_verification_run_and_artifacts(tmp_path) -> None:
     assert all(path.exists() and path.stat().st_size > 0 for path in required)
     assert all((tmp_path / name).exists() for name in metrics["generated_plots"])
 
+    aggregate = json.loads(
+        (tmp_path / "v013a_metrics.json").read_text(encoding="utf-8")
+    )
     reference = json.loads(
         (tmp_path / "v013a_reference_constants.json").read_text(encoding="utf-8")
     )
+    assert aggregate["coolprop_version"] == coolprop_version
+    assert reference["coolprop_version"] == coolprop_version
     assert reference["moc_calls_coolprop"] is False
     assert reference["property_backend_design_status"] == "not_approved_for_design_use"
 
@@ -175,6 +183,7 @@ def test_v013a_installed_cross_verification_run_and_artifacts(tmp_path) -> None:
     comparison = json.loads(
         (run_dir / "comparison_metrics.json").read_text(encoding="utf-8")
     )
+    assert fvm_metrics["coolprop_version"] == coolprop_version
     assert fvm_metrics["overall_fvm_health_pass"] is True
     assert fvm_metrics["solver_physics_changed"] is False
     assert moc_metrics["overall_moc_reference_pass"] is True
