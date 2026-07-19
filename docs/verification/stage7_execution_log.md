@@ -39,7 +39,7 @@ The temporary validation helper was removed after evidence capture.
 ## 2026-07-19 — V-013B rigid-wall reflection start
 
 Status: `IN_PROGRESS; SPECIFICATION SCAFFOLD IMPLEMENTED` on branch
-`agent/stage7-v013b-rigid-wall-reflection`.
+`agent/stage7-v013b-rigid-wall-reflection`; Draft PR #49 is open.
 
 Starting evidence:
 
@@ -60,7 +60,7 @@ Existing assets were aligned before fixing the V-013B contract:
 - the Stage 5 boundary-reflection runner already exercises that production
   boundary but uses a different `1000 Pa`, `x0=50 m`, `sigma=3 m` profile.
 
-The V-013B Stage 7 contract is now fixed separately:
+The V-013B Stage 7 contract is fixed separately:
 
 ```text
 pulse: 100 Pa right-going Gaussian
@@ -70,17 +70,34 @@ left boundary: transmissive
 FVM mesh / CFL: 100, 200, 400 / 0.5
 MOC mesh / CFL: 100, 200, 400 / 1.0
 probes x/L: 0.75, 0.85, 0.90
-matched cumulative path travel: 0, 15, 30, 35, 45, 55, 65 m
+probe event-window half width: 2 sigma
+matched-field boundary guard: 5 sigma
+matched cumulative path travel: 0, 15, 25, 35, 45, 55, 65 m
 wall-contact path travel: 35 m
 final reflected centre: 70 m
 ```
 
+The initial `30 m` pre-wall sample was tightened to `25 m`. At `25 m`, the
+Gaussian centre is `90 m` and its five-sigma leading edge reaches, but does not
+cross, the right wall. The symmetric first reflected sample at `45 m` also has
+centre `90 m`. The wall-contact sample is the only matched field whose five-sigma
+envelope overlaps the primary wall.
+
+The probe half width was tightened from `2.5 sigma` to `2.0 sigma`. At the
+nearest probe, adjacent event centres are `10 m` apart while each window has a
+`4 m` path half-width, leaving a strict `2 m` gap. This avoids endpoint sharing
+under inclusive artifact-window selection.
+
 Stable case IDs, the run plan, matched-sample schema, incident/wall/reflected
-path-state mapping, non-overlapping probe windows, expected rigid-wall identity,
-and a JSON-ready specification snapshot are implemented in
-`cases/v013_rigid_wall_reflection.py`. Pure tests fix these values and guard
-against production solver, production boundary, and CoolProp imports in the
-scaffold.
+path-state mapping, strictly separated probe windows, conservative secondary-return
+times, expected rigid-wall identity, and a JSON-ready specification snapshot are
+implemented in `cases/v013_rigid_wall_reflection.py`. Pure tests fix these values
+and guard against production solver, production boundary, and CoolProp imports in
+the scaffold.
+
+An isolated pure-scaffold run passes `28` tests. The four existing permanent
+workflows passed on the initial Draft PR head. Repository focused/full validation
+for the tightened head is still required. No workflow file is changed.
 
 No FVM, MOC, or analytical observation has been executed for V-013B yet. No
 production solver behaviour has changed, and no FVM regression band has been
@@ -88,12 +105,14 @@ introduced.
 
 Next actions:
 
-1. run `tests/test_linear_acoustic_reference.py` and
+1. pull the current Draft PR #49 head;
+2. run `tests/test_linear_acoustic_reference.py` and
    `tests/test_v013_rigid_wall_reflection.py`;
-2. run the full repository suite;
-3. connect a dedicated V-013B artifact runner to the existing small-amplitude FVM
+3. run the full repository suite and `git diff --check`;
+4. address review findings while keeping the PR in Draft;
+5. connect a dedicated V-013B artifact runner to the existing small-amplitude FVM
    and `ReflectiveBoundary` without altering solver physics;
-4. execute and review the fixed `n=100 / 200 / 400` observation.
+6. execute and review the fixed `n=100 / 200 / 400` observation.
 
 Guardrails remain: software/numerical verification only; physical Validation
 and design-use acceptance `False`; backend `not_approved_for_design_use`; MOC
