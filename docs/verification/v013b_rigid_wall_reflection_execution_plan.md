@@ -2,7 +2,8 @@
 
 ## 1. Status
 
-`OBSERVED; READY FOR REVIEW`
+`OBSERVED; MERGED` in PR #49. Merge commit:
+`bc874193de6a4c019073b6cf629e99ec5dfa6602`.
 
 The fixed V-013B production-FVM / independent-MOC / analytical observation has been
 executed and reviewed without changing the production solver, numerical flux, or
@@ -141,7 +142,7 @@ this is not an accuracy-acceptance result.
 
 ## 8. Completion boundary
 
-Complete for V-013B review:
+Completed and merged for V-013B:
 
 - fixed specification, IDs, samples, windows, and guardrails;
 - independent rigid-wall identities and runtime independence;
@@ -149,7 +150,9 @@ Complete for V-013B review:
 - saved-artifact-only seven-figure plotter;
 - corrected finite error normalization;
 - focused/full tests, three-mesh execution, visual review, and artifact digest;
-- temporary evidence/fix workflows, trigger, and script removed.
+- temporary evidence/fix workflows, trigger, and script removed;
+- final-head permanent workflows `4 / 4` successful;
+- review threads resolved and final Codex review returned no findings.
 
 Physical Validation, design-use acceptance, and V-013 CI-light/design-accuracy bands
-remain outside this increment. Next: merge PR #49, then begin V-013C.
+remain outside this increment. Next: begin V-013C fixed-pressure reflection.
