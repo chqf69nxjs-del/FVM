@@ -2,7 +2,7 @@
 
 ## 1. Status
 
-`IN_PROGRESS; SPECIFICATION SCAFFOLD IMPLEMENTED`
+`IN_PROGRESS; SPECIFICATION SCAFFOLD IMPLEMENTED; REVIEW FIXES APPLIED`
 
 This increment fixes the V-013B observation contract before connecting the
 production FVM path. It does not change the production solver, numerical flux, or
@@ -12,6 +12,7 @@ boundary implementation.
 
 ```text
 branch: agent/stage7-v013b-rigid-wall-reflection
+Draft PR: #49
 base: PR #48 merge commit 613b21622b22402fbf7b8d77b1d881db7ff5f28e
 working tree at start: clean
 full repository baseline: 316 passed in 141.44 s
@@ -30,9 +31,15 @@ V-013B is software / numerical verification only. It is not:
 - an equipment-fidelity wall or valve model;
 - a two-phase, flashing, cavitation, HEM, HNE, ESD, or pump-trip result.
 
-The reference path shall not import or call the production FVM solver, numerical
+The pure scaffold shall not import or call the production FVM solver, numerical
 fluxes, production boundary classes, existing FVM case runners, or CoolProp.
 No phase shifting or parameter fitting is permitted.
+
+The top-level `liquid_gas_transient` and `liquid_gas_transient.cases` compatibility
+exports are now resolved lazily. This preserves their public names while allowing a
+fresh interpreter to import `cases.v013_rigid_wall_reflection` without loading the
+production solver, boundary module, CoolProp cases, or CoolProp package. This is an
+import-timing change only; numerical solver behaviour is unchanged.
 
 ## 4. Existing implementation alignment
 
@@ -47,8 +54,9 @@ Three existing assets were reviewed before fixing this plan.
    retaining the other conserved components. Stage 5 already observes that boundary
    through `CoolPropBoundaryReflectionConfig`.
 
-V-013B does not replace or modify those assets. It adds an independently fixed
-FVM / MOC / analytical comparison contract with the Stage 7 low-amplitude profile.
+V-013B does not replace or modify those numerical assets. It adds an independently
+fixed FVM / MOC / analytical comparison contract with the Stage 7 low-amplitude
+profile.
 
 ## 5. Fixed problem
 
@@ -121,7 +129,7 @@ Analytical values will be evaluated directly at recorded FVM cell centres and
 times. MOC values will use fixed linear time/space interpolation. No signal shift
 will be applied.
 
-## 8. Probe timing plan
+## 8. Probe timing and return-pulse safety
 
 The fixed probe locations give the following centre-path distances.
 
@@ -134,15 +142,42 @@ The fixed probe locations give the following centre-path distances.
 With sigma `2 m` and half width `2.0 sigma`, each event window has a path
 half-width of `4 m`. At the closest probe, adjacent event centres are separated by
 `10 m`, leaving a strict `2 m` path gap between the incident, wall-contact, and
-reflected windows. Endpoint sharing is therefore excluded even when artifact
-selection uses inclusive comparisons.
+reflected windows. Endpoint sharing is excluded even when artifact selection uses
+inclusive comparisons.
 
-Each probe row records the theoretical incident, wall-contact, and reflected times,
-strict window limits, the return time of any initial left-going component, the time
-of a right-wall/left-wall secondary return, the earliest of those two contamination
-times, and an explicit `evaluation_window_contaminated` flag.
+Each probe row records:
 
-## 9. Required observation metrics
+- theoretical incident, wall-contact, and reflected times;
+- strict event-window limits;
+- return time of any initial left-going component;
+- time of a right-wall/left-wall secondary return;
+- the earliest secondary-return pulse-centre time;
+- the leading-edge time of that return pulse, reduced by the same event-window half
+  width;
+- an explicit `evaluation_window_contaminated` flag.
+
+A reflected window is unsafe when its trailing edge reaches the leading edge of the
+secondary return pulse. Comparing only against the return pulse centre is prohibited.
+A dedicated custom-geometry test fixes this margin at the equality boundary.
+
+## 9. Runtime independence verification
+
+The leaf-module AST check remains, but it is not the runtime independence gate.
+A fresh-interpreter subprocess imports the public module path and inspects
+`sys.modules`. It fails if any of the following were loaded as an import side effect:
+
+```text
+liquid_gas_transient.solver
+liquid_gas_transient.boundary
+liquid_gas_transient.cases.coolprop_small_amplitude_wave
+liquid_gas_transient.cases.coolprop_small_amplitude_wave_sweep
+CoolProp
+```
+
+The public package and case exports remain available through lazy `__getattr__`
+resolution when callers explicitly request them.
+
+## 10. Required observation metrics
 
 The implementation phase shall record at least:
 
@@ -163,7 +198,7 @@ The implementation phase shall record at least:
 These are observations. No FVM CI-light or design-accuracy band is introduced in
 this increment.
 
-## 10. Planned artifacts
+## 11. Planned artifacts
 
 Top-level:
 
@@ -200,10 +235,10 @@ Plots shall be generated from saved artifacts without rerunning either solver an
 shall include case, model, backend, CoolProp version, output version, and the
 non-design-use disclaimer.
 
-## 11. Implementation sequence
+## 12. Implementation sequence
 
 1. Fix stable configuration, case IDs, run plan, path-state convention, probe
-   windows, and pure tests.
+   windows, runtime independence, return-pulse margin, and pure tests.
 2. Re-run the focused V-013 reference/specification tests and the full repository
    suite.
 3. Connect a dedicated V-013B runner to the existing small-amplitude FVM and
@@ -215,18 +250,18 @@ non-design-use disclaimer.
    reflection sign, timing, wall residual, and numerical diffusion.
 7. Keep V-013 `IN_PROGRESS`; proceed to V-013C only after V-013B review.
 
-## 12. Current completion boundary
+## 13. Current completion boundary
 
 This scaffold is complete when:
 
-- the pure module imports no production solver, boundary, case runner, or CoolProp;
-- the default case IDs, mesh matrix, pulse, probes, path samples, and windows are
-  fixed by tests;
+- a fresh public import does not load production solver/boundary/CoolProp modules;
+- the default case IDs, mesh matrix, pulse, probes, path samples, windows, and return
+  margin are fixed by tests;
 - the rigid-wall identity agrees with the independent reference core;
-- the repository full suite is rerun from the branch;
+- the repository focused and full suites are rerun from the branch;
 - canonical Stage 7 documents identify V-013B as active.
 
-An isolated pure-scaffold check passes all 28 collected tests. This is not a
+An isolated pure-scaffold check passes all 30 collected tests. This is not a
 substitute for the requested repository focused and full-suite recheck.
 
 The actual FVM/MOC/analytical observation has not yet been executed.
