@@ -25,9 +25,8 @@ Temporary validation helpers were removed after evidence capture.
 
 ## 2026-07-19 — V-013B rigid-wall reflection
 
-Status: `OBSERVED; READY FOR REVIEW` on branch
-`agent/stage7-v013b-rigid-wall-reflection`; PR #49 remains open. V-013 overall remains
-`IN_PROGRESS`.
+Status: `OBSERVED; MERGED` in PR #49. Merge commit:
+`bc874193de6a4c019073b6cf629e99ec5dfa6602`. V-013 overall remains `IN_PROGRESS`.
 
 Starting evidence:
 
@@ -116,9 +115,11 @@ broadening and peak loss remain substantial at `n=400`; the finest mesh is not e
 or design-accurate.
 
 All temporary observation/fix workflows, the temporary trigger, and the patch script
-were removed after final evidence capture. Production solver, flux, and boundary
-behaviour remain unchanged. Physical Validation and design-use acceptance are
-`False`; the property backend is `not_approved_for_design_use`; MOC is
-verification-only; no FVM regression, CI-light, or design-accuracy band is introduced.
+were removed after final evidence capture. Final-head permanent workflows passed
+`4 / 4`, all review threads were resolved, and the final Codex review returned no
+findings. Production solver, flux, and boundary behaviour remain unchanged. Physical
+Validation and design-use acceptance are `False`; the property backend is
+`not_approved_for_design_use`; MOC is verification-only; no FVM regression, CI-light,
+or design-accuracy band is introduced.
 
-Next: complete PR #49 review and merge, then start V-013C fixed-pressure reflection.
+Next: start V-013C fixed-pressure reflection on a new branch.
