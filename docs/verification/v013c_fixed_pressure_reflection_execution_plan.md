@@ -2,7 +2,7 @@
 
 ## 1. Status
 
-`IN_PROGRESS; SPECIFICATION SCAFFOLD IMPLEMENTED; VALIDATION PENDING`
+`IN_PROGRESS; SPECIFICATION SCAFFOLD VERIFIED; WINDOWS RECHECK PENDING`
 
 V-013C compares the existing production FVM fixed-pressure boundary with the
 independent linear-acoustic MOC and analytical reference. The production solver,
@@ -15,11 +15,12 @@ overall remains `IN_PROGRESS`.
 
 ```text
 branch: agent/stage7-v013c-fixed-pressure-reflection
+Draft PR: #50
 base: post-PR #49 main
 base commit: 30ab7715e79d96c48f1cbe3ba7051815877e288a
 ```
 
-A clean Windows baseline recheck remains required after the branch is pulled.
+A Windows project-environment recheck remains required after the branch is pulled.
 
 ## 3. Scope and guardrails
 
@@ -152,7 +153,29 @@ A reflected window is unsafe when its trailing edge reaches the leading edge of 
 earliest secondary-return pulse. The comparison must not use only the return-pulse
 centre. The equality-edge case is classified as contaminated.
 
-## 9. Required observation metrics
+## 9. Specification validation evidence
+
+The scaffold was tested on GitHub Actions before production FVM connection:
+
+```text
+workflow run:       29689605699
+PR head:            ad82f86ea25aee6b2c338ee88ce510c319bfe18d
+Actions merge SHA:  b5ab8b0354fcae6c232e0cb79bf45f02dc85df13
+focused tests:      53 passed, 0 skipped
+full repository:    380 passed, 0 skipped
+failures / errors:  0 / 0
+git diff --check:   success
+CoolProp:           8.0.0
+artifact ID:        8443178060
+artifact SHA256:    12dc1cd0d2ae2dacf87622c930a5b4ef01fad384686e6fee142663456594ac5f
+permanent CI:       4 / 4 success
+```
+
+The focused suite contains the independent reference tests and the new V-013C pure
+specification tests. The temporary validation workflow was removed after evidence
+capture. The Windows project-environment focused/full recheck remains a separate gate.
+
+## 10. Required observation metrics
 
 The runner shall record at least:
 
@@ -176,7 +199,7 @@ relative errors use the nonzero acoustic scale
 `analytical_pressure_perturbation_pa / (rho0 * c0)`, including at exact boundary
 contact.
 
-## 10. Planned artifacts
+## 11. Planned artifacts
 
 Top level:
 
@@ -213,7 +236,7 @@ Figures shall be produced from saved artifacts only and shall state case, model,
 property backend, CoolProp version, output version, and the software/numerical-only,
 non-design-use disclaimer.
 
-## 11. Planned figures
+## 12. Planned figures
 
 The initial target is seven figures aligned with V-013B:
 
@@ -229,23 +252,26 @@ The seventh figure must not treat nonzero mass or energy flux as a boundary fail
 Those fluxes are reported separately as physical/numerical observations of the
 pressure-boundary idealization.
 
-## 12. Implementation sequence
+## 13. Implementation sequence
 
 1. Fix configuration, IDs, reference identities, path convention, probe windows,
-   return-pulse guard, and pure tests. `IMPLEMENTED; RECHECK PENDING`
-2. Pull the branch into the Windows project environment and run focused plus full
-   repository tests and `git diff --check`.
-3. Connect a dedicated V-013C runner to the existing Stage 5 fixed-pressure builder
+   return-pulse guard, and pure tests. `COMPLETE`
+2. Run focused/full GitHub Actions scaffold validation and preserve the evidence.
+   `COMPLETE`
+3. Pull the branch into the Windows project environment and run focused plus full
+   repository tests and `git diff --check`. `NEXT`
+4. Connect a dedicated V-013C runner to the existing Stage 5 fixed-pressure builder
    without changing solver or boundary physics.
-4. Save FVM/MOC/analytical fields, probes, boundary telemetry, comparisons, and
+5. Save FVM/MOC/analytical fields, probes, boundary telemetry, comparisons, and
    traceability metadata.
-5. Implement the saved-artifact-only seven-figure plotter.
-6. Execute `n=100 / 200 / 400`, review the observation, and preserve exact artifact
+6. Implement the saved-artifact-only seven-figure plotter.
+7. Execute `n=100 / 200 / 400`, review the observation, and preserve exact artifact
    evidence.
-7. Keep V-013 overall `IN_PROGRESS`; formalize A/B/C only after V-013C review.
+8. Keep V-013 overall `IN_PROGRESS`; formalize A/B/C only after V-013C review.
 
-## 13. Current completion boundary
+## 14. Current completion boundary
 
-The fixed-pressure specification scaffold and pure tests are implemented on the V-013C
-branch. The production-connected runner, saved numerical artifacts, figures, and full
+The fixed-pressure specification scaffold and pure tests are implemented and pass the
+GitHub Actions focused/full validation. The Windows project-environment recheck is
+pending. The production-connected runner, saved numerical artifacts, figures, and full
 three-mesh observation are not yet implemented or accepted.
