@@ -30,6 +30,14 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         ".coolprop_small_amplitude_wave_sweep",
         "run_coolprop_small_amplitude_wave_sweep",
     ),
+    "V013RigidWallReflectionConfig": (
+        ".v013_rigid_wall_reflection",
+        "V013RigidWallReflectionConfig",
+    ),
+    "run_v013_rigid_wall_observation": (
+        ".v013_rigid_wall_observation",
+        "run_v013_rigid_wall_observation",
+    ),
 }
 
 __all__ = list(_EXPORTS)
