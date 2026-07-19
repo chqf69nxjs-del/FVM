@@ -10,7 +10,7 @@ Historical detail through the V-013 reference-core checkpoint is preserved in
 - V-013 independent analytical / CFL=1 MOC reference core: merged in PR #46
 - V-013A incident propagation: `OBSERVED; MERGED` in PR #48
 - PR #48 merge commit: `613b21622b22402fbf7b8d77b1d881db7ff5f28e`
-- V-013B rigid-wall reflection: `IN_PROGRESS; SPECIFICATION SCAFFOLD VERIFIED`
+- V-013B rigid-wall reflection: `IN_PROGRESS; RUNNER IMPLEMENTED; VALIDATION PENDING`
 - Active branch: `agent/stage7-v013b-rigid-wall-reflection`
 - Draft PR: `#49 Add V-013B rigid-wall reflection specification scaffold`
 - V-013C fixed-pressure reflection: `PLANNED`
@@ -67,21 +67,30 @@ Draft-review safeguards:
   the return pulse leading edge, not merely its centre;
 - a custom geometry fixes the equality-edge contamination case by test.
 
-Repository validation on the current scaffold head:
+Verified scaffold evidence:
 
 - focused reference/V-013B tests: `53 passed in 0.56 s`;
 - full repository: `346 passed in 121.38 s`;
 - failures / errors: `0 / 0`;
 - `git diff --check`: success;
-- local branch tracks `origin/agent/stage7-v013b-rigid-wall-reflection` with no
-  reported working-tree changes after the pull.
+- all Draft review threads resolved;
+- four existing permanent workflows pass; no workflow file changed.
 
-All Draft review threads are resolved. The actual FVM/MOC/analytical observation
-remains unexecuted.
+Dedicated runner implementation now present:
 
-No workflow file is changed. The four existing permanent workflows also pass on the
-current scaffold head; they remain regression sentinels rather than V-013B observation
-execution.
+- `v013_rigid_wall_observation.py` connects the fixed contract to the existing
+  CoolProp FVM initialization and `ReflectiveBoundary`;
+- scalar `rho0` / `c0` and provenance are passed to the independent analytical/MOC
+  reference, which does not call CoolProp;
+- matched FVM, MOC, analytical, probe, boundary, comparison, JSON, CSV, and NPZ
+  artifacts are written without changing production solver physics;
+- a one-mesh installed-CoolProp integration test checks reflection signs, wall
+  telemetry, traceability, and required artifacts;
+- plotting remains a separate saved-artifact increment and is explicitly marked
+  pending.
+
+The new runner and integration test still require focused/full branch validation.
+The full `n=100 / 200 / 400` observation has not yet been accepted or reviewed.
 
 ## Guardrails
 
@@ -92,11 +101,9 @@ mesh is not exact; no V-013 CI-light band has been selected.
 
 ## Next action
 
-1. connect a dedicated V-013B runner to the existing small-amplitude FVM and rigid-wall
-   boundary without changing solver physics;
-2. record `rho0`, `c0`, provenance, backend, and CoolProp version, and pass only scalar
-   reference inputs to the independent analytical/MOC path;
-3. generate traceable FVM, MOC, analytical, matched-sample, probe, boundary, and
-   plotting artifacts;
-4. add pure and installed-CoolProp integration tests for the runner and saved artifacts;
-5. execute and review `n=100 / 200 / 400` before starting V-013C.
+1. pull the runner head and run the focused V-013B runner tests plus the full repository
+   suite and `git diff --check`;
+2. fix any runner or artifact defect before executing the three-mesh observation;
+3. add the saved-artifact-only plotter and figure traceability fields;
+4. execute and review `n=100 / 200 / 400`;
+5. keep V-013 `IN_PROGRESS` and do not start V-013C before V-013B review.
