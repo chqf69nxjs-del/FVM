@@ -1,6 +1,7 @@
 name: V-013B Temporary Rigid-Wall Observation
 
 on:
+  pull_request:
   push:
     branches:
       - agent/stage7-v013b-rigid-wall-reflection
