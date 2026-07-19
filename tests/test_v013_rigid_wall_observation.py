@@ -137,15 +137,18 @@ def test_v013b_installed_runner_writes_traceable_artifacts(tmp_path) -> None:
     assert len(comparison["field_metrics"]) == 7
     assert len(comparison["probe_reflection_metrics"]) == 3
     for probe in comparison["probe_reflection_metrics"]:
+        assert "theoretical_wall_time_s" in probe["timing"]
         fvm_probe = probe["implementations"]["fvm"]
         assert fvm_probe["detected"] is True
         assert fvm_probe["pressure_reflection_coefficient"] > 0.0
         assert fvm_probe["velocity_reflection_coefficient"] < 0.0
 
     plot_result = plot_v013_rigid_wall_results(tmp_path)
-    assert plot_result["plot_count"] == EXPECTED_PLOT_COUNT
-    assert plot_result["expected_plot_count"] == EXPECTED_PLOT_COUNT
     assert plot_result["plotting_errors"] == {}
+    assert plot_result["plot_count"] == EXPECTED_PLOT_COUNT, plot_result[
+        "plotting_errors"
+    ]
+    assert plot_result["expected_plot_count"] == EXPECTED_PLOT_COUNT
     assert plot_result["solver_rerun"] is False
     assert plot_result["numerical_results_changed"] is False
     assert plot_result["property_backend_name"] == "coolprop_co2"
