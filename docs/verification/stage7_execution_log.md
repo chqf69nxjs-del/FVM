@@ -124,9 +124,9 @@ or design-accuracy band is introduced.
 
 ## 2026-07-19 — V-013C fixed-pressure reflection start
 
-Status: `IN_PROGRESS; SPECIFICATION SCAFFOLD IMPLEMENTED; VALIDATION PENDING` on
-branch `agent/stage7-v013c-fixed-pressure-reflection`. V-013 overall remains
-`IN_PROGRESS`.
+Status: `IN_PROGRESS; SPECIFICATION SCAFFOLD VERIFIED; WINDOWS RECHECK PENDING` on
+branch `agent/stage7-v013c-fixed-pressure-reflection`; Draft PR #50 is open. V-013
+overall remains `IN_PROGRESS`.
 
 Starting point:
 
@@ -165,7 +165,7 @@ Unlike V-013B, fixed pressure is not a zero-flux boundary. Boundary mass and ene
 fluxes and their integrals will be recorded, but nonzero values will not be classified
 as a boundary-condition failure.
 
-The initial scaffold implements:
+The specification scaffold implements:
 
 - stable case IDs and the fixed three-mesh plan;
 - cumulative-path matched samples and strictly separated probe windows;
@@ -174,14 +174,31 @@ The initial scaffold implements:
 - fresh-interpreter runtime import-independence checks;
 - explicit false Validation, design-evaluation, acceptance, and regression-band flags.
 
-The scaffold requires the Windows focused/full recheck. A production-connected V-013C
-runner, saved numerical artifacts, seven figures, and the full three-mesh observation
-remain later increments.
+GitHub Actions scaffold validation completed successfully:
+
+```text
+workflow run:       29689605699
+PR head:            ad82f86ea25aee6b2c338ee88ce510c319bfe18d
+Actions merge SHA:  b5ab8b0354fcae6c232e0cb79bf45f02dc85df13
+focused tests:      53 passed, 0 skipped
+full repository:    380 passed, 0 skipped
+failures / errors:  0 / 0
+git diff --check:   success
+CoolProp:           8.0.0
+artifact ID:        8443178060
+artifact SHA256:    12dc1cd0d2ae2dacf87622c930a5b4ef01fad384686e6fee142663456594ac5f
+permanent CI:       4 / 4 success
+```
+
+The temporary validation workflow was removed after evidence capture. The scaffold
+still requires the Windows focused/full recheck. A production-connected V-013C runner,
+saved numerical artifacts, seven figures, and the full three-mesh observation remain
+later increments.
 
 Next:
 
 1. pull the V-013C branch and run the focused reference/V-013C tests;
 2. run the full repository suite and `git diff --check`;
-3. fix any scaffold or compatibility defect;
+3. fix any Windows-specific scaffold or compatibility defect;
 4. connect the existing fixed-pressure FVM boundary to the independent reference;
 5. preserve software/numerical-only guardrails through observation and review.
