@@ -9,12 +9,18 @@ import numpy as np
 import pytest
 
 import liquid_gas_transient.cases.v013_fixed_pressure_observation as runner_module
+import liquid_gas_transient.plot_v013_fixed_pressure_results as plot_module
 from liquid_gas_transient.cases.v013_fixed_pressure_observation import (
     _reflection_metrics_for_signal,
     run_v013_fixed_pressure_observation,
 )
 from liquid_gas_transient.cases.v013_fixed_pressure_reflection import (
     V013FixedPressureReflectionConfig,
+)
+from liquid_gas_transient.plot_v013_fixed_pressure_results import (
+    EXPECTED_PLOT_COUNT,
+    build_v013c_plot_traceability,
+    plot_v013_fixed_pressure_results,
 )
 
 
@@ -56,10 +62,44 @@ def test_v013c_runner_source_does_not_modify_production_classes() -> None:
     assert '"fixed_pressure"' in source
 
 
+def test_v013c_plot_traceability_requires_case_model_backend_and_versions() -> None:
+    text = build_v013c_plot_traceability(
+        {
+            "case_name": "v013c_fixed_pressure_reflection",
+            "output_version": "v013c_fixed_pressure_reflection_v1",
+            "property_backend_name": "coolprop_co2",
+            "coolprop_version": "8.0.0",
+        }
+    )
+    assert "case: v013c_fixed_pressure_reflection" in text
+    assert "model: production FVM / independent linear-acoustic MOC + analytical" in text
+    assert "backend: coolprop_co2" in text
+    assert "CoolProp: 8.0.0" in text
+    assert "output: v013c_fixed_pressure_reflection_v1" in text
+    assert "not physical Validation or design-use acceptance" in text
+
+    with pytest.raises(ValueError, match="coolprop_version"):
+        build_v013c_plot_traceability(
+            {
+                "case_name": "v013c_fixed_pressure_reflection",
+                "output_version": "v013c_fixed_pressure_reflection_v1",
+                "property_backend_name": "coolprop_co2",
+            }
+        )
+
+
+def test_v013c_plotter_has_no_solver_runner_import_or_call() -> None:
+    source = inspect.getsource(plot_module)
+    assert "run_v013_fixed_pressure_observation" not in source
+    assert "FvmSolver" not in source
+    assert "PressureTankBoundary" not in source
+
+
 @pytest.mark.numerical_regression
 @pytest.mark.coolprop_installed
 def test_v013c_installed_runner_writes_traceable_artifacts(tmp_path) -> None:
     pytest.importorskip("CoolProp")
+    pytest.importorskip("matplotlib")
     coolprop_version = distribution_version("CoolProp")
     cfg = V013FixedPressureReflectionConfig(fvm_mesh_cells=(40,))
     metrics = run_v013_fixed_pressure_observation(tmp_path, cfg)
@@ -187,9 +227,33 @@ def test_v013c_installed_runner_writes_traceable_artifacts(tmp_path) -> None:
         assert fvm_probe["pressure_reflection_coefficient"] < 0.0
         assert fvm_probe["velocity_reflection_coefficient"] > 0.0
 
+    plot_result = plot_v013_fixed_pressure_results(tmp_path)
+    assert plot_result["plotting_errors"] == {}
+    assert plot_result["plot_count"] == EXPECTED_PLOT_COUNT, plot_result[
+        "plotting_errors"
+    ]
+    assert plot_result["expected_plot_count"] == EXPECTED_PLOT_COUNT
+    assert plot_result["solver_rerun"] is False
+    assert plot_result["numerical_results_changed"] is False
+    assert plot_result["property_backend_name"] == "coolprop_co2"
+    assert plot_result["coolprop_version"] == coolprop_version
+    assert all(
+        (tmp_path / name).is_file() and (tmp_path / name).stat().st_size > 0
+        for name in plot_result["plot_files"]
+    )
+
+    plot_metrics = json.loads(
+        (tmp_path / "v013c_plot_metrics.json").read_text(encoding="utf-8")
+    )
     aggregate = json.loads(
         (tmp_path / "v013c_metrics.json").read_text(encoding="utf-8")
     )
-    assert aggregate["comparison_plots_complete"] is False
-    assert aggregate["generated_plots"] == []
+    assert plot_metrics["plot_count"] == EXPECTED_PLOT_COUNT
+    assert plot_metrics["model"] == (
+        "production FVM / independent linear-acoustic MOC + analytical"
+    )
+    assert plot_metrics["solver_rerun"] is False
+    assert plot_metrics["numerical_results_changed"] is False
+    assert aggregate["comparison_plots_complete"] is True
+    assert aggregate["generated_plots"] == plot_result["plot_files"]
     assert aggregate["plotting_errors"] == {}
