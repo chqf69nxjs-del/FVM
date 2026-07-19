@@ -38,7 +38,7 @@ The temporary validation helper was removed after evidence capture.
 
 ## 2026-07-19 — V-013B rigid-wall reflection start
 
-Status: `IN_PROGRESS; SPECIFICATION SCAFFOLD IMPLEMENTED` on branch
+Status: `IN_PROGRESS; SPECIFICATION SCAFFOLD VERIFIED` on branch
 `agent/stage7-v013b-rigid-wall-reflection`; Draft PR #49 is open.
 
 Starting evidence:
@@ -106,8 +106,19 @@ separated probe windows, conservative return-pulse margins, expected rigid-wall
 identity, and a JSON-ready specification snapshot are implemented. No numerical
 solver or boundary source is modified.
 
-An isolated pure-scaffold run passes `30` tests. Repository focused/full validation
-for the current head is still required. No workflow file is changed.
+Local branch validation after pulling the current PR #49 head:
+
+```text
+focused reference/V-013B tests: 53 passed in 0.56 s
+full repository:                346 passed in 121.38 s
+git diff --check:               success
+failures / errors:              0 / 0
+branch tracking:                origin/agent/stage7-v013b-rigid-wall-reflection
+```
+
+The full suite confirms the lazy public exports remain compatible with existing
+repository use. Both Draft review threads are resolved. All four existing permanent
+workflows pass on the same scaffold head; no workflow file is changed.
 
 No FVM, MOC, or analytical observation has been executed for V-013B yet. No
 production solver behaviour has changed, and no FVM regression band has been
@@ -115,15 +126,12 @@ introduced.
 
 Next actions:
 
-1. pull the current Draft PR #49 head;
-2. run `tests/test_linear_acoustic_reference.py` and
-   `tests/test_v013_rigid_wall_reflection.py`;
-3. run the full repository suite and `git diff --check`;
-4. confirm lazy public exports remain compatible through the full suite;
-5. resolve the two Draft review threads when the branch evidence is available;
-6. connect a dedicated V-013B artifact runner to the existing small-amplitude FVM
+1. connect a dedicated V-013B artifact runner to the existing small-amplitude FVM
    and `ReflectiveBoundary` without altering solver physics;
-7. execute and review the fixed `n=100 / 200 / 400` observation.
+2. record scalar `rho0` / `c0` and provenance for the independent reference;
+3. implement saved FVM, MOC, analytical, matched-field, probe, and boundary artifacts;
+4. add runner and installed-CoolProp artifact tests;
+5. execute and review the fixed `n=100 / 200 / 400` observation.
 
 Guardrails remain: software/numerical verification only; physical Validation
 and design-use acceptance `False`; backend `not_approved_for_design_use`; MOC
