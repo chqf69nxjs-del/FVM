@@ -70,7 +70,8 @@ FVM CFL: 0.5
 MOC meshes: n=100 / 200 / 400
 MOC CFL: 1.0
 probe x/L: 0.75 / 0.85 / 0.90
-window half width: 2.5 sigma
+probe-window half width: 2.0 sigma
+matched-field boundary guard: 5.0 sigma
 ```
 
 The Stage 5 boundary-reflection runner uses a 1000 Pa pulse centred at 50 m. Those
@@ -87,7 +88,8 @@ v013b_n0400_fvmcfl0p5_moccfl1
 
 Each row records `V-013B`, `rigid_wall_reflection`, the two CFL values, the two
 boundary types, schema version `v013b_matched_samples_v1`, and that production
-solver behaviour is unchanged.
+solver behaviour is unchanged. Direct case-ID construction rejects FVM CFL values
+above one and MOC CFL values other than one.
 
 ## 7. Matched field samples
 
@@ -98,15 +100,22 @@ one unambiguous time convention: `t = path_travel / c0`.
 |---:|---|---:|---|
 | 0 | incident | 65 | A+ |
 | 15 | incident | 80 | A+ |
-| 30 | incident | 95 | A+ |
+| 25 | incident | 90 | A+ |
 | 35 | wall contact | 100 | A+ + A- |
 | 45 | reflected | 90 | A- |
 | 55 | reflected | 80 | A- |
 | 65 | reflected | 70 | A- |
 
-All distances align with the `n=100 / 200 / 400` MOC grids. The last reflected
-centre remains 70 m from the left origin; its five-sigma left edge is 60 m, so the
-accepted matched-field set is well before left-boundary contact.
+All distances align with the `n=100 / 200 / 400` MOC grids. The final pre-contact
+sample at centre `90 m` has its five-sigma leading edge at the wall but not beyond
+it. The first post-contact sample is symmetric at centre `90 m`. The wall-contact
+sample is therefore the only matched sample whose five-sigma envelope overlaps the
+primary boundary.
+
+The last reflected centre remains 70 m from the left origin; its five-sigma left
+edge is 60 m, so the accepted matched-field set is well before left-boundary
+contact. Configuration checks reject any custom incident/reflected matched sample
+that enters the wrong boundary guard envelope.
 
 Analytical values will be evaluated directly at recorded FVM cell centres and
 times. MOC values will use fixed linear time/space interpolation. No signal shift
@@ -122,14 +131,16 @@ The fixed probe locations give the following centre-path distances.
 | 85 | 20 | 35 | 50 |
 | 90 | 25 | 35 | 45 |
 
-With sigma `2 m` and half width `2.5 sigma`, each candidate window has a path
-half-width of `5 m`. At the closest probe, adjacent event centres are separated by
-`10 m`, so the incident, wall, and reflected windows touch at their endpoints but
-do not overlap.
+With sigma `2 m` and half width `2.0 sigma`, each event window has a path
+half-width of `4 m`. At the closest probe, adjacent event centres are separated by
+`10 m`, leaving a strict `2 m` path gap between the incident, wall-contact, and
+reflected windows. Endpoint sharing is therefore excluded even when artifact
+selection uses inclusive comparisons.
 
 Each probe row records the theoretical incident, wall-contact, and reflected times,
-window limits, earliest possible left-boundary return time, and an explicit
-`evaluation_window_contaminated` flag.
+strict window limits, the return time of any initial left-going component, the time
+of a right-wall/left-wall secondary return, the earliest of those two contamination
+times, and an explicit `evaluation_window_contaminated` flag.
 
 ## 9. Required observation metrics
 
@@ -214,5 +225,8 @@ This scaffold is complete when:
 - the rigid-wall identity agrees with the independent reference core;
 - the repository full suite is rerun from the branch;
 - canonical Stage 7 documents identify V-013B as active.
+
+An isolated pure-scaffold check passes all 28 collected tests. This is not a
+substitute for the requested repository focused and full-suite recheck.
 
 The actual FVM/MOC/analytical observation has not yet been executed.
