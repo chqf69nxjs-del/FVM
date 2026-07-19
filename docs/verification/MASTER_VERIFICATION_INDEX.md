@@ -6,7 +6,7 @@ Historical detail through the V-013 reference-core checkpoint is preserved in
 ## Current state — 2026-07-20
 
 - Stage 1–6: `COMPLETE`
-- Stage 7 / V-013: `IN_PROGRESS`
+- Stage 7 / V-013: `IN_PROGRESS; BASELINE FORMALIZATION UNDER REVIEW`
 - independent analytical / CFL=1 MOC reference core: merged in PR #46
 - V-013A incident propagation: `OBSERVED; MERGED` in PR #48
 - PR #48 merge commit: `613b21622b22402fbf7b8d77b1d881db7ff5f28e`
@@ -14,6 +14,21 @@ Historical detail through the V-013 reference-core checkpoint is preserved in
 - PR #49 merge commit: `bc874193de6a4c019073b6cf629e99ec5dfa6602`
 - V-013C fixed-pressure reflection: `OBSERVED; MERGED` in PR #50
 - PR #50 merge commit: `f403103c46a1d618ce2f2345c986e29b921b664a`
+- post-PR #50 Windows baseline: `385 passed`, working tree clean
+- active branch: `agent/stage7-v013-baseline-formalization`
+
+## V-013 formalization documents
+
+- joint baseline and limitations:
+  [`stage7_v013_baseline_and_limitations.md`](stage7_v013_baseline_and_limitations.md)
+- machine-readable baseline:
+  [`v013_baseline_definition_v1.json`](v013_baseline_definition_v1.json)
+- cautious CI-light proposal:
+  [`stage7_v013_ci_light_proposal.md`](stage7_v013_ci_light_proposal.md)
+
+The current first-order production FVM is being frozen as a software/numerical
+observation baseline. The formalization does not approve physical Validation,
+design-use acceptance, or numeric CI/accuracy bands.
 
 ## V-013 case matrix
 
@@ -29,12 +44,20 @@ CFL `1.0`.
 
 ## V-013A evidence
 
+Observation notes:
+[`stage7_v013a_incident_propagation_observation_notes.md`](stage7_v013a_incident_propagation_observation_notes.md)
+
 - observation tests: focused `39 passed`; full repository `315 passed`; skips `0`;
 - review-close tests: focused `40 passed`; full repository `316 passed`; skips `0`;
 - runs `3 / 3`; figures `7 / 7`; CoolProp `8.0.0`;
-- final `n=400` FVM pressure peak ratio: `0.57499430`;
 - direction and approximate wave speed are consistent;
 - dominant error is strong numerical diffusion decreasing with refinement.
+
+| n | Δx [m] | final pressure peak ratio |
+|---:|---:|---:|
+| 100 | 1.00 | 0.33987050 |
+| 200 | 0.50 | 0.44696360 |
+| 400 | 0.25 | 0.57499430 |
 
 ## V-013B evidence
 
@@ -119,6 +142,22 @@ Therefore the current solver is suitable as a robust first-order software/numeri
 verification baseline, but not as a physically validated or design-accurate wave-amplitude
 model.
 
+The approximately `57%` peak retention is an observed limitation. It is not an approved
+accuracy target, design margin, or CI regression band.
+
+## Baseline integrity and future change control
+
+The machine-readable baseline is covered by pure integrity tests that require:
+
+- all three merged cases and source merge commits;
+- fixed common-case configuration;
+- expected reflection signs and boundary roles;
+- monotonic refinement trends in the recorded observations;
+- false Validation, design-use, and band-approval flags.
+
+Future higher-order work shall retain the current first-order path as a selectable control,
+rerun V-013A/B/C, and compare against baseline version `v013_baseline_v1`.
+
 ## Guardrails
 
 - software / numerical verification only;
@@ -126,14 +165,16 @@ model.
 - property backend remains `not_approved_for_design_use`;
 - MOC is verification-only and the finest mesh is not exact;
 - no time shift or parameter tuning is permitted;
-- no V-013 CI-light, regression, or design-accuracy band has been approved;
+- CI-light is `PROPOSED; NOT APPROVED; NOT IMPLEMENTED`;
+- no numeric V-013 regression or design-accuracy band has been approved;
 - production solver, numerical flux, EOS inversion, and boundary behaviour are unchanged.
 
 ## Next action
 
-1. formalize the combined V-013A/B/C baseline and limitation statement;
-2. propose CI-light checks that monitor direction, signs, timing, monotonic refinement,
-   boundary residuals, positivity, and gross regression without treating current peak
-   loss as design accuracy;
-3. start a separate numerical-diffusion improvement phase while retaining the current
+1. run the baseline-definition integrity tests and full repository suite on Windows;
+2. review the baseline/limitation statement and CI-light proposal;
+3. merge the formalization PR without changing production solver behavior;
+4. decide Tier 1 CI-light runtime, path filters, and exact invariant list;
+5. perform a repeatability study before proposing numeric drift bands;
+6. start a separate numerical-diffusion improvement phase while retaining the current
    first-order solver as the reference baseline.
