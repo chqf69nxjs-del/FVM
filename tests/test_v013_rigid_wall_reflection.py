@@ -3,6 +3,10 @@ from __future__ import annotations
 import ast
 import inspect
 import math
+import os
+from pathlib import Path
+import subprocess
+import sys
 
 import numpy as np
 import pytest
@@ -156,6 +160,62 @@ def test_probe_plan_has_strictly_separated_windows_and_safe_end() -> None:
         assert row["evaluation_window_contaminated"] is False
         assert row["event_windows_strictly_separated"] is True
         assert row["time_shift_applied"] is False
+
+
+def test_public_import_is_runtime_independent_in_fresh_interpreter() -> None:
+    root = Path(__file__).resolve().parents[1]
+    env = os.environ.copy()
+    previous = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = str(root / "src") + (
+        os.pathsep + previous if previous else ""
+    )
+    script = r"""
+import importlib
+import sys
+
+importlib.import_module(
+    "liquid_gas_transient.cases.v013_rigid_wall_reflection"
+)
+prohibited = (
+    "liquid_gas_transient.solver",
+    "liquid_gas_transient.boundary",
+    "liquid_gas_transient.cases.coolprop_small_amplitude_wave",
+    "liquid_gas_transient.cases.coolprop_small_amplitude_wave_sweep",
+    "CoolProp",
+)
+loaded = sorted(
+    name
+    for name in sys.modules
+    if any(name == prefix or name.startswith(prefix + ".") for prefix in prohibited)
+)
+if loaded:
+    raise SystemExit("prohibited runtime imports: " + ", ".join(loaded))
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        env=env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout
+
+
+def test_secondary_return_safety_margin_includes_return_pulse_width() -> None:
+    cfg = V013RigidWallReflectionConfig(
+        pulse_center_fraction=0.51,
+        probe_fractions=(0.53,),
+        matched_path_travel_m=(0.0, 39.0, 49.0, 59.0, 69.0),
+    )
+    row = build_probe_plan(500.0, cfg)[0]
+    assert row["reflected_window_end_s"] < row[
+        "earliest_secondary_boundary_return_time_s"
+    ]
+    assert row["reflected_window_end_s"] == pytest.approx(
+        row["earliest_secondary_boundary_return_window_start_s"]
+    )
+    assert row["evaluation_window_contaminated"] is True
 
 
 def test_specification_snapshot_is_json_ready_and_preserves_guardrails() -> None:
