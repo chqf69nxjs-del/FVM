@@ -165,5 +165,44 @@ V-013A/B/C consistently support the following conclusions:
 - the current solver is a robust software/numerical verification baseline, not a
   physically validated or design-accurate wave-amplitude model.
 
-Next: formalize the combined V-013 baseline and limitation statement, propose cautious
-CI-light monitoring, and then begin a separate numerical-diffusion improvement phase.
+## 2026-07-20 — V-013 baseline formalization start
+
+Status: `IN_PROGRESS; BASELINE FORMALIZATION UNDER REVIEW` on branch
+`agent/stage7-v013-baseline-formalization`.
+
+Starting point:
+
+```text
+base main commit:      afba28c56dc43bee82dd6f169d0249333ed7bfe2
+Windows full baseline: 385 passed in 151.59 s
+working tree:          clean
+production changes:    none
+```
+
+The formalization increment adds:
+
+- a combined A/B/C baseline and limitation statement;
+- machine-readable baseline version `v013_baseline_v1`;
+- pure integrity tests for source commits, fixed configuration, signs, refinement trends,
+  and false acceptance flags;
+- a two-tier CI-light proposal that separates exact qualitative invariants from future
+  numeric drift bands;
+- synchronized merged status in the V-013A and V-013B observation notes.
+
+The proposed baseline classifies the current first-order FVM as suitable for software and
+numerical regression comparison. It explicitly prohibits interpretation as physical
+Validation, design-use acceptance, an exact solution, or an approved accuracy band.
+
+The CI-light proposal is `PROPOSED; NOT APPROVED; NOT IMPLEMENTED`. Pull-request Tier 1
+would use inexpensive qualitative/invariant checks; scheduled Tier 2 would preserve the
+full `n=100/200/400` refinement trends. Numeric tolerances require a separate repeatability
+study before approval.
+
+Next:
+
+1. run the new baseline integrity tests and full repository suite on Windows;
+2. review the baseline and CI-light documents;
+3. keep production solver behavior unchanged;
+4. open a Draft PR and collect review;
+5. after formalization, begin numerical-diffusion improvement on a separate branch while
+   retaining the current first-order path as the control baseline.
