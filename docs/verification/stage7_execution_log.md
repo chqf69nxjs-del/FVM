@@ -38,8 +38,8 @@ The temporary validation helper was removed after evidence capture.
 
 ## 2026-07-19 — V-013B rigid-wall reflection start
 
-Status: `IN_PROGRESS; RUNNER IMPLEMENTED; VALIDATION PENDING` on branch
-`agent/stage7-v013b-rigid-wall-reflection`; Draft PR #49 is open.
+Status: `IN_PROGRESS; RUNNER VERIFIED; SAVED-ARTIFACT PLOTTER IMPLEMENTED; VALIDATION PENDING`
+on branch `agent/stage7-v013b-rigid-wall-reflection`; Draft PR #49 is open.
 
 Starting evidence:
 
@@ -101,7 +101,7 @@ Draft review produced two P2 findings and both are addressed:
    width and compares against the return pulse leading edge. A custom geometry fixes
    the equality-edge case as contaminated.
 
-Scaffold validation after pulling the reviewed PR #49 head:
+The reviewed specification scaffold passed:
 
 ```text
 focused reference/V-013B tests: 53 passed in 0.56 s
@@ -110,36 +110,59 @@ git diff --check:               success
 failures / errors:              0 / 0
 ```
 
-Both Draft review threads are resolved. All four existing permanent workflows pass;
-no workflow file is changed.
+The dedicated production-connected runner was then implemented in
+`v013_rigid_wall_observation.py` and locally verified after fast-forwarding to
+head `8464dc5`:
 
-The dedicated production-connected runner is now implemented in
-`v013_rigid_wall_observation.py`:
+```text
+focused reference/specification/runner tests: 55 passed in 5.02 s
+full repository:                            348 passed in 89.39 s
+git diff --check:                           success
+failures / errors / skips:                  0 / 0 / 0
+```
 
-- it constructs the existing CoolProp small-amplitude state and existing
+The runner:
+
+- constructs the existing CoolProp small-amplitude state and existing
   `ReflectiveBoundary` through `build_coolprop_boundary_reflection_solver`;
-- it lands the FVM exactly on the fixed matched times and records full field, probe,
+- lands the FVM exactly on the fixed matched times and records full field, probe,
   boundary, timestep, health, positivity, phase, and budget evidence;
-- it passes only scalar `rho0`, `c0`, geometry, profile, and boundary inputs to the
+- passes only scalar `rho0`, `c0`, geometry, profile, and boundary inputs to the
   independent analytical and CFL=1 MOC paths;
-- it compares pressure, velocity, `A+`, `A-`, peaks, reflection coefficients,
+- compares pressure, velocity, `A+`, `A-`, peaks, reflection coefficients,
   arrival markers, leakage, wall residuals, and acoustic-energy proxy;
-- it writes top-level and per-run JSON, CSV, and NPZ artifacts;
-- it keeps plotting explicitly pending for a later saved-artifact-only increment;
-- it applies no FVM regression or design-accuracy band.
+- writes top-level and per-run JSON, CSV, and NPZ artifacts;
+- applies no FVM regression or design-accuracy band.
 
-A one-mesh installed-CoolProp integration test was added to check required artifacts,
-CoolProp traceability, independent-reference flags, rigid-wall signs, wall telemetry,
-and the absence of production-solver behaviour changes. The new runner and test have
-not yet received the focused/full branch recheck.
+A saved-artifact-only plotter is now implemented in
+`plot_v013_rigid_wall_results.py`. It does not import or call the runner and
+produces seven figures:
+
+1. rigid-wall pressure profiles;
+2. velocity profiles;
+3. reflected `A+ / A-` characteristics;
+4. near-wall probe pressure history and theoretical timing markers;
+5. pressure/velocity reflection coefficients versus mesh spacing;
+6. field and acoustic-energy differences versus mesh spacing;
+7. normalized wall-condition residuals versus mesh spacing.
+
+Every figure includes case, model, backend, CoolProp version, output version, and
+the non-design-use disclaimer. Plot metadata explicitly records
+`solver_rerun = false` and `numerical_results_changed = false`. The plotter and
+updated installed-CoolProp integration test still require the focused/full branch
+recheck.
+
+No accepted `n=100 / 200 / 400` V-013B observation has been reviewed yet. No
+production solver or boundary behaviour has changed, and no FVM regression band
+has been introduced.
 
 Next actions:
 
-1. pull the runner head and run the focused runner/reference tests;
+1. pull the plotter head and run the focused reference/specification/runner tests;
 2. run the full repository suite and `git diff --check`;
-3. fix any runner or artifact failure before the three-mesh observation;
-4. add the saved-artifact plotter;
-5. execute and review `n=100 / 200 / 400`.
+3. fix any plotter or artifact failure;
+4. execute the fixed `n=100 / 200 / 400` observation;
+5. generate the seven figures from saved artifacts and review the reflection result.
 
 Guardrails remain: software/numerical verification only; physical Validation
 and design-use acceptance `False`; backend `not_approved_for_design_use`; MOC
