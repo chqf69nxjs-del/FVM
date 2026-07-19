@@ -38,7 +38,7 @@ The temporary validation helper was removed after evidence capture.
 
 ## 2026-07-19 — V-013B rigid-wall reflection start
 
-Status: `IN_PROGRESS; SPECIFICATION SCAFFOLD VERIFIED` on branch
+Status: `IN_PROGRESS; RUNNER IMPLEMENTED; VALIDATION PENDING` on branch
 `agent/stage7-v013b-rigid-wall-reflection`; Draft PR #49 is open.
 
 Starting evidence:
@@ -88,7 +88,7 @@ nearest probe, adjacent event centres are `10 m` apart while each window has a
 `4 m` path half-width, leaving a strict `2 m` gap. This avoids endpoint sharing
 under inclusive artifact-window selection.
 
-Draft review produced two P2 findings and both are addressed in the current head:
+Draft review produced two P2 findings and both are addressed:
 
 1. **Runtime import independence.** The leaf-module AST check alone was
    insufficient because eager package initializers loaded the production solver,
@@ -101,37 +101,45 @@ Draft review produced two P2 findings and both are addressed in the current head
    width and compares against the return pulse leading edge. A custom geometry fixes
    the equality-edge case as contaminated.
 
-Stable case IDs, the run plan, matched-sample schema, path-state mapping, strictly
-separated probe windows, conservative return-pulse margins, expected rigid-wall
-identity, and a JSON-ready specification snapshot are implemented. No numerical
-solver or boundary source is modified.
-
-Local branch validation after pulling the current PR #49 head:
+Scaffold validation after pulling the reviewed PR #49 head:
 
 ```text
 focused reference/V-013B tests: 53 passed in 0.56 s
 full repository:                346 passed in 121.38 s
 git diff --check:               success
 failures / errors:              0 / 0
-branch tracking:                origin/agent/stage7-v013b-rigid-wall-reflection
 ```
 
-The full suite confirms the lazy public exports remain compatible with existing
-repository use. Both Draft review threads are resolved. All four existing permanent
-workflows pass on the same scaffold head; no workflow file is changed.
+Both Draft review threads are resolved. All four existing permanent workflows pass;
+no workflow file is changed.
 
-No FVM, MOC, or analytical observation has been executed for V-013B yet. No
-production solver behaviour has changed, and no FVM regression band has been
-introduced.
+The dedicated production-connected runner is now implemented in
+`v013_rigid_wall_observation.py`:
+
+- it constructs the existing CoolProp small-amplitude state and existing
+  `ReflectiveBoundary` through `build_coolprop_boundary_reflection_solver`;
+- it lands the FVM exactly on the fixed matched times and records full field, probe,
+  boundary, timestep, health, positivity, phase, and budget evidence;
+- it passes only scalar `rho0`, `c0`, geometry, profile, and boundary inputs to the
+  independent analytical and CFL=1 MOC paths;
+- it compares pressure, velocity, `A+`, `A-`, peaks, reflection coefficients,
+  arrival markers, leakage, wall residuals, and acoustic-energy proxy;
+- it writes top-level and per-run JSON, CSV, and NPZ artifacts;
+- it keeps plotting explicitly pending for a later saved-artifact-only increment;
+- it applies no FVM regression or design-accuracy band.
+
+A one-mesh installed-CoolProp integration test was added to check required artifacts,
+CoolProp traceability, independent-reference flags, rigid-wall signs, wall telemetry,
+and the absence of production-solver behaviour changes. The new runner and test have
+not yet received the focused/full branch recheck.
 
 Next actions:
 
-1. connect a dedicated V-013B artifact runner to the existing small-amplitude FVM
-   and `ReflectiveBoundary` without altering solver physics;
-2. record scalar `rho0` / `c0` and provenance for the independent reference;
-3. implement saved FVM, MOC, analytical, matched-field, probe, and boundary artifacts;
-4. add runner and installed-CoolProp artifact tests;
-5. execute and review the fixed `n=100 / 200 / 400` observation.
+1. pull the runner head and run the focused runner/reference tests;
+2. run the full repository suite and `git diff --check`;
+3. fix any runner or artifact failure before the three-mesh observation;
+4. add the saved-artifact plotter;
+5. execute and review `n=100 / 200 / 400`.
 
 Guardrails remain: software/numerical verification only; physical Validation
 and design-use acceptance `False`; backend `not_approved_for_design_use`; MOC
