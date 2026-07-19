@@ -1,6 +1,7 @@
 name: V-013C Temporary Committed-Diff Validation
 
 on:
+  pull_request:
   push:
     branches:
       - agent/stage7-v013c-fixed-pressure-reflection
@@ -25,6 +26,7 @@ jobs:
       - name: Checkout branch
         uses: actions/checkout@v7
         with:
+          ref: agent/stage7-v013c-fixed-pressure-reflection
           fetch-depth: 0
           persist-credentials: false
 
