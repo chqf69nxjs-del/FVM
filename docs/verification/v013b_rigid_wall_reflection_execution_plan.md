@@ -2,7 +2,7 @@
 
 ## 1. Status
 
-`IN_PROGRESS; SPECIFICATION SCAFFOLD IMPLEMENTED; REVIEW FIXES APPLIED`
+`IN_PROGRESS; SPECIFICATION SCAFFOLD VERIFIED`
 
 This increment fixes the V-013B observation contract before connecting the
 production FVM path. It does not change the production solver, numerical flux, or
@@ -177,7 +177,25 @@ CoolProp
 The public package and case exports remain available through lazy `__getattr__`
 resolution when callers explicitly request them.
 
-## 10. Required observation metrics
+## 10. Scaffold validation evidence
+
+The current scaffold head was pulled into the Windows development environment and
+validated with the configured project virtual environment:
+
+```text
+focused command: tests/test_linear_acoustic_reference.py + tests/test_v013_rigid_wall_reflection.py
+focused result: 53 passed in 0.56 s
+full repository result: 346 passed in 121.38 s
+failures / errors: 0 / 0
+git diff --check: success
+```
+
+The full repository result confirms that the lazy top-level and case-package exports
+remain compatible with existing tests. Both Draft review threads are resolved. The
+four existing permanent workflows also pass on the scaffold head. No workflow file
+is modified.
+
+## 11. Required observation metrics
 
 The implementation phase shall record at least:
 
@@ -198,7 +216,7 @@ The implementation phase shall record at least:
 These are observations. No FVM CI-light or design-accuracy band is introduced in
 this increment.
 
-## 11. Planned artifacts
+## 12. Planned artifacts
 
 Top-level:
 
@@ -235,14 +253,14 @@ Plots shall be generated from saved artifacts without rerunning either solver an
 shall include case, model, backend, CoolProp version, output version, and the
 non-design-use disclaimer.
 
-## 12. Implementation sequence
+## 13. Implementation sequence
 
 1. Fix stable configuration, case IDs, run plan, path-state convention, probe
-   windows, runtime independence, return-pulse margin, and pure tests.
+   windows, runtime independence, return-pulse margin, and pure tests. `COMPLETE`
 2. Re-run the focused V-013 reference/specification tests and the full repository
-   suite.
+   suite. `COMPLETE`
 3. Connect a dedicated V-013B runner to the existing small-amplitude FVM and
-   `ReflectiveBoundary` without changing solver physics.
+   `ReflectiveBoundary` without changing solver physics. `NEXT`
 4. Record `rho0` and `c0` once from the FVM uniform state and pass only those scalars
    to the independent analytical/MOC path.
 5. Implement saved field/probe/boundary artifacts and fixed matched comparisons.
@@ -250,18 +268,16 @@ non-design-use disclaimer.
    reflection sign, timing, wall residual, and numerical diffusion.
 7. Keep V-013 `IN_PROGRESS`; proceed to V-013C only after V-013B review.
 
-## 13. Current completion boundary
+## 14. Current completion boundary
 
-This scaffold is complete when:
+The specification scaffold is verified:
 
 - a fresh public import does not load production solver/boundary/CoolProp modules;
 - the default case IDs, mesh matrix, pulse, probes, path samples, windows, and return
   margin are fixed by tests;
 - the rigid-wall identity agrees with the independent reference core;
-- the repository focused and full suites are rerun from the branch;
-- canonical Stage 7 documents identify V-013B as active.
-
-An isolated pure-scaffold check passes all 30 collected tests. This is not a
-substitute for the requested repository focused and full-suite recheck.
+- focused and full repository suites pass from the branch;
+- canonical Stage 7 documents identify V-013B as active;
+- no production solver or boundary behaviour is changed.
 
 The actual FVM/MOC/analytical observation has not yet been executed.
