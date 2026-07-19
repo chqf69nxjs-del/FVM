@@ -17,6 +17,9 @@ from liquid_gas_transient.cases.v013_incident_propagation import (
     run_v013_incident_propagation,
     sample_spacetime_history,
 )
+from liquid_gas_transient.plot_v013_incident_propagation_results import (
+    _plot_traceability_footer,
+)
 
 
 def test_v013a_default_configuration_and_run_plan_are_stable() -> None:
@@ -33,6 +36,28 @@ def test_v013a_default_configuration_and_run_plan_are_stable() -> None:
         "v013a_n0400_fvmcfl0p5_moccfl1",
     ]
     assert all(row["verification_item"] == "V-013A" for row in plan)
+
+
+def test_v013a_plot_footer_requires_case_model_backend_and_versions() -> None:
+    metadata = {
+        "case_name": "v013a_incident_propagation",
+        "property_backend_name": "coolprop_co2",
+        "coolprop_version": "8.0.0",
+        "output_version": "v013a_incident_propagation_v1",
+    }
+    footer = _plot_traceability_footer(metadata)
+    assert "case: v013a_incident_propagation" in footer
+    assert "model: production FVM" in footer
+    assert "independent linear-acoustic MOC/analytical reference" in footer
+    assert "backend: coolprop_co2" in footer
+    assert "CoolProp: 8.0.0" in footer
+    assert "output: v013a_incident_propagation_v1" in footer
+    assert "not physical Validation or design-use acceptance" in footer
+
+    missing_version = dict(metadata)
+    missing_version.pop("coolprop_version")
+    with pytest.raises(ValueError, match="coolprop_version"):
+        _plot_traceability_footer(missing_version)
 
 
 @pytest.mark.parametrize(
@@ -173,10 +198,23 @@ def test_v013a_installed_cross_verification_run_and_artifacts(tmp_path) -> None:
     reference = json.loads(
         (tmp_path / "v013a_reference_constants.json").read_text(encoding="utf-8")
     )
+    plot_metrics = json.loads(
+        (tmp_path / "v013a_plot_metrics.json").read_text(encoding="utf-8")
+    )
     assert aggregate["coolprop_version"] == coolprop_version
     assert reference["coolprop_version"] == coolprop_version
     assert reference["moc_calls_coolprop"] is False
     assert reference["property_backend_design_status"] == "not_approved_for_design_use"
+    assert plot_metrics["plot_traceability_complete"] is True
+    assert plot_metrics["plot_traceability"] == {
+        "case_name": cfg.case_name,
+        "model": (
+            "production FVM + independent linear-acoustic MOC/analytical reference"
+        ),
+        "property_backend_name": "coolprop_co2",
+        "coolprop_version": coolprop_version,
+        "output_version": cfg.output_version,
+    }
 
     fvm_metrics = json.loads((run_dir / "fvm_metrics.json").read_text(encoding="utf-8"))
     moc_metrics = json.loads((run_dir / "moc_metrics.json").read_text(encoding="utf-8"))
