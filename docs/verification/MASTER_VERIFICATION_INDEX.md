@@ -8,8 +8,11 @@ Historical detail through the V-013 reference-core checkpoint is preserved in
 - Stage 1–6: `COMPLETE`
 - Stage 7 / V-013: `IN_PROGRESS`
 - V-013 independent analytical / CFL=1 MOC reference core: merged in PR #46
-- V-013A incident propagation (PR #48): `OBSERVED; READY FOR REVIEW`
-- Next: V-013B rigid-wall reflection
+- V-013A incident propagation: `OBSERVED; MERGED` in PR #48
+- PR #48 merge commit: `613b21622b22402fbf7b8d77b1d881db7ff5f28e`
+- V-013B rigid-wall reflection: `IN_PROGRESS; SPECIFICATION SCAFFOLD IMPLEMENTED`
+- Active branch: `agent/stage7-v013b-rigid-wall-reflection`
+- V-013C fixed-pressure reflection: `PLANNED`
 
 ## V-013A evidence
 
@@ -18,13 +21,55 @@ Historical detail through the V-013 reference-core checkpoint is preserved in
 - review-close validation: focused `40 passed`; full repository `316 passed`; skips `0`
 - runs: `3 / 3`; figures: `7 / 7`; CoolProp: `8.0.0`
 - all figures state case, model, backend, CoolProp version, and output version
-- plots are regenerated from saved artifacts without rerunning either solver
+- plots were regenerated from saved artifacts without rerunning either solver
 - propagation direction and approximate wave speed: consistent
 - final `n=400` FVM pressure peak ratio: `0.57499430` (about `57.5%`)
 - dominant observation: strong, monotonically decreasing FVM numerical diffusion
 - production solver behaviour changes: none
 
-These are observation results, not an acceptance band. Physical Validation and
-design-use acceptance remain `False`; the property backend remains
-`not_approved_for_design_use`; MOC is verification-only; the finest mesh is not
-exact; no V-013 CI-light band has been selected.
+## V-013B active increment
+
+Implementation plan:
+[`v013b_rigid_wall_reflection_execution_plan.md`](v013b_rigid_wall_reflection_execution_plan.md)
+
+Starting evidence:
+
+- branch started from PR #48 merge commit with a clean working tree;
+- full repository baseline: `316 passed in 141.44 s`;
+- production `ReflectiveBoundary`, Stage 5 reflection assets, and the independent
+  linear-acoustic reference conventions were reviewed before fixing the plan.
+
+Fixed observation contract:
+
+- right-going `100 Pa` Gaussian, `x0=65 m`, `sigma=2 m`;
+- right rigid wall and left transmissive observation boundary;
+- FVM meshes `n=100 / 200 / 400`, FVM CFL `0.5`;
+- MOC meshes `n=100 / 200 / 400`, MOC CFL `1.0`;
+- probes `x/L=0.75 / 0.85 / 0.90`;
+- cumulative matched path travel `0 / 15 / 30 / 35 / 45 / 55 / 65 m`;
+- wall contact at path travel `35 m`;
+- expected identity: `A-_reflected = A+_incident`;
+- pressure coefficient `+1`, velocity coefficient `-1`, wall velocity perturbation
+  `0`, and total wall pressure ratio `2`;
+- no time shifting, parameter tuning, or FVM regression band;
+- production solver behaviour changes: none.
+
+The configuration, stable case IDs, run plan, path-state convention, probe windows,
+and pure tests are added. The repository focused/full recheck and the actual
+FVM/MOC/analytical observation remain next.
+
+## Guardrails
+
+These are software / numerical verification results and plans, not an acceptance
+band. Physical Validation and design-use acceptance remain `False`; the property
+backend remains `not_approved_for_design_use`; MOC is verification-only; the finest
+mesh is not exact; no V-013 CI-light band has been selected.
+
+## Next action
+
+1. run the focused V-013 reference/V-013B tests and the full repository suite;
+2. connect a dedicated V-013B runner to the existing FVM and rigid-wall boundary
+   without changing solver physics;
+3. generate traceable FVM, MOC, analytical, matched-sample, probe, boundary, and
+   plotting artifacts;
+4. execute and review `n=100 / 200 / 400` before starting V-013C.
