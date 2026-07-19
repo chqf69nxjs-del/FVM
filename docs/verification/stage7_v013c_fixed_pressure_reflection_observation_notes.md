@@ -1,6 +1,7 @@
 # Stage 7 V-013C Fixed-Pressure Reflection Observation Notes
 
-Status: `OBSERVED; READY FOR REVIEW`. V-013 overall remains `IN_PROGRESS`.
+Status: `OBSERVED; MERGED` in PR #50. Merge commit:
+`f403103c46a1d618ce2f2345c986e29b921b664a`. V-013 overall remains `IN_PROGRESS`.
 
 ## Final observation evidence
 
@@ -94,7 +95,9 @@ Nonzero mass and energy transfer are expected observations rather than failures.
 - no time shift or parameter tuning was applied;
 - no FVM regression, CI-light, or design-accuracy band is introduced;
 - temporary V-013C evidence-capture and review-helper workflows were removed before
-  review-ready state.
+  merge;
+- final-head permanent workflows passed `4 / 4` and all review threads were resolved.
 
-Next: complete final review and merge PR #50, then formalize the combined V-013A/B/C
-baseline findings and define a cautious CI-light monitoring proposal.
+Next: formalize the combined V-013A/B/C baseline findings, define a cautious CI-light
+monitoring proposal, and begin the numerical-diffusion improvement phase on a separate
+branch while retaining the current first-order solver as the baseline.
