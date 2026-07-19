@@ -2,106 +2,46 @@
 
 ## 1. Status
 
-`IN_PROGRESS; SPECIFICATION SCAFFOLD VERIFIED; WINDOWS RECHECK PENDING`
+`OBSERVED; READY FOR REVIEW`
 
-V-013C compares the existing production FVM fixed-pressure boundary with the
-independent linear-acoustic MOC and analytical reference. The production solver,
-numerical flux, and boundary implementation are not changed.
+The fixed V-013C production-FVM / independent-MOC / analytical observation has been
+executed and reviewed without changing the production solver, numerical flux, EOS
+inversion, or fixed-pressure boundary implementation. V-013 overall remains
+`IN_PROGRESS`.
 
-V-013A incident propagation and V-013B rigid-wall reflection are merged. V-013
-overall remains `IN_PROGRESS`.
+## 2. Scope and guardrails
 
-## 2. Branch and starting point
+V-013C is software / numerical verification only. It is not physical Validation,
+design-use acceptance, approval of `coolprop_co2` for design use, a production MOC
+solver, an equipment-fidelity reservoir model, or a two-phase/flashing result.
 
-```text
-branch: agent/stage7-v013c-fixed-pressure-reflection
-Draft PR: #50
-base: post-PR #49 main
-base commit: 30ab7715e79d96c48f1cbe3ba7051815877e288a
-```
+No time shifting, phase fitting, or post-result parameter tuning is permitted. No FVM
+regression, CI-light, or design-accuracy band is introduced in this increment.
 
-A Windows project-environment recheck remains required after the branch is pulled.
+The pure specification module imports no production solver, numerical flux, boundary
+class, existing FVM runner, or CoolProp module. A fresh-interpreter test enforces this
+runtime independence.
 
-## 3. Scope and guardrails
-
-V-013C is software / numerical verification only. It is not:
-
-- physical Validation;
-- design-use acceptance;
-- approval of `coolprop_co2` for design use;
-- a production MOC solver;
-- an equipment-fidelity reservoir, tank, valve, or pressure-control model;
-- a two-phase, flashing, cavitation, HEM, HNE, ESD, or pump-trip result.
-
-No time shifting, phase fitting, or post-result parameter tuning is permitted. No
-FVM regression, CI-light, or design-accuracy band is introduced before the
-observation is reviewed.
-
-The pure specification module imports no production solver, production numerical
-flux, production boundary class, existing FVM case runner, or CoolProp module.
-
-## 4. Existing implementation alignment
-
-The independent reference core already supports `fixed_pressure` with the right-boundary
-characteristic identity
-
-```text
-A-_reflected = -A+_incident
-```
-
-Therefore the ideal linear-acoustic conditions are
-
-```text
-pressure reflection coefficient = -1
-velocity reflection coefficient = +1
-boundary pressure perturbation = 0
-boundary velocity / incident velocity amplitude = 2
-```
-
-The production Stage 5 fixed-pressure path uses the existing
-`PressureTankBoundary` with:
-
-```text
-pressure schedule: ConstantPressure(p0)
-flow direction: bidirectional
-velocity policy: copy
-```
-
-V-013C observes that existing path. It does not alter `PressureTankBoundary`, its EOS
-inversion, or the FVM numerical flux.
-
-Unlike the rigid wall, a fixed-pressure boundary is not a zero-flux boundary.
-Boundary mass and energy fluxes and their time integrals are recorded as observations;
-they are not required to be zero.
-
-## 5. Fixed problem
+## 3. Fixed problem
 
 ```text
 verification item: V-013C
 case role: fixed_pressure_reflection
-pipe length: 100 m
-pipe diameter: 0.30 m
-base pressure: 8 MPa
-base temperature: 280 K
+pipe length / diameter: 100 / 0.30 m
+base pressure / temperature: 8 MPa / 280 K
 pulse: right-going Gaussian A+
-pulse pressure amplitude: 100 Pa
-pulse centre: 65 m
-pulse sigma: 2 m
+pulse amplitude / centre / sigma: 100 Pa / 65 m / 2 m
 left boundary: transmissive observation boundary
 right boundary: fixed pressure p0
-FVM meshes: n=100 / 200 / 400
-FVM CFL: 0.5
-MOC meshes: n=100 / 200 / 400
-MOC CFL: 1.0
+FVM meshes / CFL: 100, 200, 400 / 0.5
+MOC meshes / CFL: 100, 200, 400 / 1.0
 probe x/L: 0.75 / 0.85 / 0.90
 probe-window half width: 2.0 sigma
 matched-field boundary guard: 5.0 sigma
+matched path travel: 0 / 15 / 25 / 35 / 45 / 55 / 65 m
 ```
 
-The geometry, initial state, Gaussian pulse, meshes, CFL values, probes, and sample
-times match V-013B. The intended independent variable is the right-boundary type.
-
-## 6. Stable run identifiers
+Stable run identifiers:
 
 ```text
 v013c_n0100_fvmcfl0p5_moccfl1
@@ -109,174 +49,171 @@ v013c_n0200_fvmcfl0p5_moccfl1
 v013c_n0400_fvmcfl0p5_moccfl1
 ```
 
-Each run records V-013C, both CFL values, both boundary types, schema version
-`v013c_matched_samples_v1`, and `production_solver_behavior_changed = false`.
+## 4. Reference identities
 
-## 7. Matched field samples
-
-Cumulative characteristic travel is the common time convention:
+The independent core defines
+`A+ = 0.5 (p' + rho0 c0 u')` and `A- = 0.5 (p' - rho0 c0 u')`.
+For the right fixed-pressure boundary:
 
 ```text
-t = path_travel / c0
+A-_reflected = -A+_incident
+pressure reflection coefficient = -1
+velocity reflection coefficient = +1
+boundary pressure perturbation = 0
+boundary velocity / incident velocity amplitude = 2
 ```
 
-| path travel [m] | phase | expected centre [m] | expected characteristic state |
+The production path uses the existing:
+
+```text
+PressureTankBoundary(
+    ConstantPressure(p0),
+    flow_direction="bidirectional",
+    velocity_policy="copy",
+)
+```
+
+Unlike the rigid wall, this is not a zero-flux boundary. Boundary mass and energy
+fluxes and their time integrals are recorded as observations and are not required to be
+zero.
+
+## 5. Sampling and contamination protection
+
+Cumulative path travel is the common time convention: `t = path_travel / c0`.
+
+| path travel [m] | phase | expected centre [m] | characteristic state |
 |---:|---|---:|---|
-| 0 | incident | 65 | A+ |
-| 15 | incident | 80 | A+ |
-| 25 | incident | 90 | A+ |
-| 35 | boundary contact | 100 | A+ and A- with opposite sign |
-| 45 | reflected | 90 | A- |
-| 55 | reflected | 80 | A- |
-| 65 | reflected | 70 | A- |
+| 0 | incident | 65 | `A+` |
+| 15 | incident | 80 | `A+` |
+| 25 | incident | 90 | `A+` |
+| 35 | boundary contact | 100 | `A+` and opposite-sign `A-` |
+| 45 | reflected | 90 | `A-` |
+| 55 | reflected | 80 | `A-` |
+| 65 | reflected | 70 | `A-` |
 
-Analytical values will be evaluated directly at recorded FVM cell centres and times.
-MOC values will use fixed linear time/space interpolation. No signal shift is allowed.
+Analytical values are evaluated at recorded FVM cell centres and times. MOC uses fixed
+linear time/space interpolation. Probe windows are strictly separated, and a reflected
+window is classified as contaminated when its trailing edge reaches the leading edge of
+the earliest secondary-return pulse.
 
-The final pre-contact and first reflected samples are symmetric about the boundary
-contact. The contact sample is the only matched field whose five-sigma envelope
-overlaps the primary boundary. The final reflected sample remains well before the
-left-boundary guard.
+## 6. Implemented path and artifacts
 
-## 8. Probe windows and secondary-return safety
+`v013_fixed_pressure_observation.py`:
 
-| probe x [m] | incident path [m] | boundary path [m] | reflected path [m] |
-|---:|---:|---:|---:|
-| 75 | 10 | 35 | 60 |
-| 85 | 20 | 35 | 50 |
-| 90 | 25 | 35 | 45 |
+- uses the existing CoolProp initial-state builder and fixed-pressure production boundary;
+- lands exactly on the seven fixed matched times;
+- records FVM field, probe, boundary, health, positivity, phase, and budget evidence;
+- passes scalar `rho0` and `c0` to independent analytical/MOC paths;
+- records reflection signs and coefficients, timing, leakage, field norms, acoustic
+  energy proxy, fixed-pressure residual, boundary velocity amplification, mass flux,
+  energy flux, and integrated transfer;
+- writes traceable JSON, CSV, and NPZ artifacts.
 
-Each event window has a path half-width of `4 m`. At the closest probe, adjacent
-event centres are `10 m` apart, leaving a strict `2 m` gap.
+`plot_v013_fixed_pressure_results.py` reads saved artifacts only and generates seven
+figures:
 
-A reflected window is unsafe when its trailing edge reaches the leading edge of the
-earliest secondary-return pulse. The comparison must not use only the return-pulse
-centre. The equality-edge case is classified as contaminated.
-
-## 9. Specification validation evidence
-
-The initial Actions validation passed, but Codex review correctly noted that a bare
-`git diff --check` after checkout examined only the clean working tree. It did not
-prove that the committed PR range was free of whitespace errors. The final evidence
-therefore uses an explicit base/head range and supersedes the initial record:
-
-```text
-workflow run:          29689975579
-PR head:               d61919b30ca39f50d85a4702483ad0489c9a4f18
-Actions merge SHA:     b882d05ecd50710eacd206cc305e50a091219919
-committed diff range:  origin/main...HEAD
-committed diff check:  success
-focused tests:         53 passed in 0.26 s, 0 skipped
-full repository:       380 passed in 141.94 s, 0 skipped
-failures / errors:     0 / 0
-CoolProp:              8.0.0
-artifact ID:           8443286895
-artifact SHA256:       c2df88965f4fd0104dbba3d53d4407c3f6a02d8e863a49a0d11a9120b8e3a046
-permanent CI:          4 / 4 success
-```
-
-The focused suite contains the independent reference tests and the new V-013C pure
-specification tests. Temporary validation workflows are removed after evidence
-capture. The Windows project-environment focused/full recheck remains a separate gate.
-
-## 10. Required observation metrics
-
-The runner shall record at least:
-
-- FVM, MOC, and analytical pressure, velocity, `A+`, and `A-` fields;
-- incident and reflected signed pressure and velocity peaks;
-- pressure reflection coefficient, expected `-1`;
-- velocity reflection coefficient, expected `+1`;
-- boundary pressure residual relative to `p0`;
-- boundary velocity amplification relative to the incident velocity amplitude,
-  expected `2` in the ideal reference;
-- boundary mass flux, energy flux, and time-integrated mass/energy transfer;
-- reflected-wave arrival offsets at all probes;
-- opposite-direction characteristic leakage;
-- normalized field differences and acoustic-energy-proxy difference;
-- FVM health, positivity, single-phase status, and conserved-budget fields;
-- `rho0`, `c0`, provenance, backend, and CoolProp version;
-- explicit false Validation, design-evaluation, and acceptance flags.
-
-Pressure and characteristic relative errors use the analytical pressure scale. Velocity
-relative errors use the nonzero acoustic scale
-`analytical_pressure_perturbation_pa / (rho0 * c0)`, including at exact boundary
-contact.
-
-## 11. Planned artifacts
-
-Top level:
-
-```text
-v013c_config.json
-v013c_reference_constants.json
-v013c_run_plan.json
-v013c_matched_sample_plan.json
-v013c_probe_plan.json
-v013c_summary.csv
-v013c_metrics.json
-v013c_observation_report.md
-v013c_plot_metrics.json
-```
-
-Per run:
-
-```text
-fvm_config.json
-fvm_metrics.json
-fvm_probe_history.csv
-fvm_boundary_history.csv
-fvm_field_history.npz
-moc_config.json
-moc_metrics.json
-moc_history.npz
-analytical_samples.csv
-matched_samples.csv
-probe_comparison.csv
-comparison_metrics.json
-```
-
-Figures shall be produced from saved artifacts only and shall state case, model,
-property backend, CoolProp version, output version, and the software/numerical-only,
-non-design-use disclaimer.
-
-## 12. Planned figures
-
-The initial target is seven figures aligned with V-013B:
-
-1. pressure profiles through incident, contact, and reflected phases;
-2. velocity profiles at the same samples;
+1. pressure profiles;
+2. velocity profiles;
 3. reflected `A+ / A-` characteristic profiles;
-4. near-boundary probe pressure history with theoretical event markers;
+4. near-boundary pressure history with theoretical event markers;
 5. pressure and velocity reflection coefficients versus mesh spacing;
 6. field and acoustic-energy differences versus mesh spacing;
 7. fixed-pressure residual and boundary-velocity amplification error versus mesh spacing.
 
-The seventh figure must not treat nonzero mass or energy flux as a boundary failure.
-Those fluxes are reported separately as physical/numerical observations of the
-pressure-boundary idealization.
+Every figure includes case, model, backend, CoolProp version, output version, and the
+software/numerical-only non-design-use disclaimer.
 
-## 13. Implementation sequence
+## 7. Error normalization
 
-1. Fix configuration, IDs, reference identities, path convention, probe windows,
-   return-pulse guard, and pure tests. `COMPLETE`
-2. Run focused/full GitHub Actions scaffold validation, check the committed PR range,
-   and preserve the corrected evidence. `COMPLETE`
-3. Pull the branch into the Windows project environment and run focused plus full
-   repository tests and `git diff --check`. `NEXT`
-4. Connect a dedicated V-013C runner to the existing Stage 5 fixed-pressure builder
-   without changing solver or boundary physics.
-5. Save FVM/MOC/analytical fields, probes, boundary telemetry, comparisons, and
-   traceability metadata.
-6. Implement the saved-artifact-only seven-figure plotter.
-7. Execute `n=100 / 200 / 400`, review the observation, and preserve exact artifact
-   evidence.
-8. Keep V-013 overall `IN_PROGRESS`; formalize A/B/C only after V-013C review.
+Fixed-pressure contact may produce an analytical pressure field that is zero at the
+boundary while the two characteristics remain nonzero. Field normalization therefore
+uses a finite characteristic amplitude scale derived from `|A+| + |A-|` for pressure
+and characteristic comparisons, and the corresponding acoustic velocity scale divided
+by `rho0 c0` for velocity. The policy is persisted in comparison artifacts and tested
+for finite values.
 
-## 14. Current completion boundary
+## 8. Validation evidence
 
-The fixed-pressure specification scaffold and pure tests are implemented, the committed
-PR diff passes `git diff --check origin/main...HEAD`, and the focused/full GitHub
-Actions validation passes. The Windows project-environment recheck is pending. The
-production-connected runner, saved numerical artifacts, figures, and full three-mesh
-observation are not yet implemented or accepted.
+### Specification scaffold
+
+```text
+committed-range workflow: 29689975579
+focused tests:            53 passed, 0 skipped
+full repository:          380 passed, 0 skipped
+git diff range:           origin/main...HEAD
+committed diff check:     success
+```
+
+The initial working-tree-only diff evidence was superseded after a P3 review finding.
+The corrected review thread is resolved.
+
+### Windows project recheck
+
+```text
+focused tests:       58 passed in 10.61 s
+full repository:     385 passed in 277.41 s
+committed diff:      clean
+working tree:        clean
+```
+
+### Final observation
+
+```text
+workflow run:       29692477941
+PR head:            2f5c10b3f99f561d457ab8d391d5e91be98b7ff3
+Actions merge SHA:  e2eb1a075d229d51d28366aa211a1642fbcc1463
+focused tests:      58 passed, 0 skipped
+full repository:    385 passed, 0 skipped
+runs:               3 / 3
+figures:            7 / 7
+plotting errors:    0
+CoolProp:           8.0.0
+artifact ID:        8444138380
+artifact entries:   59
+artifact SHA256:    6432fb8502687cb974c161356e4ac8364235ef2ba5c92ac7bb9f1e52dca54786
+```
+
+Plotting confirms:
+
+```text
+solver_rerun = false
+numerical_results_changed = false
+```
+
+Temporary observation, finalization, and review-helper workflows were removed after
+evidence capture.
+
+## 9. Observation results
+
+| n | Δx [m] | pressure reflection | velocity reflection | fixed-pressure residual | boundary velocity ratio | final peak ratio |
+|---:|---:|---:|---:|---:|---:|---:|
+| 100 | 1.00 | -0.63395297 | 0.63399661 | 0.05654903 | 0.82447607 | 0.33190828 |
+| 200 | 0.50 | -0.69829946 | 0.69829998 | 0.04880759 | 1.09704849 | 0.44185022 |
+| 400 | 0.25 | -0.77022729 | 0.77022778 | 0.03712903 | 1.37073388 | 0.57212615 |
+
+The reflection direction and signs are correct. The boundary-pressure residual decreases
+and the velocity amplification moves toward the ideal value `2` with refinement.
+Nonzero boundary transfer is expected and retained in the evidence.
+
+Maximum pressure/velocity L2 relative differences decrease from approximately `0.681`
+at `n=100` to `0.413` at `n=400`. Strong numerical broadening and peak loss remain
+substantial, so the finest mesh is not an accuracy-acceptance result.
+
+## 10. Completion boundary
+
+Complete for V-013C review:
+
+- fixed specification, IDs, samples, event windows, and contamination guards;
+- independent identities and runtime independence;
+- production-connected runner and traceable artifacts;
+- saved-artifact-only seven-figure plotter;
+- finite error normalization;
+- focused/full tests, Windows recheck, three-mesh execution, and artifact digest;
+- temporary evidence/review helpers removed.
+
+Physical Validation, design-use acceptance, and V-013 regression/design-accuracy bands
+remain outside this increment.
+
+Next: complete final review and merge PR #50, then formalize the combined V-013A/B/C
+baseline and propose cautious CI-light monitoring before beginning the numerical-diffusion
+improvement phase.
