@@ -10,9 +10,9 @@ Historical detail through the V-013 reference-core checkpoint is preserved in
 - V-013 independent analytical / CFL=1 MOC reference core: merged in PR #46
 - V-013A incident propagation: `OBSERVED; MERGED` in PR #48
 - PR #48 merge commit: `613b21622b22402fbf7b8d77b1d881db7ff5f28e`
-- V-013B rigid-wall reflection: `IN_PROGRESS; RUNNER IMPLEMENTED; VALIDATION PENDING`
+- V-013B rigid-wall reflection: `IN_PROGRESS; RUNNER VERIFIED; PLOTTER IMPLEMENTED; VALIDATION PENDING`
 - Active branch: `agent/stage7-v013b-rigid-wall-reflection`
-- Draft PR: `#49 Add V-013B rigid-wall reflection specification scaffold`
+- Draft PR: `#49 Add V-013B rigid-wall reflection observation runner`
 - V-013C fixed-pressure reflection: `PLANNED`
 
 ## V-013A evidence
@@ -65,18 +65,18 @@ Draft-review safeguards:
 - runtime independence is asserted through a fresh-interpreter `sys.modules` test;
 - secondary-return safety compares the accepted reflected-window trailing edge with
   the return pulse leading edge, not merely its centre;
-- a custom geometry fixes the equality-edge contamination case by test.
+- a custom geometry fixes the equality-edge contamination case by test;
+- both Draft review threads are resolved.
 
-Verified scaffold evidence:
+Verified runner evidence from the Windows project environment:
 
-- focused reference/V-013B tests: `53 passed in 0.56 s`;
-- full repository: `346 passed in 121.38 s`;
-- failures / errors: `0 / 0`;
+- focused reference/specification/runner tests: `55 passed in 5.02 s`;
+- full repository: `348 passed in 89.39 s`;
+- failures / errors / skips: `0 / 0 / 0`;
 - `git diff --check`: success;
-- all Draft review threads resolved;
-- four existing permanent workflows pass; no workflow file changed.
+- branch fast-forwarded to runner head `8464dc5` before the checks.
 
-Dedicated runner implementation now present:
+Dedicated runner:
 
 - `v013_rigid_wall_observation.py` connects the fixed contract to the existing
   CoolProp FVM initialization and `ReflectiveBoundary`;
@@ -85,11 +85,18 @@ Dedicated runner implementation now present:
 - matched FVM, MOC, analytical, probe, boundary, comparison, JSON, CSV, and NPZ
   artifacts are written without changing production solver physics;
 - a one-mesh installed-CoolProp integration test checks reflection signs, wall
-  telemetry, traceability, and required artifacts;
-- plotting remains a separate saved-artifact increment and is explicitly marked
-  pending.
+  telemetry, traceability, and required artifacts.
 
-The new runner and integration test still require focused/full branch validation.
+Saved-artifact plotting:
+
+- `plot_v013_rigid_wall_results.py` reads existing JSON/CSV artifacts only;
+- seven figures cover pressure, velocity, characteristics, probe history, reflection
+  coefficients, field/energy differences, and rigid-wall residuals;
+- every figure states case, model, backend, CoolProp version, output version, and the
+  non-design-use disclaimer;
+- the plotter records `solver_rerun = false` and `numerical_results_changed = false`;
+- plotter and updated integration tests still require the branch focused/full recheck.
+
 The full `n=100 / 200 / 400` observation has not yet been accepted or reviewed.
 
 ## Guardrails
@@ -101,9 +108,11 @@ mesh is not exact; no V-013 CI-light band has been selected.
 
 ## Next action
 
-1. pull the runner head and run the focused V-013B runner tests plus the full repository
-   suite and `git diff --check`;
-2. fix any runner or artifact defect before executing the three-mesh observation;
-3. add the saved-artifact-only plotter and figure traceability fields;
-4. execute and review `n=100 / 200 / 400`;
+1. pull the saved-artifact plotter head and rerun focused tests, the full repository
+   suite, and `git diff --check`;
+2. fix any plotting or artifact defect before the three-mesh observation;
+3. execute the fixed `n=100 / 200 / 400` runner and then generate all seven figures
+   from the saved artifacts;
+4. review reflection signs, coefficients, timing, wall residuals, numerical diffusion,
+   and figure traceability;
 5. keep V-013 `IN_PROGRESS` and do not start V-013C before V-013B review.
