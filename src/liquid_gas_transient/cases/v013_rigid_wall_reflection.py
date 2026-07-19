@@ -384,6 +384,10 @@ def build_probe_plan(
         boundary_end_s = boundary_time_s + half_width_s
         reflected_start_s = reflected_time_s - half_width_s
         reflected_end_s = reflected_time_s + half_width_s
+        earliest_secondary_time_s = earliest_secondary_path_m / c0
+        earliest_secondary_window_start_s = (
+            earliest_secondary_time_s - half_width_s
+        )
         if not incident_end_s < boundary_start_s:
             raise RuntimeError("incident and wall-contact windows are not separated")
         if not boundary_end_s < reflected_start_s:
@@ -416,10 +420,13 @@ def build_probe_plan(
                     second_wall_return_path_m / c0
                 ),
                 "earliest_secondary_boundary_return_time_s": float(
-                    earliest_secondary_path_m / c0
+                    earliest_secondary_time_s
+                ),
+                "earliest_secondary_boundary_return_window_start_s": float(
+                    earliest_secondary_window_start_s
                 ),
                 "evaluation_window_contaminated": bool(
-                    reflected_end_s >= earliest_secondary_path_m / c0
+                    reflected_end_s >= earliest_secondary_window_start_s
                 ),
                 "event_windows_strictly_separated": True,
                 "time_shift_applied": False,
