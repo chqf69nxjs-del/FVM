@@ -64,9 +64,8 @@ energy flux are exactly zero. Strong FVM numerical diffusion remains at the fine
 
 ## 2026-07-19 to 2026-07-20 — V-013C fixed-pressure reflection
 
-Status: `OBSERVED; READY FOR REVIEW` on branch
-`agent/stage7-v013c-fixed-pressure-reflection`; PR #50 remains open. V-013 overall
-remains `IN_PROGRESS`.
+Status: `OBSERVED; MERGED` in PR #50. Merge commit:
+`f403103c46a1d618ce2f2345c986e29b921b664a`. V-013 overall remains `IN_PROGRESS`.
 
 ### Fixed case
 
@@ -149,7 +148,8 @@ Maximum pressure/velocity L2 relative differences decrease from about `0.681` at
 confirming that strong numerical diffusion remains the dominant limitation.
 
 Temporary V-013C observation, finalization, and review-helper workflows were removed
-before review-ready state. Production solver, numerical flux, EOS inversion, and
+before review-ready state. Final-head permanent workflows passed `4 / 4`, and all
+review threads were resolved. Production solver, numerical flux, EOS inversion, and
 boundary behaviour remain unchanged. Physical Validation, design-use acceptance, and
 V-013 acceptance bands remain outside this increment.
 
@@ -165,6 +165,5 @@ V-013A/B/C consistently support the following conclusions:
 - the current solver is a robust software/numerical verification baseline, not a
   physically validated or design-accurate wave-amplitude model.
 
-Next: complete PR #50 final review and merge, formalize the combined V-013 baseline,
-and propose cautious CI-light monitoring before starting a separate numerical-diffusion
-improvement phase.
+Next: formalize the combined V-013 baseline and limitation statement, propose cautious
+CI-light monitoring, and then begin a separate numerical-diffusion improvement phase.
