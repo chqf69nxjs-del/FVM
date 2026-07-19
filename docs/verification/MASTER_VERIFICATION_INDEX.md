@@ -95,23 +95,25 @@ Implemented scaffold:
 - no production solver, boundary, existing FVM runner, or CoolProp import in the pure
   specification module.
 
-GitHub Actions scaffold validation:
+Final committed-range scaffold validation:
 
 ```text
-workflow run:       29689605699
-PR head:            ad82f86ea25aee6b2c338ee88ce510c319bfe18d
-Actions merge SHA:  b5ab8b0354fcae6c232e0cb79bf45f02dc85df13
-focused tests:      53 passed, 0 skipped
-full repository:    380 passed, 0 skipped
-failures / errors:  0 / 0
-git diff --check:   success
-CoolProp:           8.0.0
-artifact ID:        8443178060
-artifact SHA256:    12dc1cd0d2ae2dacf87622c930a5b4ef01fad384686e6fee142663456594ac5f
-permanent CI:       4 / 4 success
+workflow run:          29689975579
+PR head tested:        d61919b30ca39f50d85a4702483ad0489c9a4f18
+Actions merge SHA:     b882d05ecd50710eacd206cc305e50a091219919
+committed diff range:  origin/main...HEAD
+committed diff check:  success
+focused tests:         53 passed in 0.26 s, 0 skipped
+full repository:       380 passed in 141.94 s, 0 skipped
+failures / errors:     0 / 0
+CoolProp:              8.0.0
+artifact ID:           8443286895
+artifact SHA256:       c2df88965f4fd0104dbba3d53d4407c3f6a02d8e863a49a0d11a9120b8e3a046
+permanent CI:          4 / 4 success
 ```
 
-The temporary validation workflow is removed after evidence capture. The V-013C
+This evidence supersedes the earlier working-tree-only `git diff --check` record. The
+temporary validation workflows are removed after evidence capture. The V-013C
 scaffold still requires the Windows focused/full recheck. The dedicated
 production-connected runner, saved-artifact plotter, and `n=100 / 200 / 400`
 observation are not yet implemented or reviewed.
