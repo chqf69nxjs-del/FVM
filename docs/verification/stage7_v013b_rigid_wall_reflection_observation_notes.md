@@ -1,7 +1,8 @@
 # Stage 7 V-013B Rigid-Wall Reflection Observation Notes
 
-Status: `OBSERVED; READY FOR REVIEW`. V-013 remains `IN_PROGRESS`; V-013C
-fixed-pressure reflection is next.
+Status: `OBSERVED; MERGED` in PR #49. Merge commit:
+`bc874193de6a4c019073b6cf629e99ec5dfa6602`. V-013 baseline formalization is in
+progress.
 
 ## Primary observation evidence
 
