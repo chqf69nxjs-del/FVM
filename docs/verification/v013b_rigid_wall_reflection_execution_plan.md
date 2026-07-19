@@ -2,11 +2,10 @@
 
 ## 1. Status
 
-`IN_PROGRESS; SPECIFICATION SCAFFOLD VERIFIED`
+`IN_PROGRESS; RUNNER VERIFIED; SAVED-ARTIFACT PLOTTER IMPLEMENTED; VALIDATION PENDING`
 
-This increment fixes the V-013B observation contract before connecting the
-production FVM path. It does not change the production solver, numerical flux, or
-boundary implementation.
+This increment fixes and implements the V-013B observation path without changing the
+production solver, numerical flux, or boundary implementation.
 
 ## 2. Starting evidence
 
@@ -31,13 +30,13 @@ V-013B is software / numerical verification only. It is not:
 - an equipment-fidelity wall or valve model;
 - a two-phase, flashing, cavitation, HEM, HNE, ESD, or pump-trip result.
 
-The pure scaffold shall not import or call the production FVM solver, numerical
-fluxes, production boundary classes, existing FVM case runners, or CoolProp.
-No phase shifting or parameter fitting is permitted.
+The pure specification module shall not import or call the production FVM solver,
+numerical fluxes, production boundary classes, existing FVM case runners, or
+CoolProp. No phase shifting or parameter fitting is permitted.
 
 The top-level `liquid_gas_transient` and `liquid_gas_transient.cases` compatibility
-exports are now resolved lazily. This preserves their public names while allowing a
-fresh interpreter to import `cases.v013_rigid_wall_reflection` without loading the
+exports are resolved lazily. This preserves their public names while allowing a fresh
+interpreter to import `cases.v013_rigid_wall_reflection` without loading the
 production solver, boundary module, CoolProp cases, or CoolProp package. This is an
 import-timing change only; numerical solver behaviour is unchanged.
 
@@ -125,9 +124,8 @@ edge is 60 m, so the accepted matched-field set is well before left-boundary
 contact. Configuration checks reject any custom incident/reflected matched sample
 that enters the wrong boundary guard envelope.
 
-Analytical values will be evaluated directly at recorded FVM cell centres and
-times. MOC values will use fixed linear time/space interpolation. No signal shift
-will be applied.
+Analytical values are evaluated directly at recorded FVM cell centres and times. MOC
+values use fixed linear time/space interpolation. No signal shift is applied.
 
 ## 8. Probe timing and return-pulse safety
 
@@ -162,8 +160,8 @@ A dedicated custom-geometry test fixes this margin at the equality boundary.
 
 ## 9. Runtime independence verification
 
-The leaf-module AST check remains, but it is not the runtime independence gate.
-A fresh-interpreter subprocess imports the public module path and inspects
+The leaf-module AST check remains, but it is not the runtime independence gate. A
+fresh-interpreter subprocess imports the public module path and inspects
 `sys.modules`. It fails if any of the following were loaded as an import side effect:
 
 ```text
@@ -177,10 +175,9 @@ CoolProp
 The public package and case exports remain available through lazy `__getattr__`
 resolution when callers explicitly request them.
 
-## 10. Scaffold validation evidence
+## 10. Validation evidence
 
-The current scaffold head was pulled into the Windows development environment and
-validated with the configured project virtual environment:
+### Specification scaffold
 
 ```text
 focused command: tests/test_linear_acoustic_reference.py + tests/test_v013_rigid_wall_reflection.py
@@ -190,14 +187,79 @@ failures / errors: 0 / 0
 git diff --check: success
 ```
 
-The full repository result confirms that the lazy top-level and case-package exports
-remain compatible with existing tests. Both Draft review threads are resolved. The
-four existing permanent workflows also pass on the scaffold head. No workflow file
-is modified.
+### Production-connected runner
 
-## 11. Required observation metrics
+After fast-forwarding the Windows branch to runner head `8464dc5`:
 
-The implementation phase shall record at least:
+```text
+focused command: linear reference + V-013B specification + V-013B runner tests
+focused result: 55 passed in 5.02 s
+full repository result: 348 passed in 89.39 s
+failures / errors / skips: 0 / 0 / 0
+git diff --check: success
+```
+
+The full repository results confirm that lazy package exports remain compatible with
+existing use. Both Draft review threads are resolved. The four existing permanent
+workflows pass on the runner/scaffold changes. No workflow file is modified.
+
+## 11. Production-connected observation runner
+
+`src/liquid_gas_transient/cases/v013_rigid_wall_observation.py`:
+
+- uses the existing `build_coolprop_boundary_reflection_solver` and
+  `ReflectiveBoundary`;
+- lands exactly on the seven fixed matched times;
+- records scalar `rho0`, `c0`, provenance, backend, and CoolProp version;
+- passes only scalar reference inputs to the independent analytical/MOC path;
+- records FVM field, probe, boundary, timestep, positivity, phase, health, and budget
+  evidence;
+- records MOC and analytical fields, reflection coefficients, signs, arrivals,
+  leakage, wall residuals, field norms, and acoustic-energy proxy;
+- writes top-level and per-run JSON, CSV, and NPZ artifacts;
+- applies no FVM regression or design-accuracy band.
+
+A one-mesh installed-CoolProp test checks required files, reference independence,
+CoolProp traceability, FVM health, rigid-wall signs, wall telemetry, and the absence
+of solver-physics changes.
+
+## 12. Saved-artifact-only figures
+
+`src/liquid_gas_transient/plot_v013_rigid_wall_results.py` reads the completed JSON
+and CSV artifacts and does not import or call the FVM/MOC/analytical runner.
+
+Planned output count: `7`.
+
+1. pressure profiles at late incident, wall-contact, early reflected, and final
+   reflected samples;
+2. velocity profiles at the same samples;
+3. `A+ / A-` profiles at the first reflected sample;
+4. near-wall probe pressure history with theoretical incident, wall, and reflected
+   centre markers;
+5. pressure and velocity reflection coefficients versus mesh spacing;
+6. field L2 and acoustic-energy differences versus mesh spacing;
+7. normalized wall velocity and pressure-amplification residuals versus mesh spacing.
+
+Each figure includes:
+
+- case;
+- model;
+- property backend;
+- CoolProp version;
+- output version;
+- software/numerical-only and non-design-use disclaimer.
+
+`v013b_plot_metrics.json` records the same traceability fields together with
+`solver_rerun = false` and `numerical_results_changed = false`. The plotter updates
+`v013b_metrics.json` only with generated filenames, plotting errors, and plot
+completion status; it does not modify numerical results.
+
+The plotter and updated installed-CoolProp test require a new focused/full branch
+recheck before the three-mesh observation.
+
+## 13. Required observation metrics
+
+The implementation records:
 
 - FVM, MOC, and analytical pressure, velocity, `A+`, and `A-` fields;
 - incident and reflected peak pressure and velocity;
@@ -216,7 +278,7 @@ The implementation phase shall record at least:
 These are observations. No FVM CI-light or design-accuracy band is introduced in
 this increment.
 
-## 12. Planned artifacts
+## 14. Artifacts
 
 Top-level:
 
@@ -230,6 +292,7 @@ v013b_summary.csv
 v013b_metrics.json
 v013b_observation_report.md
 v013b_plot_metrics.json
+seven PNG figures after plotting
 ```
 
 Per run:
@@ -249,35 +312,27 @@ probe_comparison.csv
 comparison_metrics.json
 ```
 
-Plots shall be generated from saved artifacts without rerunning either solver and
-shall include case, model, backend, CoolProp version, output version, and the
-non-design-use disclaimer.
-
-## 13. Implementation sequence
+## 15. Implementation sequence
 
 1. Fix stable configuration, case IDs, run plan, path-state convention, probe
    windows, runtime independence, return-pulse margin, and pure tests. `COMPLETE`
 2. Re-run the focused V-013 reference/specification tests and the full repository
    suite. `COMPLETE`
 3. Connect a dedicated V-013B runner to the existing small-amplitude FVM and
-   `ReflectiveBoundary` without changing solver physics. `NEXT`
+   `ReflectiveBoundary` without changing solver physics. `COMPLETE`
 4. Record `rho0` and `c0` once from the FVM uniform state and pass only those scalars
-   to the independent analytical/MOC path.
+   to the independent analytical/MOC path. `COMPLETE`
 5. Implement saved field/probe/boundary artifacts and fixed matched comparisons.
-6. Execute `n=100 / 200 / 400`, generate figures from saved artifacts, and review
+   `COMPLETE`
+6. Implement the saved-artifact-only plotter and figure traceability. `COMPLETE;
+   VALIDATION PENDING`
+7. Re-run focused and full tests for the plotter. `NEXT`
+8. Execute `n=100 / 200 / 400`, generate figures from saved artifacts, and review
    reflection sign, timing, wall residual, and numerical diffusion.
-7. Keep V-013 `IN_PROGRESS`; proceed to V-013C only after V-013B review.
+9. Keep V-013 `IN_PROGRESS`; proceed to V-013C only after V-013B review.
 
-## 14. Current completion boundary
+## 16. Current completion boundary
 
-The specification scaffold is verified:
-
-- a fresh public import does not load production solver/boundary/CoolProp modules;
-- the default case IDs, mesh matrix, pulse, probes, path samples, windows, and return
-  margin are fixed by tests;
-- the rigid-wall identity agrees with the independent reference core;
-- focused and full repository suites pass from the branch;
-- canonical Stage 7 documents identify V-013B as active;
-- no production solver or boundary behaviour is changed.
-
-The actual FVM/MOC/analytical observation has not yet been executed.
+The contract and runner are verified. The saved-artifact plotter is implemented but
+not yet validated in the Windows project environment. The actual three-mesh
+FVM/MOC/analytical observation has not yet been accepted or reviewed.
