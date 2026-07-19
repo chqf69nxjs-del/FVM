@@ -10,9 +10,9 @@ Historical detail through the V-013 reference-core checkpoint is preserved in
 - V-013 independent analytical / CFL=1 MOC reference core: merged in PR #46
 - V-013A incident propagation: `OBSERVED; MERGED` in PR #48
 - PR #48 merge commit: `613b21622b22402fbf7b8d77b1d881db7ff5f28e`
-- V-013B rigid-wall reflection: `OBSERVED; READY FOR REVIEW` in PR #49
-- Active branch: `agent/stage7-v013b-rigid-wall-reflection`
-- V-013C fixed-pressure reflection: `PLANNED`
+- V-013B rigid-wall reflection: `OBSERVED; MERGED` in PR #49
+- PR #49 merge commit: `bc874193de6a4c019073b6cf629e99ec5dfa6602`
+- V-013C fixed-pressure reflection: `NEXT`
 
 ## V-013A evidence
 
@@ -69,7 +69,7 @@ Final observation evidence:
 The reflection direction and signs are correct, and wall face velocity, mass flux,
 and energy flux are exactly zero. Reflection amplitude and wall pressure rise improve
 monotonically with refinement, but strong numerical diffusion remains at `n=400`.
-V-013B is therefore observed and reviewable, not an accuracy or design-use acceptance.
+V-013B is observed and merged, not an accuracy or design-use acceptance.
 
 ## Guardrails
 
@@ -80,6 +80,6 @@ finest mesh is not exact; no V-013 CI-light band has been selected.
 
 ## Next action
 
-1. complete review and merge PR #49;
-2. start V-013C fixed-pressure reflection on a new branch;
+1. start V-013C fixed-pressure reflection on a new branch;
+2. reuse the V-013A/B comparison and artifact conventions;
 3. keep V-013 overall `IN_PROGRESS` until A/B/C review and formalization are complete.
