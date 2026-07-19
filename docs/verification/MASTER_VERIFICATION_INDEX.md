@@ -14,9 +14,11 @@ Historical detail through the V-013 reference-core checkpoint is preserved in
 ## V-013A evidence
 
 - meshes: `n=100 / 200 / 400`; FVM CFL `0.5`; MOC CFL `1.0`
-- focused tests: `39 passed`, `0 skipped`
-- full repository: `315 passed`, `0 skipped`
+- primary observation tests: focused `39 passed`; full repository `315 passed`; skips `0`
+- review-close validation: focused `40 passed`; full repository `316 passed`; skips `0`
 - runs: `3 / 3`; figures: `7 / 7`; CoolProp: `8.0.0`
+- all figures state case, model, backend, CoolProp version, and output version
+- plots are regenerated from saved artifacts without rerunning either solver
 - propagation direction and approximate wave speed: consistent
 - final `n=400` FVM pressure peak ratio: `0.57499430` (about `57.5%`)
 - dominant observation: strong, monotonically decreasing FVM numerical diffusion
