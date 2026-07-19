@@ -12,8 +12,9 @@ Historical detail through the V-013 reference-core checkpoint is preserved in
 - PR #48 merge commit: `613b21622b22402fbf7b8d77b1d881db7ff5f28e`
 - V-013B rigid-wall reflection: `OBSERVED; MERGED` in PR #49
 - PR #49 merge commit: `bc874193de6a4c019073b6cf629e99ec5dfa6602`
-- V-013C fixed-pressure reflection: `IN_PROGRESS; SPECIFICATION SCAFFOLD IMPLEMENTED; VALIDATION PENDING`
+- V-013C fixed-pressure reflection: `IN_PROGRESS; SPECIFICATION SCAFFOLD VERIFIED; WINDOWS RECHECK PENDING`
 - Active branch: `agent/stage7-v013c-fixed-pressure-reflection`
+- Draft PR: `#50 Add V-013C fixed-pressure reflection specification scaffold`
 
 ## V-013A evidence
 
@@ -64,6 +65,7 @@ Starting point:
 branch: agent/stage7-v013c-fixed-pressure-reflection
 base: post-PR #49 main
 base commit: 30ab7715e79d96c48f1cbe3ba7051815877e288a
+Draft PR: #50
 ```
 
 Fixed observation contract:
@@ -93,7 +95,24 @@ Implemented scaffold:
 - no production solver, boundary, existing FVM runner, or CoolProp import in the pure
   specification module.
 
-The V-013C scaffold still requires the Windows focused/full recheck. The dedicated
+GitHub Actions scaffold validation:
+
+```text
+workflow run:       29689605699
+PR head:            ad82f86ea25aee6b2c338ee88ce510c319bfe18d
+Actions merge SHA:  b5ab8b0354fcae6c232e0cb79bf45f02dc85df13
+focused tests:      53 passed, 0 skipped
+full repository:    380 passed, 0 skipped
+failures / errors:  0 / 0
+git diff --check:   success
+CoolProp:           8.0.0
+artifact ID:        8443178060
+artifact SHA256:    12dc1cd0d2ae2dacf87622c930a5b4ef01fad384686e6fee142663456594ac5f
+permanent CI:       4 / 4 success
+```
+
+The temporary validation workflow is removed after evidence capture. The V-013C
+scaffold still requires the Windows focused/full recheck. The dedicated
 production-connected runner, saved-artifact plotter, and `n=100 / 200 / 400`
 observation are not yet implemented or reviewed.
 
@@ -108,8 +127,8 @@ selected.
 ## Next action
 
 1. pull the V-013C branch and run the focused reference/V-013C tests, full repository
-   suite, and `git diff --check`;
-2. fix any specification or compatibility defect;
+   suite, and `git diff --check` in the Windows project environment;
+2. fix any platform-specific specification or compatibility defect;
 3. connect the existing Stage 5 fixed-pressure FVM path to a dedicated V-013C runner;
 4. add traceable saved artifacts and seven saved-artifact-only figures;
 5. execute and review `n=100 / 200 / 400` before formalizing V-013 A/B/C.
