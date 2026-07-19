@@ -12,6 +12,7 @@ Historical detail through the V-013 reference-core checkpoint is preserved in
 - PR #48 merge commit: `613b21622b22402fbf7b8d77b1d881db7ff5f28e`
 - V-013B rigid-wall reflection: `IN_PROGRESS; SPECIFICATION SCAFFOLD IMPLEMENTED`
 - Active branch: `agent/stage7-v013b-rigid-wall-reflection`
+- Draft PR: `#49 Add V-013B rigid-wall reflection specification scaffold`
 - V-013C fixed-pressure reflection: `PLANNED`
 
 ## V-013A evidence
@@ -46,7 +47,9 @@ Fixed observation contract:
 - FVM meshes `n=100 / 200 / 400`, FVM CFL `0.5`;
 - MOC meshes `n=100 / 200 / 400`, MOC CFL `1.0`;
 - probes `x/L=0.75 / 0.85 / 0.90`;
-- cumulative matched path travel `0 / 15 / 30 / 35 / 45 / 55 / 65 m`;
+- probe-event windows use a half width of `2 sigma` and remain strictly separated;
+- matched-field samples use a `5 sigma` boundary guard;
+- cumulative matched path travel `0 / 15 / 25 / 35 / 45 / 55 / 65 m`;
 - wall contact at path travel `35 m`;
 - expected identity: `A-_reflected = A+_incident`;
 - pressure coefficient `+1`, velocity coefficient `-1`, wall velocity perturbation
@@ -55,8 +58,12 @@ Fixed observation contract:
 - production solver behaviour changes: none.
 
 The configuration, stable case IDs, run plan, path-state convention, probe windows,
-and pure tests are added. The repository focused/full recheck and the actual
-FVM/MOC/analytical observation remain next.
+and pure tests are added. A separated pure-scaffold run passes `28` tests. This is
+not a substitute for the repository focused/full recheck. The actual
+FVM/MOC/analytical observation remains unexecuted.
+
+Permanent workflows triggered by Draft PR #49 pass on the initial scaffold head;
+the current tightened head must also remain green. No workflow file is changed.
 
 ## Guardrails
 
@@ -67,9 +74,11 @@ mesh is not exact; no V-013 CI-light band has been selected.
 
 ## Next action
 
-1. run the focused V-013 reference/V-013B tests and the full repository suite;
-2. connect a dedicated V-013B runner to the existing FVM and rigid-wall boundary
+1. pull the current Draft PR #49 head and run the focused V-013 reference/V-013B
+   tests plus the full repository suite;
+2. address review findings while keeping the PR in Draft;
+3. connect a dedicated V-013B runner to the existing FVM and rigid-wall boundary
    without changing solver physics;
-3. generate traceable FVM, MOC, analytical, matched-sample, probe, boundary, and
+4. generate traceable FVM, MOC, analytical, matched-sample, probe, boundary, and
    plotting artifacts;
-4. execute and review `n=100 / 200 / 400` before starting V-013C.
+5. execute and review `n=100 / 200 / 400` before starting V-013C.
