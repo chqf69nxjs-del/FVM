@@ -3,28 +3,38 @@
 Historical detail through the V-013 reference-core checkpoint is preserved in
 [`archive/MASTER_VERIFICATION_INDEX_through_v013_reference_core.md`](archive/MASTER_VERIFICATION_INDEX_through_v013_reference_core.md).
 
-## Current state — 2026-07-19
+## Current state — 2026-07-20
 
 - Stage 1–6: `COMPLETE`
 - Stage 7 / V-013: `IN_PROGRESS`
-- V-013 independent analytical / CFL=1 MOC reference core: merged in PR #46
+- independent analytical / CFL=1 MOC reference core: merged in PR #46
 - V-013A incident propagation: `OBSERVED; MERGED` in PR #48
 - PR #48 merge commit: `613b21622b22402fbf7b8d77b1d881db7ff5f28e`
 - V-013B rigid-wall reflection: `OBSERVED; MERGED` in PR #49
 - PR #49 merge commit: `bc874193de6a4c019073b6cf629e99ec5dfa6602`
-- V-013C fixed-pressure reflection: `IN_PROGRESS; SPECIFICATION SCAFFOLD VERIFIED; WINDOWS RECHECK PENDING`
-- Active branch: `agent/stage7-v013c-fixed-pressure-reflection`
-- Draft PR: `#50 Add V-013C fixed-pressure reflection specification scaffold`
+- V-013C fixed-pressure reflection: `OBSERVED; READY FOR REVIEW` in PR #50
+- active branch: `agent/stage7-v013c-fixed-pressure-reflection`
+
+## V-013 case matrix
+
+| item | purpose | ideal reflection identity | current state |
+|---|---|---|---|
+| V-013A | incident-wave propagation | right-going `A+` | observed and merged |
+| V-013B | right rigid-wall reflection | `A-_reflected = A+_incident` | observed and merged |
+| V-013C | right fixed-pressure reflection | `A-_reflected = -A+_incident` | observed; review pending |
+
+Common fixed conditions for A/B/C include a `100 Pa` Gaussian perturbation, `x0=65 m`,
+`sigma=2 m`, FVM meshes `n=100 / 200 / 400`, FVM CFL `0.5`, and independent MOC
+CFL `1.0`.
 
 ## V-013A evidence
 
-- meshes: `n=100 / 200 / 400`; FVM CFL `0.5`; MOC CFL `1.0`
-- focused/full observation tests: `39 / 315 passed`; close tests: `40 / 316 passed`
-- runs: `3 / 3`; figures: `7 / 7`; CoolProp: `8.0.0`
-- final `n=400` FVM pressure peak ratio: `0.57499430` (about `57.5%`)
-- propagation direction and approximate wave speed: consistent
-- dominant observation: strong numerical diffusion decreasing with mesh refinement
-- production solver behaviour changes: none
+- observation tests: focused `39 passed`; full repository `315 passed`; skips `0`;
+- review-close tests: focused `40 passed`; full repository `316 passed`; skips `0`;
+- runs `3 / 3`; figures `7 / 7`; CoolProp `8.0.0`;
+- final `n=400` FVM pressure peak ratio: `0.57499430`;
+- direction and approximate wave speed are consistent;
+- dominant error is strong numerical diffusion decreasing with refinement.
 
 ## V-013B evidence
 
@@ -34,103 +44,97 @@ Execution plan:
 Observation notes:
 [`stage7_v013b_rigid_wall_reflection_observation_notes.md`](stage7_v013b_rigid_wall_reflection_observation_notes.md)
 
-Final observation evidence:
+```text
+workflow run:       29684930259
+focused tests:      57 passed, 0 skipped
+full repository:    350 passed, 0 skipped
+runs / figures:     3 / 3, 7 / 7
+artifact ID:        8441899419
+artifact SHA256:    709a78a29bd21d9b01d8785e296b30a8085c7d5af6a26aba7b808c9c6be19861
+```
 
-- GitHub Actions run `29684930259`;
-- focused `57 passed, 0 skipped`; full repository `350 passed, 0 skipped`;
-- runs `3 / 3`; figures `7 / 7`; plotting errors `0`; CoolProp `8.0.0`;
-- artifact ID `8441899419`, entries `59`, digest
-  `sha256:709a78a29bd21d9b01d8785e296b30a8085c7d5af6a26aba7b808c9c6be19861`;
-- temporary evidence-capture files removed before merge;
-- production solver, numerical flux, and `ReflectiveBoundary` behaviour unchanged.
-
-| n | pressure reflection coefficient | velocity reflection coefficient | wall pressure ratio | final reflected peak ratio |
+| n | pressure reflection | velocity reflection | wall pressure ratio | final peak ratio |
 |---:|---:|---:|---:|---:|
 | 100 | 0.65777978 | -0.65771904 | 0.85567464 | 0.33987059 |
 | 200 | 0.71062343 | -0.71062316 | 1.11654918 | 0.44696373 |
 | 400 | 0.77589432 | -0.77589440 | 1.38056539 | 0.57499450 |
 
-The rigid-wall direction and signs are correct, and wall-face velocity, mass flux, and
-energy flux are exactly zero. Reflection amplitude and wall pressure rise improve
-monotonically, but strong FVM numerical diffusion remains at `n=400`.
+Pressure and velocity reflection signs are correct. Wall-face velocity, mass flux, and
+energy flux are exactly zero. Strong numerical broadening remains at `n=400`.
 
-## V-013C active increment
+## V-013C evidence
 
-Implementation plan:
+Execution plan:
 [`v013c_fixed_pressure_reflection_execution_plan.md`](v013c_fixed_pressure_reflection_execution_plan.md)
 
-Starting point:
+Observation notes:
+[`stage7_v013c_fixed_pressure_reflection_observation_notes.md`](stage7_v013c_fixed_pressure_reflection_observation_notes.md)
+
+Fixed-pressure identities:
 
 ```text
-branch: agent/stage7-v013c-fixed-pressure-reflection
-base: post-PR #49 main
-base commit: 30ab7715e79d96c48f1cbe3ba7051815877e288a
-Draft PR: #50
+A-_reflected = -A+_incident
+pressure reflection coefficient = -1
+velocity reflection coefficient = +1
+boundary pressure perturbation = 0
+boundary velocity / incident velocity amplitude = 2
 ```
 
-Fixed observation contract:
-
-- right-going `100 Pa` Gaussian, `x0=65 m`, `sigma=2 m`;
-- right fixed-pressure boundary at `p0` and left transmissive observation boundary;
-- FVM meshes `n=100 / 200 / 400`, FVM CFL `0.5`;
-- MOC meshes `n=100 / 200 / 400`, MOC CFL `1.0`;
-- probes `x/L=0.75 / 0.85 / 0.90`;
-- cumulative matched path travel `0 / 15 / 25 / 35 / 45 / 55 / 65 m`;
-- expected identity `A-_reflected = -A+_incident`;
-- ideal pressure/velocity reflection coefficients `-1 / +1`;
-- ideal boundary pressure perturbation `0`;
-- ideal boundary velocity / incident velocity ratio `2`;
-- nonzero mass and energy flux are permitted and shall be recorded, not classified as
-  a fixed-pressure boundary failure;
-- no time shifting, parameter tuning, or FVM regression band;
-- production solver and boundary behaviour changes: none.
-
-Implemented scaffold:
-
-- pure configuration, stable case IDs, run plan, matched samples, and probe windows;
-- five-sigma field guards and two-sigma strictly separated event windows;
-- secondary-return safety measured from the return-pulse leading edge;
-- fixed-pressure identities cross-checked against the independent reference core;
-- fresh-interpreter runtime import-independence test;
-- no production solver, boundary, existing FVM runner, or CoolProp import in the pure
-  specification module.
-
-Final committed-range scaffold validation:
+Final observation evidence:
 
 ```text
-workflow run:          29689975579
-PR head tested:        d61919b30ca39f50d85a4702483ad0489c9a4f18
-Actions merge SHA:     b882d05ecd50710eacd206cc305e50a091219919
-committed diff range:  origin/main...HEAD
-committed diff check:  success
-focused tests:         53 passed in 0.26 s, 0 skipped
-full repository:       380 passed in 141.94 s, 0 skipped
-failures / errors:     0 / 0
-CoolProp:              8.0.0
-artifact ID:           8443286895
-artifact SHA256:       c2df88965f4fd0104dbba3d53d4407c3f6a02d8e863a49a0d11a9120b8e3a046
-permanent CI:          4 / 4 success
+workflow run:       29692477941
+PR head:            2f5c10b3f99f561d457ab8d391d5e91be98b7ff3
+Actions merge SHA:  e2eb1a075d229d51d28366aa211a1642fbcc1463
+focused tests:      58 passed, 0 skipped
+full repository:    385 passed, 0 skipped
+Windows recheck:    focused 58 / full 385 passed
+runs / figures:     3 / 3, 7 / 7
+plotting errors:    0
+CoolProp:           8.0.0
+artifact ID:        8444138380
+artifact entries:   59
+artifact SHA256:    6432fb8502687cb974c161356e4ac8364235ef2ba5c92ac7bb9f1e52dca54786
 ```
 
-This evidence supersedes the earlier working-tree-only `git diff --check` record. The
-temporary validation workflows are removed after evidence capture. The V-013C
-scaffold still requires the Windows focused/full recheck. The dedicated
-production-connected runner, saved-artifact plotter, and `n=100 / 200 / 400`
-observation are not yet implemented or reviewed.
+| n | pressure reflection | velocity reflection | fixed-pressure residual | boundary velocity ratio | final peak ratio |
+|---:|---:|---:|---:|---:|---:|
+| 100 | -0.63395297 | 0.63399661 | 0.05654903 | 0.82447607 | 0.33190828 |
+| 200 | -0.69829946 | 0.69829998 | 0.04880759 | 1.09704849 | 0.44185022 |
+| 400 | -0.77022729 | 0.77022778 | 0.03712903 | 1.37073388 | 0.57212615 |
+
+The negative pressure reflection, positive velocity reflection, and left-going return
+are observed. The fixed-pressure residual decreases and the boundary velocity ratio
+moves toward `2` with refinement. Nonzero boundary mass and energy transfer are
+expected observations for this pressure boundary, not zero-flux failures.
+
+## Joint Stage 7 finding
+
+The production FVM consistently reproduces the direction, approximate timing, reflection
+signs, and essential boundary-condition behaviour across V-013A/B/C. The common limiting
+issue is strong numerical diffusion: the finest `n=400` mesh retains only about `57%` of
+the final pressure peak in all three cases, and field L2 differences remain material.
+
+Therefore the current solver is suitable as a robust first-order software/numerical
+verification baseline, but not as a physically validated or design-accurate wave-amplitude
+model.
 
 ## Guardrails
 
-These are software / numerical verification results and plans, not physical Validation
-or an acceptance band. Physical Validation and design-use acceptance remain `False`;
-the property backend remains `not_approved_for_design_use`; MOC is verification-only;
-the finest mesh is not exact; no V-013 CI-light or design-accuracy band has been
-selected.
+- software / numerical verification only;
+- physical Validation and design-use acceptance remain `False`;
+- property backend remains `not_approved_for_design_use`;
+- MOC is verification-only and the finest mesh is not exact;
+- no time shift or parameter tuning is permitted;
+- no V-013 CI-light, regression, or design-accuracy band has been approved;
+- production solver, numerical flux, EOS inversion, and boundary behaviour are unchanged.
 
 ## Next action
 
-1. pull the V-013C branch and run the focused reference/V-013C tests, full repository
-   suite, and `git diff --check` in the Windows project environment;
-2. fix any platform-specific specification or compatibility defect;
-3. connect the existing Stage 5 fixed-pressure FVM path to a dedicated V-013C runner;
-4. add traceable saved artifacts and seven saved-artifact-only figures;
-5. execute and review `n=100 / 200 / 400` before formalizing V-013 A/B/C.
+1. complete final PR #50 review and merge;
+2. formalize the combined V-013A/B/C baseline and limitation statement;
+3. propose CI-light checks that monitor direction, signs, timing, monotonic refinement,
+   boundary residuals, positivity, and gross regression without treating current peak
+   loss as design accuracy;
+4. start a separate numerical-diffusion improvement phase while retaining the current
+   first-order solver as the reference baseline.
