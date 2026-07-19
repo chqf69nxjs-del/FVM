@@ -1,0 +1,290 @@
+name: V-013B Tracked Metric Fix
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  apply-fix:
+    if: ${{ !contains(github.event.pull_request.head.sha, '0000000000000000000000000000000000000000') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PYTHONPATH: src
+      MPLBACKEND: Agg
+
+    steps:
+      - name: Checkout source branch
+        uses: actions/checkout@v7
+        with:
+          ref: agent/stage7-v013b-rigid-wall-reflection
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -e .
+          python -m pip install pytest "CoolProp==8.0.0" "matplotlib>=3.7"
+
+      - name: Apply reviewed fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: Path, old: str, new: str) -> None:
+              text = path.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != 1:
+                  raise RuntimeError(
+                      f"{path}: expected exactly one replacement target, found {count}"
+                  )
+              path.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          runner = Path("src/liquid_gas_transient/cases/v013_rigid_wall_observation.py")
+          replace_once(
+              runner,
+              '''    field_rows: list[dict[str, Any]] = []
+    analytical_rows: list[dict[str, Any]] = []
+    field_metrics: list[dict[str, Any]] = []
+
+    for time_index, (time_value, sample) in enumerate(
+''',
+              '''    field_rows: list[dict[str, Any]] = []
+    analytical_rows: list[dict[str, Any]] = []
+    field_metrics: list[dict[str, Any]] = []
+    field_error_normalization_policy = {
+        "pressure_perturbation_pa": "analytical_pressure_perturbation_pa",
+        "velocity_m_s": "analytical_pressure_perturbation_pa / (rho0 * c0)",
+        "a_plus_pa": "analytical_pressure_perturbation_pa",
+        "a_minus_pa": "analytical_pressure_perturbation_pa",
+    }
+
+    for time_index, (time_value, sample) in enumerate(
+''',
+          )
+          replace_once(
+              runner,
+              '''            "expected_center_x_m": float(sample["expected_center_x_m"]),
+            "fvm": {},
+            "moc": {},
+        }
+        characteristic_normalizer = np.asarray(
+            analytical_fields["pressure_perturbation_pa"],
+            dtype=float,
+        )
+        for implementation, fields in (("fvm", fvm_fields), ("moc", moc_fields)):
+            for key in keys:
+                normalizer = (
+                    characteristic_normalizer
+                    if key in {"a_plus_pa", "a_minus_pa"}
+                    else analytical_fields[key]
+                )
+''',
+              '''            "expected_center_x_m": float(sample["expected_center_x_m"]),
+            "normalization_policy": dict(field_error_normalization_policy),
+            "fvm": {},
+            "moc": {},
+        }
+        pressure_normalizer = np.asarray(
+            analytical_fields["pressure_perturbation_pa"],
+            dtype=float,
+        )
+        velocity_normalizer = pressure_normalizer / (rho0 * c0)
+        for implementation, fields in (("fvm", fvm_fields), ("moc", moc_fields)):
+            for key in keys:
+                if key == "velocity_m_s":
+                    normalizer = velocity_normalizer
+                elif key in {"a_plus_pa", "a_minus_pa"}:
+                    normalizer = pressure_normalizer
+                else:
+                    normalizer = analytical_fields[key]
+''',
+          )
+          replace_once(
+              runner,
+              '''        "case_role": "rigid_wall_reflection",
+        "field_metrics": field_metrics,
+''',
+              '''        "case_role": "rigid_wall_reflection",
+        "field_error_normalization_policy": field_error_normalization_policy,
+        "field_metrics": field_metrics,
+''',
+          )
+
+          tests = Path("tests/test_v013_rigid_wall_observation.py")
+          replace_once(
+              tests,
+              "import inspect\nimport json\n",
+              "import inspect\nimport json\nimport math\n",
+          )
+          replace_once(
+              tests,
+              '''    assert comparison["formal_fvm_regression_band_applied"] is False
+    assert len(comparison["field_metrics"]) == 7
+    assert len(comparison["probe_reflection_metrics"]) == 3
+    for probe in comparison["probe_reflection_metrics"]:
+''',
+              '''    assert comparison["formal_fvm_regression_band_applied"] is False
+    assert len(comparison["field_metrics"]) == 7
+    assert len(comparison["probe_reflection_metrics"]) == 3
+    expected_velocity_policy = (
+        "analytical_pressure_perturbation_pa / (rho0 * c0)"
+    )
+    assert comparison["field_error_normalization_policy"]["velocity_m_s"] == (
+        expected_velocity_policy
+    )
+    wall_contact = next(
+        sample
+        for sample in comparison["field_metrics"]
+        if sample["phase"] == "wall_contact"
+    )
+    for sample in comparison["field_metrics"]:
+        assert sample["normalization_policy"]["velocity_m_s"] == (
+            expected_velocity_policy
+        )
+        for implementation in ("fvm", "moc"):
+            velocity_metrics = sample[implementation]["velocity_m_s"]
+            for metric_name in (
+                "l1_relative",
+                "l2_relative",
+                "linf_relative",
+                "linf_absolute",
+            ):
+                assert math.isfinite(float(velocity_metrics[metric_name]))
+    assert wall_contact["fvm"]["velocity_m_s"]["l2_relative"] < 1.0e6
+    assert wall_contact["moc"]["velocity_m_s"]["l2_relative"] < 1.0e6
+    for probe in comparison["probe_reflection_metrics"]:
+''',
+          )
+
+          plotter = Path("src/liquid_gas_transient/plot_v013_rigid_wall_results.py")
+          replace_once(
+              plotter,
+              '''        floor = np.finfo(float).tiny
+        velocity_residuals: list[float] = []
+        pressure_errors: list[float] = []
+        for row in run_data:
+            fvm = row["fvm"]
+            wall = fvm["boundary_metrics"]
+            velocity_scale = amplitude / (
+                float(fvm["rho0_kg_m3"]) * float(fvm["c0_m_s"])
+            )
+            velocity_residuals.append(
+                max(
+                    abs(float(wall["max_abs_wall_velocity_m_s"]))
+                    / velocity_scale,
+                    floor,
+                )
+            )
+            pressure_errors.append(
+                max(
+                    abs(float(wall["wall_pressure_amplification_ratio"]) - 2.0),
+                    floor,
+                )
+            )
+''',
+              '''        velocity_residuals: list[float] = []
+        pressure_errors: list[float] = []
+        for row in run_data:
+            fvm = row["fvm"]
+            wall = fvm["boundary_metrics"]
+            velocity_scale = amplitude / (
+                float(fvm["rho0_kg_m3"]) * float(fvm["c0_m_s"])
+            )
+            velocity_residuals.append(
+                abs(float(wall["max_abs_wall_velocity_m_s"])) / velocity_scale
+            )
+            pressure_errors.append(
+                abs(float(wall["wall_pressure_amplification_ratio"]) - 2.0)
+            )
+''',
+          )
+          replace_once(
+              plotter,
+              '''        ax.set_yscale("log")
+        ax.set_title("V-013B rigid-wall condition residuals")
+        ax.set_xlabel("mesh spacing Δx [m]")
+        ax.set_ylabel("normalized residual [-]")
+        ax.grid(True, alpha=0.3, which="both")
+        ax.legend(fontsize=8)
+''',
+              '''        ax.axhline(0.0, linewidth=0.8)
+        ax.set_ylim(bottom=0.0)
+        ax.set_title("V-013B rigid-wall condition residuals")
+        ax.set_xlabel("mesh spacing Δx [m]")
+        ax.set_ylabel("normalized residual [-]")
+        ax.ticklabel_format(axis="y", style="sci", scilimits=(-3, 3))
+        ax.grid(True, alpha=0.3)
+        ax.legend(fontsize=8)
+''',
+          )
+
+          workflow = Path(".github/workflows/v013b-temporary-observation.yml")
+          dollar = "$"
+          pr_head_expression = dollar + "{{ github.event.pull_request.head.sha || github.sha }}"
+          actions_expression = dollar + "{{ github.sha }}"
+          replace_once(
+              workflow,
+              "      PYTHONPATH: src\n",
+              (
+                  "      PYTHONPATH: src\n"
+                  f"      PR_HEAD_SHA: {pr_head_expression}\n"
+                  f"      ACTIONS_SHA: {actions_expression}\n"
+              ),
+          )
+          replace_once(
+              workflow,
+              '''              "source_commit": os.environ["GITHUB_SHA"],
+              "workflow_run_id": os.environ["GITHUB_RUN_ID"],
+''',
+              '''              "source_commit": os.environ["PR_HEAD_SHA"],
+              "pr_head_sha": os.environ["PR_HEAD_SHA"],
+              "actions_merge_sha": os.environ["ACTIONS_SHA"],
+              "workflow_run_id": os.environ["GITHUB_RUN_ID"],
+''',
+          )
+          replace_once(
+              workflow,
+              '''          manifest = {
+              "source_commit": os.environ["GITHUB_SHA"],
+              "workflow_run_id": os.environ["GITHUB_RUN_ID"],
+''',
+              '''          manifest = {
+              "source_commit": os.environ["PR_HEAD_SHA"],
+              "pr_head_sha": os.environ["PR_HEAD_SHA"],
+              "actions_merge_sha": os.environ["ACTIONS_SHA"],
+              "workflow_run_id": os.environ["GITHUB_RUN_ID"],
+''',
+          )
+          PY
+
+      - name: Validate changed files
+        run: |
+          git diff --check
+          python -m pytest -q \
+            tests/test_linear_acoustic_reference.py \
+            tests/test_v013_rigid_wall_reflection.py \
+            tests/test_v013_rigid_wall_observation.py \
+            --strict-markers
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/liquid_gas_transient/cases/v013_rigid_wall_observation.py \
+            src/liquid_gas_transient/plot_v013_rigid_wall_results.py \
+            tests/test_v013_rigid_wall_observation.py \
+            .github/workflows/v013b-temporary-observation.yml
+          git commit -m "[v013b-metric-fix] Fix reflection metric normalization and plots"
+          git push origin HEAD:agent/stage7-v013b-rigid-wall-reflection
