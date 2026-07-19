@@ -1,0 +1,536 @@
+name: V-013C Temporary Finalization
+
+on:
+  push:
+    branches:
+      - agent/stage7-v013c-fixed-pressure-reflection
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: v013c-finalization-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  finalize-v013c:
+    if: ${{ !contains(github.event.head_commit.message || '', '[v013c-finalize]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      PYTHONPATH: src
+      MPLBACKEND: Agg
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Checkout source branch
+        uses: actions/checkout@v7
+        with:
+          ref: agent/stage7-v013c-fixed-pressure-reflection
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -e .
+          python -m pip install pytest "CoolProp==8.0.0" "matplotlib>=3.7"
+
+      - name: Check environment and committed diff
+        run: |
+          python - <<'PY'
+          import CoolProp
+          assert CoolProp.__version__ == "8.0.0"
+          print("CoolProp:", CoolProp.__version__)
+          PY
+          git fetch --no-tags origin main
+          git diff --check origin/main...HEAD
+
+      - name: Run focused V-013C tests
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p artifacts/v013c-final-validation
+          python -m pytest -q \
+            tests/test_linear_acoustic_reference.py \
+            tests/test_v013_fixed_pressure_reflection.py \
+            tests/test_v013_fixed_pressure_observation.py \
+            --strict-markers \
+            --junitxml=artifacts/v013c-final-validation/focused-junit.xml \
+            | tee artifacts/v013c-final-validation/focused-tests.txt
+
+      - name: Run full repository tests
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m pytest -q \
+            --strict-markers \
+            --junitxml=artifacts/v013c-final-validation/full-junit.xml \
+            | tee artifacts/v013c-final-validation/full-tests.txt
+
+      - name: Execute fixed three-mesh observation
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p artifacts/v013c-observation
+          python -m liquid_gas_transient.cases.v013_fixed_pressure_observation \
+            artifacts/v013c-observation \
+            | tee artifacts/v013c-final-validation/observation-run.txt
+
+      - name: Generate seven figures from saved artifacts
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m liquid_gas_transient.plot_v013_fixed_pressure_results \
+            artifacts/v013c-observation \
+            | tee artifacts/v013c-final-validation/plot-run.txt
+
+      - name: Validate observation and prepare evidence
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+
+          import csv
+          import hashlib
+          import json
+          import math
+          import os
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+
+          observation = Path("artifacts/v013c-observation")
+          validation = Path("artifacts/v013c-final-validation")
+          metrics = json.loads((observation / "v013c_metrics.json").read_text(encoding="utf-8"))
+          plot_metrics = json.loads((observation / "v013c_plot_metrics.json").read_text(encoding="utf-8"))
+          with (observation / "v013c_summary.csv").open(encoding="utf-8", newline="") as stream:
+              summary = list(csv.DictReader(stream))
+
+          def counts(path: Path) -> dict[str, int]:
+              root = ET.parse(path).getroot()
+              cases = root.findall(".//testcase")
+              failures = sum(case.find("failure") is not None for case in cases)
+              errors = sum(case.find("error") is not None for case in cases)
+              skipped = sum(case.find("skipped") is not None for case in cases)
+              return {
+                  "total": len(cases),
+                  "passed": len(cases) - failures - errors - skipped,
+                  "failures": failures,
+                  "errors": errors,
+                  "skipped": skipped,
+              }
+
+          assert metrics["planned_run_count"] == 3
+          assert metrics["executed_run_count"] == 3
+          assert metrics["overall_execution_pass"] is True
+          assert metrics["aggregate_analysis_complete"] is True
+          assert metrics["comparison_plots_complete"] is True
+          assert metrics["reference_calls_coolprop"] is False
+          assert metrics["production_solver_behavior_changed"] is False
+          assert metrics["validation"] is False
+          assert metrics["design_evaluation"] is False
+          assert metrics["acceptance_gate"] is False
+          assert metrics["formal_fvm_regression_band_applied"] is False
+          assert len(summary) == 3
+          assert plot_metrics["plot_count"] == 7
+          assert plot_metrics["expected_plot_count"] == 7
+          assert plot_metrics["plotting_errors"] == {}
+          assert plot_metrics["solver_rerun"] is False
+          assert plot_metrics["numerical_results_changed"] is False
+
+          files = sorted(path for path in observation.rglob("*") if path.is_file())
+          manifest = []
+          for path in files:
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              manifest.append({
+                  "path": path.relative_to(observation).as_posix(),
+                  "size_bytes": path.stat().st_size,
+                  "sha256": digest,
+              })
+          (validation / "observation-file-manifest.json").write_text(
+              json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          evidence = {
+              "source_commit": os.environ["GITHUB_SHA"],
+              "workflow_run_id": os.environ["GITHUB_RUN_ID"],
+              "coolprop_version": metrics["coolprop_version"],
+              "focused_tests": counts(validation / "focused-junit.xml"),
+              "full_tests": counts(validation / "full-junit.xml"),
+              "committed_diff_range": "origin/main...HEAD",
+              "committed_diff_check": "success",
+              "runs": metrics["executed_run_count"],
+              "figures": plot_metrics["plot_count"],
+              "plotting_errors": plot_metrics["plotting_errors"],
+              "solver_rerun": plot_metrics["solver_rerun"],
+              "numerical_results_changed": plot_metrics["numerical_results_changed"],
+              "artifact_entries": len(files),
+              "production_solver_behavior_changed": False,
+              "validation": False,
+              "design_evaluation": False,
+              "acceptance_gate": False,
+          }
+          (validation / "execution-evidence.json").write_text(
+              json.dumps(evidence, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(evidence, ensure_ascii=False, indent=2))
+          PY
+
+      - name: Upload final V-013C evidence
+        id: upload
+        uses: actions/upload-artifact@v7
+        with:
+          name: v013c-fixed-pressure-final-${{ github.run_id }}
+          path: |
+            artifacts/v013c-observation/**
+            artifacts/v013c-final-validation/**
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Finalize verification documents and PR body
+        env:
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+
+          import csv
+          import json
+          import math
+          import os
+          from pathlib import Path
+          import re
+          import xml.etree.ElementTree as ET
+
+          root = Path.cwd()
+          observation = root / "artifacts/v013c-observation"
+          validation = root / "artifacts/v013c-final-validation"
+          metrics = json.loads((observation / "v013c_metrics.json").read_text(encoding="utf-8"))
+          plot_metrics = json.loads((observation / "v013c_plot_metrics.json").read_text(encoding="utf-8"))
+          evidence = json.loads((validation / "execution-evidence.json").read_text(encoding="utf-8"))
+          with (observation / "v013c_summary.csv").open(encoding="utf-8", newline="") as stream:
+              summary_rows = list(csv.DictReader(stream))
+
+          def fmt(value: object, digits: int = 8) -> str:
+              if value in (None, ""):
+                  return "n/a"
+              number = float(value)
+              if not math.isfinite(number):
+                  return "n/a"
+              return f"{number:.{digits}g}"
+
+          def run_details(row: dict[str, str]) -> dict[str, object]:
+              case_id = str(row["case_id"])
+              run_dir = observation / case_id
+              fvm = json.loads((run_dir / "fvm_metrics.json").read_text(encoding="utf-8"))
+              comparison = json.loads((run_dir / "comparison_metrics.json").read_text(encoding="utf-8"))
+              probes = comparison["probe_reflection_metrics"]
+              pressure_values = [
+                  item["implementations"]["fvm"].get("pressure_reflection_coefficient")
+                  for item in probes
+              ]
+              velocity_values = [
+                  item["implementations"]["fvm"].get("velocity_reflection_coefficient")
+                  for item in probes
+              ]
+              pressure_values = [float(v) for v in pressure_values if v is not None]
+              velocity_values = [float(v) for v in velocity_values if v is not None]
+              reflected = [
+                  item for item in comparison["field_metrics"]
+                  if item["phase"] == "reflected"
+              ]
+              final_sample = max(reflected, key=lambda item: float(item["path_travel_m"]))
+              boundary = fvm["boundary_metrics"]
+              return {
+                  "case_id": case_id,
+                  "n_cells": int(float(row["n_cells"])),
+                  "dx_m": float(row["dx_m"]),
+                  "pressure_coefficient": sum(pressure_values) / len(pressure_values),
+                  "velocity_coefficient": sum(velocity_values) / len(velocity_values),
+                  "fixed_pressure_residual": boundary.get("normalized_fixed_pressure_residual"),
+                  "velocity_amplification": boundary.get("boundary_velocity_amplification_ratio"),
+                  "integrated_mass_kg": boundary.get("integrated_right_boundary_mass_kg"),
+                  "integrated_energy_j": boundary.get("integrated_right_boundary_energy_j"),
+                  "final_pressure_peak_ratio": final_sample["fvm"]["pressure_peak"].get("absolute_peak_ratio"),
+                  "max_pressure_l2": max(
+                      float(item["fvm"]["pressure_perturbation_pa"]["l2_relative"])
+                      for item in comparison["field_metrics"]
+                  ),
+                  "max_velocity_l2": max(
+                      float(item["fvm"]["velocity_m_s"]["l2_relative"])
+                      for item in comparison["field_metrics"]
+                  ),
+              }
+
+          rows = [run_details(row) for row in summary_rows]
+          rows.sort(key=lambda item: int(item["n_cells"]))
+          source_head = evidence["source_commit"]
+          run_id = evidence["workflow_run_id"]
+          artifact_id = os.environ.get("ARTIFACT_ID", "unknown")
+          artifact_digest = os.environ.get("ARTIFACT_DIGEST", "unknown")
+          focused = evidence["focused_tests"]
+          full = evidence["full_tests"]
+          coolprop = evidence["coolprop_version"]
+          entries = evidence["artifact_entries"]
+
+          table_header = (
+              "| n | Δx [m] | pressure reflection coefficient | velocity reflection coefficient | "
+              "fixed-pressure residual | boundary velocity ratio | final reflected peak ratio |\n"
+              "|---:|---:|---:|---:|---:|---:|---:|"
+          )
+          table_lines = [table_header]
+          for row in rows:
+              table_lines.append(
+                  "| {n_cells} | {dx} | {pc} | {vc} | {pr} | {va} | {fp} |".format(
+                      n_cells=row["n_cells"],
+                      dx=fmt(row["dx_m"], 6),
+                      pc=fmt(row["pressure_coefficient"]),
+                      vc=fmt(row["velocity_coefficient"]),
+                      pr=fmt(row["fixed_pressure_residual"]),
+                      va=fmt(row["velocity_amplification"]),
+                      fp=fmt(row["final_pressure_peak_ratio"]),
+                  )
+              )
+          result_table = "\n".join(table_lines)
+
+          evidence_block = f"""```text
+workflow run:       {run_id}
+source head:        {source_head}
+focused tests:      {focused['passed']} passed, {focused['skipped']} skipped
+full repository:    {full['passed']} passed, {full['skipped']} skipped
+runs:               3 / 3
+figures:            7 / 7
+plotting errors:    0
+CoolProp:           {coolprop}
+artifact ID:        {artifact_id}
+artifact entries:   {entries}
+artifact digest:    {artifact_digest}
+```"""
+
+          notes = f"""# Stage 7 V-013C Fixed-Pressure Reflection Observation Notes
+
+Status: `OBSERVED; READY FOR REVIEW`. V-013 overall remains `IN_PROGRESS`.
+
+## Final observation evidence
+
+{evidence_block}
+
+Plotting reads saved artifacts only: `solver_rerun = false` and
+`numerical_results_changed = false`.
+
+## Numerical observations
+
+{result_table}
+
+The right-going `A+` pulse returns as a left-going `A-` pulse with the expected
+negative pressure sign and positive velocity sign. The boundary pressure residual is
+recorded against the imposed `p0`; boundary velocity amplification is compared with
+the ideal ratio `2`. Nonzero mass and energy fluxes are expected for this pressure
+boundary and are recorded as observations rather than zero-flux acceptance conditions.
+
+The principal reflection and field-error indicators improve with mesh refinement, while
+substantial FVM numerical diffusion remains. The finest mesh is not an exact or
+design-accurate solution.
+
+## Guardrails
+
+Production solver, numerical flux, EOS inversion, and `PressureTankBoundary` behaviour
+are unchanged. Physical Validation and design-use acceptance remain `False`; the
+property backend remains `not_approved_for_design_use`; MOC is verification-only; no
+FVM regression, CI-light, or design-accuracy band is introduced.
+"""
+          notes_path = root / "docs/verification/stage7_v013c_fixed_pressure_reflection_observation_notes.md"
+          notes_path.write_text(notes, encoding="utf-8")
+
+          master_path = root / "docs/verification/MASTER_VERIFICATION_INDEX.md"
+          master = master_path.read_text(encoding="utf-8")
+          master = re.sub(
+              r"- V-013C fixed-pressure reflection:.*",
+              "- V-013C fixed-pressure reflection: `OBSERVED; READY FOR REVIEW` in PR #50",
+              master,
+              count=1,
+          )
+          v013c_section = f"""## V-013C evidence
+
+Execution plan:
+[`v013c_fixed_pressure_reflection_execution_plan.md`](v013c_fixed_pressure_reflection_execution_plan.md)
+
+Observation notes:
+[`stage7_v013c_fixed_pressure_reflection_observation_notes.md`](stage7_v013c_fixed_pressure_reflection_observation_notes.md)
+
+Final evidence:
+
+{evidence_block}
+
+{result_table}
+
+The expected fixed-pressure reflection direction and signs are observed. Boundary
+pressure, velocity amplification, and nonzero mass/energy transfer are recorded without
+changing production boundary behaviour. Strong FVM numerical diffusion remains, so
+this is an observation rather than an accuracy or design-use acceptance.
+
+"""
+          master = re.sub(
+              r"## V-013C active increment.*?(?=## Guardrails)",
+              v013c_section,
+              master,
+              flags=re.S,
+          )
+          master = re.sub(
+              r"## Next action.*\Z",
+              "## Next action\n\n1. complete PR #50 review and merge;\n"
+              "2. compare V-013A/B/C jointly and decide the Stage 7 formalization path;\n"
+              "3. keep physical Validation and design-use acceptance as separate future gates.\n",
+              master,
+              flags=re.S,
+          )
+          master_path.write_text(master, encoding="utf-8")
+
+          log_path = root / "docs/verification/stage7_execution_log.md"
+          log = log_path.read_text(encoding="utf-8")
+          final_log = f"""## 2026-07-19 — V-013C fixed-pressure reflection
+
+Status: `OBSERVED; READY FOR REVIEW` on branch
+`agent/stage7-v013c-fixed-pressure-reflection`; Draft PR #50 remains open. V-013 overall
+remains `IN_PROGRESS`.
+
+The fixed case uses the same `100 Pa`, `x0=65 m`, `sigma=2 m`, `n=100/200/400`, FVM
+CFL `0.5`, and MOC CFL `1.0` contract as V-013B, with the right boundary changed to
+the existing fixed-pressure `PressureTankBoundary` path.
+
+Ideal reference identities are `A-_reflected = -A+_incident`, pressure coefficient
+`-1`, velocity coefficient `+1`, zero pressure perturbation at the boundary, and
+boundary velocity ratio `2`.
+
+Final evidence:
+
+{evidence_block}
+
+{result_table}
+
+The reflected pressure sign is negative, reflected velocity sign is positive, and the
+returning characteristic is `A-`. Boundary mass and energy fluxes are not required to
+be zero for this pressure boundary; they are retained in the saved telemetry and
+integrated-transfer evidence. Mesh refinement improves the principal metrics, but the
+finest mesh remains affected by substantial numerical broadening and peak loss.
+
+All figures contain case, model, backend, CoolProp version, output version, and the
+software/numerical-verification disclaimer. Plotting did not rerun a solver or change
+numerical results. Production solver, flux, EOS inversion, and boundary behaviour are
+unchanged. Physical Validation, design-use acceptance, and V-013 acceptance bands
+remain outside this increment.
+"""
+          log = re.sub(
+              r"## 2026-07-19 — V-013C fixed-pressure reflection start.*\Z",
+              final_log,
+              log,
+              flags=re.S,
+          )
+          log_path.write_text(log, encoding="utf-8")
+
+          plan_path = root / "docs/verification/v013c_fixed_pressure_reflection_execution_plan.md"
+          plan = plan_path.read_text(encoding="utf-8")
+          plan = re.sub(
+              r"(## 1\. Status\s+).*?(\n\n)",
+              r"\1`OBSERVED; READY FOR REVIEW`\2",
+              plan,
+              count=1,
+              flags=re.S,
+          )
+          completion = f"""## 12. Final observation evidence
+
+{evidence_block}
+
+{result_table}
+
+The final comparison preserves finite pressure-, velocity-, and characteristic-error
+normalizations. Nonzero fixed-pressure boundary mass and energy fluxes are recorded,
+not treated as failures. The seven figures are generated from saved artifacts only.
+
+## 13. Completion boundary
+
+Complete for V-013C review:
+
+- specification, IDs, samples, event windows, and contamination guards;
+- independent fixed-pressure identities and runtime import independence;
+- production-connected runner using the existing pressure boundary;
+- traceable JSON, CSV, NPZ, report, and boundary telemetry;
+- saved-artifact-only seven-figure plotter;
+- focused/full tests and fixed `n=100 / 200 / 400` observation;
+- exact artifact/run evidence and observation notes.
+
+Physical Validation, design-use acceptance, and V-013 regression/design-accuracy bands
+remain outside this increment. Next: review and merge PR #50, then formalize the joint
+V-013A/B/C findings.
+"""
+          plan = re.sub(r"## 12\. Implementation sequence.*\Z", completion, plan, flags=re.S)
+          plan_path.write_text(plan, encoding="utf-8")
+
+          pr_body = f"""## Summary
+
+Completes Stage 7 / V-013C fixed-pressure reflection cross verification using the
+existing production FVM pressure boundary and the independent linear-acoustic MOC /
+analytical reference.
+
+- fixed and reviewed V-013C contract for `n=100 / 200 / 400`;
+- pressure reflection `-1`, velocity reflection `+1`, boundary pressure perturbation `0`;
+- production-connected runner with traceable JSON, CSV, NPZ, report, and boundary telemetry;
+- saved-artifact-only seven-figure plotter;
+- nonzero boundary mass/energy transfer recorded as observation evidence;
+- no production solver, numerical-flux, EOS-inversion, or boundary-behaviour change.
+
+## Final evidence
+
+{evidence_block}
+
+## Primary observations
+
+{result_table}
+
+The expected negative pressure reflection, positive velocity reflection, and left-going
+`A-` return are observed. Mesh refinement improves the principal metrics, while strong
+FVM numerical diffusion remains material at the finest mesh.
+
+## Guardrails
+
+- software / numerical verification only;
+- not physical Validation or design-use acceptance;
+- backend remains `not_approved_for_design_use`;
+- MOC remains verification-only;
+- no FVM regression, CI-light, or design-accuracy band;
+- finest FVM or MOC mesh is not an exact solution;
+- V-013 overall remains `IN_PROGRESS` pending joint A/B/C formalization.
+
+## Next
+
+Complete review, remove temporary evidence-capture files, merge PR #50, and then
+formalize the combined V-013A/B/C conclusions.
+"""
+          (validation / "pr-body.md").write_text(pr_body, encoding="utf-8")
+          PY
+
+          gh pr edit 50 \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Add V-013C fixed-pressure reflection cross verification" \
+            --body-file artifacts/v013c-final-validation/pr-body.md
+
+      - name: Remove temporary evidence files and commit finalization
+        run: |
+          find .github/workflows -maxdepth 1 -type f -name 'v013c-temporary-*.yml' -delete
+          find docs/verification -maxdepth 1 -type f -name '.v013c*' -delete
+          find scripts -maxdepth 1 -type f -name 'v013c_*' -delete 2>/dev/null || true
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "[v013c-finalize] Record final fixed-pressure observation"
+          git push origin HEAD:agent/stage7-v013c-fixed-pressure-reflection
