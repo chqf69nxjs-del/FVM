@@ -12,8 +12,8 @@ Historical detail through the V-013 reference-core checkpoint is preserved in
 - PR #48 merge commit: `613b21622b22402fbf7b8d77b1d881db7ff5f28e`
 - V-013B rigid-wall reflection: `OBSERVED; MERGED` in PR #49
 - PR #49 merge commit: `bc874193de6a4c019073b6cf629e99ec5dfa6602`
-- V-013C fixed-pressure reflection: `OBSERVED; READY FOR REVIEW` in PR #50
-- active branch: `agent/stage7-v013c-fixed-pressure-reflection`
+- V-013C fixed-pressure reflection: `OBSERVED; MERGED` in PR #50
+- PR #50 merge commit: `f403103c46a1d618ce2f2345c986e29b921b664a`
 
 ## V-013 case matrix
 
@@ -21,7 +21,7 @@ Historical detail through the V-013 reference-core checkpoint is preserved in
 |---|---|---|---|
 | V-013A | incident-wave propagation | right-going `A+` | observed and merged |
 | V-013B | right rigid-wall reflection | `A-_reflected = A+_incident` | observed and merged |
-| V-013C | right fixed-pressure reflection | `A-_reflected = -A+_incident` | observed; review pending |
+| V-013C | right fixed-pressure reflection | `A-_reflected = -A+_incident` | observed and merged |
 
 Common fixed conditions for A/B/C include a `100 Pa` Gaussian perturbation, `x0=65 m`,
 `sigma=2 m`, FVM meshes `n=100 / 200 / 400`, FVM CFL `0.5`, and independent MOC
@@ -131,10 +131,9 @@ model.
 
 ## Next action
 
-1. complete final PR #50 review and merge;
-2. formalize the combined V-013A/B/C baseline and limitation statement;
-3. propose CI-light checks that monitor direction, signs, timing, monotonic refinement,
+1. formalize the combined V-013A/B/C baseline and limitation statement;
+2. propose CI-light checks that monitor direction, signs, timing, monotonic refinement,
    boundary residuals, positivity, and gross regression without treating current peak
    loss as design accuracy;
-4. start a separate numerical-diffusion improvement phase while retaining the current
+3. start a separate numerical-diffusion improvement phase while retaining the current
    first-order solver as the reference baseline.
