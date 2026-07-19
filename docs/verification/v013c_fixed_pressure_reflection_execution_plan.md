@@ -155,24 +155,28 @@ centre. The equality-edge case is classified as contaminated.
 
 ## 9. Specification validation evidence
 
-The scaffold was tested on GitHub Actions before production FVM connection:
+The initial Actions validation passed, but Codex review correctly noted that a bare
+`git diff --check` after checkout examined only the clean working tree. It did not
+prove that the committed PR range was free of whitespace errors. The final evidence
+therefore uses an explicit base/head range and supersedes the initial record:
 
 ```text
-workflow run:       29689605699
-PR head:            ad82f86ea25aee6b2c338ee88ce510c319bfe18d
-Actions merge SHA:  b5ab8b0354fcae6c232e0cb79bf45f02dc85df13
-focused tests:      53 passed, 0 skipped
-full repository:    380 passed, 0 skipped
-failures / errors:  0 / 0
-git diff --check:   success
-CoolProp:           8.0.0
-artifact ID:        8443178060
-artifact SHA256:    12dc1cd0d2ae2dacf87622c930a5b4ef01fad384686e6fee142663456594ac5f
-permanent CI:       4 / 4 success
+workflow run:          29689975579
+PR head:               d61919b30ca39f50d85a4702483ad0489c9a4f18
+Actions merge SHA:     b882d05ecd50710eacd206cc305e50a091219919
+committed diff range:  origin/main...HEAD
+committed diff check:  success
+focused tests:         53 passed in 0.26 s, 0 skipped
+full repository:       380 passed in 141.94 s, 0 skipped
+failures / errors:     0 / 0
+CoolProp:              8.0.0
+artifact ID:           8443286895
+artifact SHA256:       c2df88965f4fd0104dbba3d53d4407c3f6a02d8e863a49a0d11a9120b8e3a046
+permanent CI:          4 / 4 success
 ```
 
 The focused suite contains the independent reference tests and the new V-013C pure
-specification tests. The temporary validation workflow was removed after evidence
+specification tests. Temporary validation workflows are removed after evidence
 capture. The Windows project-environment focused/full recheck remains a separate gate.
 
 ## 10. Required observation metrics
@@ -256,8 +260,8 @@ pressure-boundary idealization.
 
 1. Fix configuration, IDs, reference identities, path convention, probe windows,
    return-pulse guard, and pure tests. `COMPLETE`
-2. Run focused/full GitHub Actions scaffold validation and preserve the evidence.
-   `COMPLETE`
+2. Run focused/full GitHub Actions scaffold validation, check the committed PR range,
+   and preserve the corrected evidence. `COMPLETE`
 3. Pull the branch into the Windows project environment and run focused plus full
    repository tests and `git diff --check`. `NEXT`
 4. Connect a dedicated V-013C runner to the existing Stage 5 fixed-pressure builder
@@ -271,7 +275,8 @@ pressure-boundary idealization.
 
 ## 14. Current completion boundary
 
-The fixed-pressure specification scaffold and pure tests are implemented and pass the
-GitHub Actions focused/full validation. The Windows project-environment recheck is
-pending. The production-connected runner, saved numerical artifacts, figures, and full
-three-mesh observation are not yet implemented or accepted.
+The fixed-pressure specification scaffold and pure tests are implemented, the committed
+PR diff passes `git diff --check origin/main...HEAD`, and the focused/full GitHub
+Actions validation passes. The Windows project-environment recheck is pending. The
+production-connected runner, saved numerical artifacts, figures, and full three-mesh
+observation are not yet implemented or accepted.
