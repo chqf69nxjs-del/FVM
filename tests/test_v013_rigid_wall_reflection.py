@@ -32,6 +32,7 @@ def test_v013b_default_configuration_and_run_plan_are_stable() -> None:
     assert cfg.pulse_center_m == 65.0
     assert cfg.pulse_sigma_m == 2.0
     assert cfg.wall_path_travel_m == 35.0
+    assert cfg.window_half_width_sigma == 2.0
     assert cfg.final_reflected_center_m == 70.0
     plan = build_run_plan(cfg)
     assert [row["case_id"] for row in plan] == [
@@ -62,18 +63,20 @@ def test_v013b_default_configuration_and_run_plan_are_stable() -> None:
         {"validation": True},
     ],
 )
-def test_v013b_configuration_rejects_invalid_or_out_of_scope_values(
-    kwargs,
-) -> None:
+def test_v013b_configuration_rejects_invalid_or_out_of_scope_values(kwargs) -> None:
     with pytest.raises(ValueError):
         V013RigidWallReflectionConfig(**kwargs)
 
 
-def test_case_id_rejects_nonpositive_or_boolean_cell_count() -> None:
+def test_case_id_rejects_invalid_cell_count_or_cfl() -> None:
     with pytest.raises(ValueError):
         case_id_for(0)
     with pytest.raises(ValueError):
         case_id_for(True)
+    with pytest.raises(ValueError):
+        case_id_for(100, fvm_cfl=1.1)
+    with pytest.raises(ValueError):
+        case_id_for(100, moc_cfl=0.5)
 
 
 def test_rigid_wall_identity_matches_independent_reference_core() -> None:
@@ -93,9 +96,7 @@ def test_rigid_wall_identity_matches_independent_reference_core() -> None:
     assert pressure[0] / outgoing[0] == pytest.approx(
         expected["total_wall_pressure_to_incident_pressure_ratio"]
     )
-    assert velocity[0] == pytest.approx(
-        expected["wall_velocity_perturbation_m_s"]
-    )
+    assert velocity[0] == pytest.approx(expected["wall_velocity_perturbation_m_s"])
     assert expected["pressure_reflection_coefficient"] == 1.0
     assert expected["velocity_reflection_coefficient"] == -1.0
 
@@ -105,24 +106,20 @@ def test_rigid_wall_identity_matches_independent_reference_core() -> None:
     [
         (0.0, "incident", 65.0, "A+"),
         (15.0, "incident", 80.0, "A+"),
-        (30.0, "incident", 95.0, "A+"),
+        (25.0, "incident", 90.0, "A+"),
         (35.0, "wall_contact", 100.0, "A+ + A-"),
         (45.0, "reflected", 90.0, "A-"),
         (55.0, "reflected", 80.0, "A-"),
         (65.0, "reflected", 70.0, "A-"),
     ],
 )
-def test_reflection_path_state_is_fixed(
-    distance,
-    phase,
-    center,
-    dominant,
-) -> None:
+def test_reflection_path_state_is_fixed(distance, phase, center, dominant) -> None:
     state = reflection_path_state(distance)
     assert state["phase"] == phase
     assert state["expected_center_x_m"] == pytest.approx(center)
     assert state["expected_dominant_characteristic"] == dominant
-    assert state["secondary_boundary_contamination_expected"] is False
+    assert state["secondary_left_boundary_contamination_expected"] is False
+    assert state["primary_wall_guard_overlap_expected"] is (phase == "wall_contact")
 
 
 def test_matched_sample_plan_uses_fixed_times_without_shifting() -> None:
@@ -130,14 +127,14 @@ def test_matched_sample_plan_uses_fixed_times_without_shifting() -> None:
     assert [row["path_travel_m"] for row in rows] == [
         0.0,
         15.0,
-        30.0,
+        25.0,
         35.0,
         45.0,
         55.0,
         65.0,
     ]
     assert [row["time_s"] for row in rows] == pytest.approx(
-        [0.0, 0.03, 0.06, 0.07, 0.09, 0.11, 0.13]
+        [0.0, 0.03, 0.05, 0.07, 0.09, 0.11, 0.13]
     )
     assert rows[3]["phase"] == "wall_contact"
     assert rows[4]["phase"] == "reflected"
@@ -145,7 +142,7 @@ def test_matched_sample_plan_uses_fixed_times_without_shifting() -> None:
     assert all(row["parameter_tuning_applied"] is False for row in rows)
 
 
-def test_probe_plan_has_nonoverlapping_windows_and_safe_end() -> None:
+def test_probe_plan_has_strictly_separated_windows_and_safe_end() -> None:
     rows = build_probe_plan(500.0)
     assert [row["probe_target_x_m"] for row in rows] == [75.0, 85.0, 90.0]
     assert [row["theoretical_reflected_path_m"] for row in rows] == [
@@ -154,15 +151,10 @@ def test_probe_plan_has_nonoverlapping_windows_and_safe_end() -> None:
         45.0,
     ]
     for row in rows:
-        assert (
-            row["incident_window_end_s"]
-            <= row["boundary_window_start_s"] + 1.0e-15
-        )
-        assert (
-            row["boundary_window_end_s"]
-            <= row["reflected_window_start_s"] + 1.0e-15
-        )
+        assert row["incident_window_end_s"] < row["boundary_window_start_s"]
+        assert row["boundary_window_end_s"] < row["reflected_window_start_s"]
         assert row["evaluation_window_contaminated"] is False
+        assert row["event_windows_strictly_separated"] is True
         assert row["time_shift_applied"] is False
 
 
@@ -194,9 +186,7 @@ def test_v013b_scaffold_has_no_production_or_coolprop_imports() -> None:
         "coolprop",
         "CoolProp",
     )
-    assert not any(
-        any(token in name for token in prohibited) for name in imports
-    )
+    assert not any(any(token in name for token in prohibited) for name in imports)
     source = inspect.getsource(module)
     assert "FvmSolver" not in source
     assert "ReflectiveBoundary" not in source
