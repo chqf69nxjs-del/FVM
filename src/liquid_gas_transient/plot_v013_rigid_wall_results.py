@@ -1,7 +1,7 @@
 """Generate V-013B rigid-wall comparison figures from saved artifacts only.
 
 The plotter reads the JSON/CSV artifacts written by
-``v013_rigid_wall_observation``.  It does not import or rerun the FVM, MOC, or
+``v013_rigid_wall_observation``. It does not import or rerun the FVM, MOC, or
 analytical calculation paths.
 """
 from __future__ import annotations
@@ -88,12 +88,7 @@ def build_v013b_plot_traceability(metrics: Mapping[str, Any]) -> str:
     )
 
 
-def _save(
-    fig: Any,
-    base: Path,
-    name: str,
-    traceability: str,
-) -> str:
+def _save(fig: Any, base: Path, name: str, traceability: str) -> str:
     fig.text(0.01, 0.01, traceability, fontsize=7, va="bottom")
     fig.tight_layout(rect=(0.0, 0.085, 1.0, 1.0))
     fig.savefig(base / name, dpi=160, bbox_inches="tight")
@@ -103,7 +98,8 @@ def _save(
 def _finest_case_id(summary_rows: Sequence[Mapping[str, Any]]) -> str:
     if not summary_rows:
         raise ValueError("V-013B summary is empty")
-    return str(max(summary_rows, key=lambda row: int(float(row["n_cells"])))['case_id'])
+    row = max(summary_rows, key=lambda item: int(float(item["n_cells"])))
+    return str(row["case_id"])
 
 
 def _selected_sample_ids(
@@ -149,6 +145,8 @@ def _rows_for_sample(
 
 
 def _sample_label(rows: Sequence[Mapping[str, Any]]) -> str:
+    if not rows:
+        raise ValueError("V-013B sample rows are empty")
     first = rows[0]
     return f"{first['phase']} {float(first['path_travel_m']):g} m"
 
@@ -192,6 +190,23 @@ def _maximum_energy_difference(
     ]
     usable = [abs(float(value)) for value in values if value is not None]
     return max(usable) if usable else 0.0
+
+
+def _timing_value(
+    timing: Mapping[str, Any],
+    key: str,
+    *,
+    legacy_key: str | None = None,
+) -> float:
+    """Read one saved timing value, accepting one documented legacy alias."""
+
+    value = timing.get(key)
+    if value is None and legacy_key is not None:
+        value = timing.get(legacy_key)
+    if value is None:
+        aliases = f" or {legacy_key}" if legacy_key is not None else ""
+        raise KeyError(f"missing V-013B timing field: {key}{aliases}")
+    return float(value)
 
 
 def plot_v013_rigid_wall_results(
@@ -342,7 +357,7 @@ def plot_v013_rigid_wall_results(
         reflected_ids = [
             sample_id
             for sample_id in selected_sample_ids
-            if _rows_for_sample(matched, sample_id)[0]["phase"] == "reflected"
+            if str(_rows_for_sample(matched, sample_id)[0]["phase"]) == "reflected"
         ]
         if not reflected_ids:
             raise ValueError("no reflected matched sample available")
@@ -394,6 +409,8 @@ def plot_v013_rigid_wall_results(
                 if str(row["probe_id"]) == probe_id
             ),
         )
+        if not probe_ids:
+            raise ValueError("V-013B probe comparison artifact is empty")
         selected_probe = probe_ids[-1]
         rows = sorted(
             (row for row in probe_rows if str(row["probe_id"]) == selected_probe),
@@ -424,13 +441,30 @@ def plot_v013_rigid_wall_results(
             linestyle="--",
             label="analytical",
         )
-        for key, label, linestyle in (
-            ("theoretical_incident_time_s", "incident centre", ":"),
-            ("theoretical_boundary_time_s", "wall contact", "-."),
-            ("theoretical_reflected_time_s", "reflected centre", "--"),
-        ):
+        markers = (
+            (
+                _timing_value(timing, "theoretical_incident_time_s"),
+                "incident centre",
+                ":",
+            ),
+            (
+                _timing_value(
+                    timing,
+                    "theoretical_wall_time_s",
+                    legacy_key="theoretical_boundary_time_s",
+                ),
+                "wall contact",
+                "-.",
+            ),
+            (
+                _timing_value(timing, "theoretical_reflected_time_s"),
+                "reflected centre",
+                "--",
+            ),
+        )
+        for value, label, linestyle in markers:
             ax.axvline(
-                float(timing[key]),
+                value,
                 linestyle=linestyle,
                 linewidth=0.9,
                 alpha=0.7,
