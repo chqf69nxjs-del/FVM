@@ -38,6 +38,14 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         ".v013_rigid_wall_observation",
         "run_v013_rigid_wall_observation",
     ),
+    "V013FixedPressureReflectionConfig": (
+        ".v013_fixed_pressure_reflection",
+        "V013FixedPressureReflectionConfig",
+    ),
+    "run_v013_fixed_pressure_observation": (
+        ".v013_fixed_pressure_observation",
+        "run_v013_fixed_pressure_observation",
+    ),
 }
 
 __all__ = list(_EXPORTS)
