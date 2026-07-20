@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - agent/stage7-muscl-reconstruction-scaffold
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
