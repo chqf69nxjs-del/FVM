@@ -58,8 +58,8 @@ def test_verification_eos_recovers_open_two_phase_primitive_state():
     eos = VerificationHEMEquilibriumEOS()
     prim = eos.primitive_from_conserved(U)
 
-    assert np.all(prim.p == pytest.approx(pressure, rel=1.0e-10))
-    assert np.all(prim.xv == pytest.approx(quality, abs=1.0e-8))
+    np.testing.assert_allclose(prim.p, pressure, rtol=1.0e-10, atol=0.0)
+    np.testing.assert_allclose(prim.xv, quality, rtol=0.0, atol=1.0e-8)
     assert np.all(prim.alpha > quality)
     assert np.all(prim.c > 0.0)
     assert np.all(prim.u == 0.0)
