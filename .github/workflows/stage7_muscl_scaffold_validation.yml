@@ -1,0 +1,63 @@
+name: Stage 7 MUSCL Scaffold Validation
+
+on:
+  push:
+    branches:
+      - agent/stage7-muscl-reconstruction-scaffold
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    env:
+      MPLBACKEND: Agg
+      PYTHONPATH: src
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[coolprop,plotting]" pytest
+
+      - name: Smoke check environment
+        run: |
+          python - <<'PY'
+          import CoolProp
+          import matplotlib
+          import numpy
+          import liquid_gas_transient
+
+          print("CoolProp", CoolProp.__version__)
+          print("matplotlib", matplotlib.__version__)
+          print("numpy", numpy.__version__)
+          print("package", liquid_gas_transient.__version__)
+          PY
+
+      - name: Run focused Stage 7 scaffold tests
+        run: |
+          python -m pytest -q \
+            tests/test_stage7_v013_baseline_definition.py \
+            tests/test_stage7_muscl_reconstruction.py
+
+      - name: Run full repository suite
+        run: python -m pytest -q
+
+      - name: Check committed diff
+        run: git diff --check origin/main...HEAD
+
+      - name: Confirm clean working tree
+        run: test -z "$(git status --porcelain)"
