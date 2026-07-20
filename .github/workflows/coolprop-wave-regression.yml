@@ -18,15 +18,20 @@ jobs:
   coolprop-wave-regression:
     name: coolprop-wave-regression
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     env:
       MPLBACKEND: Agg
       PYTHONPATH: src
+      HEM_OUTPUT_DIR: artifacts/stage7-lco2-hem-zero-d-flash
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
+          fetch-depth: 0
           persist-credentials: false
+
+      - name: Confirm clean checkout
+        run: test -z "$(git status --porcelain --untracked-files=no)"
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -38,7 +43,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel
-          python -m pip install -e .
+          python -m pip install -e ".[plotting]"
           python -m pip install pytest "CoolProp==8.0.0"
 
       - name: Smoke check CoolProp environment
@@ -52,6 +57,7 @@ jobs:
           import CoolProp.CoolProp as CP
           import numpy as np
           import liquid_gas_transient
+          from liquid_gas_transient import hem_thermodynamics
 
           rho = CP.PropsSI("D", "P", 8.0e6, "T", 280.0, "CO2")
           print("Python:", sys.version)
@@ -59,6 +65,7 @@ jobs:
           print("NumPy:", np.__version__)
           print("CoolProp:", CoolProp.__version__)
           print("liquid_gas_transient:", getattr(liquid_gas_transient, "__version__", "unknown"))
+          print("HEM scaffold module:", hem_thermodynamics.__name__)
           print("CO2 density smoke kg/m3:", rho)
           assert CoolProp.__version__ == "8.0.0"
           assert math.isfinite(rho) and rho > 0.0
@@ -119,9 +126,9 @@ jobs:
 
           summary = Path(__import__("os").environ["GITHUB_STEP_SUMMARY"])
           lines = [
-              "# CoolProp Wave Regression",
+              "# CoolProp Wave Regression and HEM Scaffold Validation",
               "",
-              "This is a regression pass for a software / numerical guard only.",
+              "This remains a software / numerical verification guard only.",
               "",
               f"- Python version: {sys.version.split()[0]}",
               f"- Platform: {platform.platform()}",
@@ -138,12 +145,161 @@ jobs:
           summary.write_text("\n".join(lines), encoding="utf-8")
           PY
 
-      - name: Upload regression artifacts
+      - name: Run focused Stage 7 HEM scaffold tests
+        run: |
+          python -m pytest -q \
+            tests/test_property_backend_pt_energy.py \
+            tests/test_coolprop_backend_installed.py \
+            tests/test_stage7_lco2_hem_thermodynamic_scaffold.py \
+            --junitxml=artifacts/stage7-hem-focused-junit.xml
+
+      - name: Assert installed-only HEM tests were not skipped
+        run: |
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+
+          root = ET.parse("artifacts/stage7-hem-focused-junit.xml").getroot()
+          testcases = root.findall(".//testcase")
+          skipped = root.findall(".//skipped")
+          failures = root.findall(".//failure")
+          errors = root.findall(".//error")
+          print(
+              f"testcases={len(testcases)} skipped={len(skipped)} "
+              f"failures={len(failures)} errors={len(errors)}"
+          )
+          assert len(testcases) >= 20
+          assert len(skipped) == 0
+          assert len(failures) == 0
+          assert len(errors) == 0
+          PY
+
+      - name: Check CoolProp compressed-liquid HEM wrapper path
+        run: |
+          python - <<'PY'
+          import numpy as np
+
+          from liquid_gas_transient.hem_thermodynamics import evaluate_hem_thermodynamic_state
+          from liquid_gas_transient.properties import CoolPropCO2Backend
+
+          backend = CoolPropCO2Backend()
+          p = np.array([5.0e6, 8.0e6])
+          T = np.array([280.0, 280.0])
+          rho = backend.density_from_pT(p, T)
+          e = backend.internal_energy_from_pT(p, T)
+          state = evaluate_hem_thermodynamic_state(backend, rho, e)
+
+          assert np.all(np.isfinite(state.p))
+          assert np.all(np.isfinite(state.T))
+          assert np.all(state.quality == 0.0)
+          assert np.all(state.alpha == 0.0)
+          assert set(state.quality_regime.tolist()) == {"liquid_endpoint"}
+          print("rho", rho.tolist())
+          print("p", state.p.tolist())
+          print("T", state.T.tolist())
+          print("reported c", state.reported_sound_speed.tolist())
+          PY
+
+      - name: Run full repository suite for HEM scaffold
+        run: |
+          python -m pytest -q --junitxml=artifacts/stage7-hem-full-junit.xml
+
+      - name: Summarize full repository suite
+        run: |
+          python - <<'PY'
+          import json
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          root = ET.parse("artifacts/stage7-hem-full-junit.xml").getroot()
+          summary = {
+              "testcases": len(root.findall(".//testcase")),
+              "skipped": len(root.findall(".//skipped")),
+              "failures": len(root.findall(".//failure")),
+              "errors": len(root.findall(".//error")),
+          }
+          print(json.dumps(summary, sort_keys=True))
+          assert summary["testcases"] >= 400
+          assert summary["failures"] == 0
+          assert summary["errors"] == 0
+          Path("artifacts/stage7-hem-full-summary.json").write_text(
+              json.dumps(summary, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Generate dependency-free 0-D HEM evidence
+        run: |
+          python -m liquid_gas_transient.hem_thermodynamics \
+            --output-dir "$HEM_OUTPUT_DIR" \
+            --points 21
+          find "$HEM_OUTPUT_DIR" -maxdepth 1 -type f -printf '%f\n' | sort
+
+      - name: Validate 0-D HEM evidence
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          output_dir = Path(os.environ["HEM_OUTPUT_DIR"])
+          payload = json.loads(
+              (output_dir / "stage7_lco2_hem_zero_d_flash.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          assert payload["schema_version"] == "stage7_lco2_hem_zero_d_flash_v1"
+          assert payload["scope"] == "verification_only"
+          assert payload["backend_name"] == "surrogate_lco2"
+          assert payload["production_solver_connected"] is False
+          assert payload["production_solver_behavior_changed"] is False
+          assert payload["pure_co2_hem_thermodynamic_core_complete"] is False
+          assert payload["equilibrium_two_phase_sound_speed_closure_approved"] is False
+          assert payload["backend_reported_sound_speed_is_diagnostic_only"] is True
+          assert payload["solid_phase_supported"] is False
+          assert payload["critical_region_validated"] is False
+          assert payload["physical_validation"] is False
+          assert payload["design_use_acceptance"] is False
+          assert payload["numeric_accuracy_band_approved"] is False
+
+          rows = payload["results"]
+          assert len(rows) == 23
+          assert {row["quality_regime"] for row in rows} == {
+              "liquid_endpoint",
+              "two_phase",
+              "vapor_endpoint",
+          }
+          assert all(row["p_pa"] > 0.0 for row in rows)
+          assert all(row["T_K"] > 0.0 for row in rows)
+          assert all(row["backend_reported_sound_speed_m_s"] > 0.0 for row in rows)
+          assert all(
+              rows[index + 1]["quality"] >= rows[index]["quality"] - 1.0e-14
+              for index in range(len(rows) - 1)
+          )
+          assert all(
+              rows[index + 1]["alpha"] >= rows[index]["alpha"] - 1.0e-14
+              for index in range(len(rows) - 1)
+          )
+          print("regimes", sorted({row["quality_regime"] for row in rows}))
+          PY
+
+      - name: Check committed HEM scaffold diff
+        run: git diff --check origin/main...HEAD
+
+      - name: Confirm tracked and staged files remain unchanged
+        run: |
+          git diff --exit-code
+          git diff --cached --exit-code
+
+      - name: Upload regression and HEM scaffold artifacts
         uses: actions/upload-artifact@v7
         with:
           name: coolprop-wave-regression-${{ github.run_id }}
           path: |
             artifacts/coolprop-wave-regression-junit.xml
             artifacts/coolprop-wave-regression/coolprop_wave_ci_light_regression_result.json
+            artifacts/stage7-hem-focused-junit.xml
+            artifacts/stage7-hem-full-junit.xml
+            artifacts/stage7-hem-full-summary.json
+            artifacts/stage7-lco2-hem-zero-d-flash
           if-no-files-found: error
           retention-days: 14
