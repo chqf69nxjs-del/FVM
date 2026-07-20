@@ -2,7 +2,7 @@
 
 ## Status
 
-`IN_PROGRESS; STACKED ON PR #55; NOT SOLVER CONNECTED`
+`VALIDATED STACKED DRAFT PR #56; NOT SOLVER CONNECTED`
 
 This increment defines a verification-first acoustic closure candidate after explicit phase
 classification. It is based on PR #55 closeout head
@@ -17,8 +17,8 @@ The first-order HEM FVM will require one acoustic speed for:
 - pressure-wave and depressurization-front propagation.
 
 CoolProp and REFPROP do not define a general bulk speed of sound for an equilibrium
-liquid-vapor mixture. The project therefore must define an application-specific HEM
-acoustic closure rather than silently using a backend two-phase `A` result.
+liquid-vapor mixture. The project therefore defines an application-specific HEM acoustic
+closure candidate rather than silently using a backend two-phase `A` result.
 
 ## Thermodynamic identity
 
@@ -51,25 +51,16 @@ The stencil is guarded by explicit phase classification:
 
 ## CoolProp boundary
 
-For every liquid-vapor two-phase state, CoolProp is used only for:
-
-```text
-p
-T
-phase
-quality
-void fraction inputs
-```
-
-CoolProp speed of sound `A` is not requested for two-phase states.
+For every liquid-vapor two-phase state, CoolProp is used only for equilibrium pressure and
+phase/property evaluation. CoolProp speed of sound `A` is not requested.
 
 For representative single-phase liquid and vapor states only, the finite-difference result
-is compared with CoolProp `A`. This is a software/numerical cross-check of the identity and
-finite-difference implementation; it is not physical Validation of the two-phase closure.
+is compared with CoolProp `A`. This checks the identity and numerical implementation; it is
+not physical Validation of the two-phase closure.
 
 ## Representative evidence
 
-The initial map contains:
+The validated map contains ten states:
 
 ```text
 8 MPa / 280 K dense liquid candidate
@@ -84,8 +75,54 @@ The initial map contains:
 1 MPa / 280 K vapor
 ```
 
-Endpoints `q=0` and `q=1` are excluded from the first two-phase acoustic map because a
-central finite-difference stencil can cross the phase boundary there.
+Observed equilibrium sound-speed candidates:
+
+| state | phase | c_eq [m/s] | single-phase relative error |
+|---|---|---:|---:|
+| 8 MPa / 280 K | dense liquid candidate | 557.448855 | 4.21e-08 |
+| 5 MPa / 280 K | liquid | 495.517491 | 1.76e-07 |
+| 2 MPa / q=0.05 | two-phase | 37.846900 | not applicable |
+| 2 MPa / q=0.10 | two-phase | 52.645642 | not applicable |
+| 2 MPa / q=0.25 | two-phase | 89.300480 | not applicable |
+| 2 MPa / q=0.50 | two-phase | 135.765681 | not applicable |
+| 2 MPa / q=0.75 | two-phase | 172.533607 | not applicable |
+| 2 MPa / q=0.90 | two-phase | 191.745205 | not applicable |
+| 2 MPa / q=0.95 | two-phase | 197.788354 | not applicable |
+| 1 MPa / 280 K | vapor | 252.326565 | 3.54e-10 |
+
+Endpoints `q=0` and `q=1` are excluded because a central finite-difference stencil can cross
+the phase boundary there.
+
+The low sound speed near the liquid-side two-phase onset is a numerical observation of the
+selected equilibrium closure and CoolProp EOS. It is not yet an approved physical accuracy
+statement.
+
+## Validation evidence
+
+Primary validation head:
+
+```text
+2458ed2a3beb8ad1e80721a47a11f445822b4641
+```
+
+```text
+workflow run:          29748093054
+artifact ID:           8463388994
+artifact SHA256:       97b6f04a38cd6debafc66fac3dc8b902d1abdf1fed982e04c48000ca5682ad79
+focused HEM tests:     63 passed, 0 skipped
+full repository:       447 passed, 0 skipped
+sound-speed states:    10 / 10
+two-phase states:      7 / 7
+CoolProp two-phase A:  never requested
+```
+
+The generic implementation recovered the analytic ideal-gas sound speed. The three
+single-phase CoolProp states agreed with backend `A` far inside the qualitative `1%` test
+guard. Open two-phase states were finite, positive, phase-preserving, and stable under a
+moderate finite-difference step refinement check.
+
+After evidence capture, the temporary sound-speed workflow was removed and the permanent
+CoolProp wave workflow was restored byte-for-byte to main.
 
 ## Tests
 
@@ -119,9 +156,9 @@ This increment does not:
 
 The scaffold is review-ready when:
 
-- pure and installed-CoolProp focused tests pass without skips in the validation job;
+- pure and installed-CoolProp focused tests pass without skips;
 - all representative states produce finite positive estimates;
-- single-phase estimates agree qualitatively with CoolProp references;
+- single-phase estimates agree with CoolProp references;
 - two-phase records contain no backend `A` request;
 - finite-difference step sensitivity is recorded;
 - full repository tests pass;
@@ -131,7 +168,7 @@ The scaffold is review-ready when:
 
 ## Next gate
 
-After review, the next increment should define acceptance criteria for the sound-speed map,
-then use the reviewed closure in a uniform first-order HEM-state preservation test. A 1-D
+Define a cautious acceptance and change-control policy for this acoustic map, then use the
+reviewed closure in a uniform first-order HEM-state preservation test. A 1-D
 liquid-to-two-phase expansion problem follows only after uniform-state preservation is
 established.
