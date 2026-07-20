@@ -6,7 +6,7 @@ Historical detail through the V-013 reference-core checkpoint is preserved in
 ## Current state — 2026-07-20
 
 - Stage 1–6: `COMPLETE`
-- Stage 7 / V-013: `IN_PROGRESS; BASELINE FORMALIZATION UNDER REVIEW`
+- Stage 7 / V-013: `IN_PROGRESS; BASELINE FORMALIZATION READY FOR REVIEW`
 - independent analytical / CFL=1 MOC reference core: merged in PR #46
 - V-013A incident propagation: `OBSERVED; MERGED` in PR #48
 - PR #48 merge commit: `613b21622b22402fbf7b8d77b1d881db7ff5f28e`
@@ -15,7 +15,15 @@ Historical detail through the V-013 reference-core checkpoint is preserved in
 - V-013C fixed-pressure reflection: `OBSERVED; MERGED` in PR #50
 - PR #50 merge commit: `f403103c46a1d618ce2f2345c986e29b921b664a`
 - post-PR #50 Windows baseline: `385 passed`, working tree clean
+- PR #51 Windows validation head: `61c4810d3aa0a13c2a0709628955512d1f1243a2`
+- PR #51 baseline-definition integrity tests: `4 passed`
+- PR #51 full repository suite: `389 passed`
+- PR #51 committed diff and working tree: clean
+- PR #51 permanent GitHub Actions: `4 / 4` success
 - active branch: `agent/stage7-v013-baseline-formalization`
+
+The validation head above precedes documentation-only closeout edits that record these
+results. The baseline data, integrity-test logic, and production solver are unchanged.
 
 ## V-013 formalization documents
 
@@ -171,10 +179,9 @@ rerun V-013A/B/C, and compare against baseline version `v013_baseline_v1`.
 
 ## Next action
 
-1. run the baseline-definition integrity tests and full repository suite on Windows;
-2. review the baseline/limitation statement and CI-light proposal;
-3. merge the formalization PR without changing production solver behavior;
-4. decide Tier 1 CI-light runtime, path filters, and exact invariant list;
-5. perform a repeatability study before proposing numeric drift bands;
-6. start a separate numerical-diffusion improvement phase while retaining the current
+1. collect and address Codex/reviewer feedback on PR #51;
+2. merge the formalization PR without changing production solver behavior;
+3. decide Tier 1 CI-light runtime, path filters, and exact invariant list;
+4. perform a repeatability study before proposing numeric drift bands;
+5. start a separate numerical-diffusion improvement phase while retaining the current
    first-order solver as the reference baseline.
