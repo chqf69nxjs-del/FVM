@@ -6,7 +6,9 @@ Historical detail through the V-013 reference-core checkpoint is preserved in
 ## Current state — 2026-07-20
 
 - Stage 1–6: `COMPLETE`
-- Stage 7 / V-013: `IN_PROGRESS; BASELINE FORMALIZATION READY FOR REVIEW`
+- Stage 7: `IN_PROGRESS`
+- V-013 first-order propagation/reflection baseline: `FORMALIZED; MERGED` in PR #51
+- PR #51 merge commit: `62390bd526ae99b6702f4ed76e3594e1bf01259b`
 - independent analytical / CFL=1 MOC reference core: merged in PR #46
 - V-013A incident propagation: `OBSERVED; MERGED` in PR #48
 - PR #48 merge commit: `613b21622b22402fbf7b8d77b1d881db7ff5f28e`
@@ -14,18 +16,35 @@ Historical detail through the V-013 reference-core checkpoint is preserved in
 - PR #49 merge commit: `bc874193de6a4c019073b6cf629e99ec5dfa6602`
 - V-013C fixed-pressure reflection: `OBSERVED; MERGED` in PR #50
 - PR #50 merge commit: `f403103c46a1d618ce2f2345c986e29b921b664a`
-- post-PR #50 Windows baseline: `385 passed`, working tree clean
-- PR #51 Windows validation head: `61c4810d3aa0a13c2a0709628955512d1f1243a2`
-- PR #51 baseline-definition integrity tests: `4 passed`
-- PR #51 full repository suite: `389 passed`
-- PR #51 committed diff and working tree: clean
-- PR #51 permanent GitHub Actions: `4 / 4` success
-- active branch: `agent/stage7-v013-baseline-formalization`
+- MUSCL/TVD pure reconstruction scaffold: `OPEN; READY FOR REVIEW` in PR #52
+- scalar-advection comparison: `VALIDATED STACKED DRAFT` in PR #53
+- pure-CO2 HEM thermodynamic scaffold: `VALIDATED DRAFT; NOT SOLVER CONNECTED` in PR #54
+- active physical-model branch: `agent/stage7-lco2-hem-thermodynamic-scaffold`
 
-The validation head above precedes documentation-only closeout edits that record these
-results. The baseline data, integrity-test logic, and production solver are unchanged.
+The main development objective remains a conservative one-dimensional LCO2 pipeline
+transient code that can progress from liquid states through flashing and liquid-vapor
+two-phase formation. The immediate physical-model line is the pure-CO2 HEM thermodynamic
+closure. Higher-order transport remains a separate later numerical-improvement line.
 
-## V-013 formalization documents
+## First-order baseline formalization
+
+The post-PR #50 main state was independently rechecked on Windows with `385 passed` and a
+clean working tree. PR #51 review-readiness validation then completed at head
+`61c4810d3aa0a13c2a0709628955512d1f1243a2`:
+
+```text
+baseline-definition integrity tests: 4 passed
+full repository suite:              389 passed
+committed diff:                     clean
+working tree:                       clean
+permanent GitHub Actions:           4 / 4 success
+```
+
+The current first-order production FVM is fixed as a selectable software/numerical control.
+It is not physical Validation, design-use acceptance, an exact solution, or an approved
+wave-amplitude accuracy band.
+
+Formalization documents:
 
 - joint baseline and limitations:
   [`stage7_v013_baseline_and_limitations.md`](stage7_v013_baseline_and_limitations.md)
@@ -34,9 +53,8 @@ results. The baseline data, integrity-test logic, and production solver are unch
 - cautious CI-light proposal:
   [`stage7_v013_ci_light_proposal.md`](stage7_v013_ci_light_proposal.md)
 
-The current first-order production FVM is being frozen as a software/numerical
-observation baseline. The formalization does not approve physical Validation,
-design-use acceptance, or numeric CI/accuracy bands.
+CI-light remains `PROPOSED; NOT APPROVED; NOT IMPLEMENTED`. No numeric V-013 regression or
+design-accuracy band has been approved.
 
 ## V-013 case matrix
 
@@ -61,7 +79,7 @@ Observation notes:
 - direction and approximate wave speed are consistent;
 - dominant error is strong numerical diffusion decreasing with refinement.
 
-| n | Δx [m] | final pressure peak ratio |
+| n | Delta x [m] | final pressure peak ratio |
 |---:|---:|---:|
 | 100 | 1.00 | 0.33987050 |
 | 200 | 0.50 | 0.44696360 |
@@ -134,12 +152,12 @@ artifact SHA256:    6432fb8502687cb974c161356e4ac8364235ef2ba5c92ac7bb9f1e52dca5
 | 200 | -0.69829946 | 0.69829998 | 0.04880759 | 1.09704849 | 0.44185022 |
 | 400 | -0.77022729 | 0.77022778 | 0.03712903 | 1.37073388 | 0.57212615 |
 
-The negative pressure reflection, positive velocity reflection, and left-going return
-are observed. The fixed-pressure residual decreases and the boundary velocity ratio
-moves toward `2` with refinement. Nonzero boundary mass and energy transfer are
-expected observations for this pressure boundary, not zero-flux failures.
+The negative pressure reflection, positive velocity reflection, and left-going return are
+observed. The fixed-pressure residual decreases and the boundary velocity ratio moves
+toward `2` with refinement. Nonzero boundary mass and energy transfer are expected
+observations for this pressure boundary, not zero-flux failures.
 
-## Joint Stage 7 finding
+## Joint Stage 7 first-order finding
 
 The production FVM consistently reproduces the direction, approximate timing, reflection
 signs, and essential boundary-condition behaviour across V-013A/B/C. The common limiting
@@ -148,40 +166,91 @@ the final pressure peak in all three cases, and field L2 differences remain mate
 
 Therefore the current solver is suitable as a robust first-order software/numerical
 verification baseline, but not as a physically validated or design-accurate wave-amplitude
-model.
-
-The approximately `57%` peak retention is an observed limitation. It is not an approved
+model. The approximately `57%` peak retention is an observed limitation, not an approved
 accuracy target, design margin, or CI regression band.
 
-## Baseline integrity and future change control
+## Numerical-diffusion improvement assets
 
-The machine-readable baseline is covered by pure integrity tests that require:
+PR #52 contains a solver-independent MUSCL/TVD reconstruction layer with first-order,
+minmod, MC, and van Leer paths plus pure invariant tests. It does not change production
+solver behaviour.
 
-- all three merged cases and source merge commits;
-- fixed common-case configuration;
-- expected reflection signs and boundary roles;
-- monotonic refinement trends in the recorded observations;
-- false Validation, design-use, and band-approval flags.
+PR #53 contains a periodic scalar-advection comparison. The validated fixed Gaussian case
+shows material peak-retention, width-preservation, and L2-error improvements for all MUSCL
+variants relative to the same-time-integrator first-order control. These results rank later
+numerical candidates; they do not approve a production limiter or time integrator.
 
-Future higher-order work shall retain the current first-order path as a selectable control,
-rerun V-013A/B/C, and compare against baseline version `v013_baseline_v1`.
+The first-order path remains the control. Higher-order production connection is deferred
+until the HEM thermodynamic and first-order two-phase paths are established.
+
+## Pure-CO2 HEM thermodynamic scaffold — PR #54
+
+Draft PR #54 adds a solver-independent HEM-oriented wrapper around the existing
+`RealFluidPropertyBackend.state_from_rho_e` contract and a deterministic surrogate 0-D
+liquid/two-phase/vapor path.
+
+Primary validation evidence:
+
+```text
+validation head:           c96567cb63a67b3d9be2f3f20e7e5790e7ee3828
+workflow run:              29739900542
+artifact ID:               8459985478
+artifact SHA256:           98c3e973d0f81c68bf0cf86396679964d87a3f4f1ecdb542bdbe1dbaeecf8103
+focused tests:             24 passed, 0 skipped
+full repository:           406 passed, 0 skipped
+0-D path states:           23 / 23
+0-D artifact formats:       4 / 4
+committed diff:             clean
+tracked/staged files:       unchanged
+permanent workflows:       4 / 4 success
+```
+
+The scaffold:
+
+- validates finite positive density and finite real-fluid internal energy;
+- does not impose a universal `e >= 0` rule on real-fluid reference states;
+- validates pressure, temperature, quality, void fraction, and backend-reported sound speed;
+- classifies quality endpoints and the open two-phase quality interval;
+- wraps backend failures with backend-name context;
+- preserves input arrays and memory independence;
+- emits JSON, CSV, Markdown, and NPZ evidence with false approval flags.
+
+Important limitations remain explicit:
+
+```text
+production solver connected:                         false
+pure-CO2 HEM thermodynamic core complete:             false
+equilibrium two-phase sound-speed closure approved:  false
+backend-reported sound speed:                         diagnostic only
+critical region validated:                           false
+solid phase supported:                               false
+physical Validation:                                 false
+design-use acceptance:                               false
+```
+
+The current labels are quality-regime labels, not a complete thermodynamic phase
+classification. Explicit CoolProp phase classification, critical/solid guards, and an
+approved equilibrium two-phase sound-speed closure remain before solver connection.
 
 ## Guardrails
 
 - software / numerical verification only;
 - physical Validation and design-use acceptance remain `False`;
-- property backend remains `not_approved_for_design_use`;
+- property backends remain `not_approved_for_design_use` unless a separate gate says otherwise;
 - MOC is verification-only and the finest mesh is not exact;
 - no time shift or parameter tuning is permitted;
-- CI-light is `PROPOSED; NOT APPROVED; NOT IMPLEMENTED`;
+- CI-light for V-013 remains proposed, not approved or implemented;
 - no numeric V-013 regression or design-accuracy band has been approved;
-- production solver, numerical flux, EOS inversion, and boundary behaviour are unchanged.
+- PR #54 does not change production solver, numerical flux, EOS adapter, phase-change,
+  source, boundary, or interface behaviour.
 
 ## Next action
 
-1. collect and address Codex/reviewer feedback on PR #51;
-2. merge the formalization PR without changing production solver behavior;
-3. decide Tier 1 CI-light runtime, path filters, and exact invariant list;
-4. perform a repeatability study before proposing numeric drift bands;
-5. start a separate numerical-diffusion improvement phase while retaining the current
-   first-order solver as the reference baseline.
+1. review the pure-CO2 HEM thermodynamic scaffold in PR #54;
+2. close PR #52 and PR #53 independently as numerical-improvement assets without making
+   them dependencies of the HEM line;
+3. expose explicit CoolProp phase classification for safe representative `rho/e` states;
+4. separate two-phase equilibrium property evaluation from sound-speed evaluation;
+5. define and verify an equilibrium two-phase sound-speed closure;
+6. generate a CoolProp pure-CO2 0-D phase/property map away from critical and solid regions;
+7. then connect the reviewed closure to a first-order uniform HEM-state preservation case.

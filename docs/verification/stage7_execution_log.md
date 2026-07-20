@@ -153,7 +153,7 @@ review threads were resolved. Production solver, numerical flux, EOS inversion, 
 boundary behaviour remain unchanged. Physical Validation, design-use acceptance, and
 V-013 acceptance bands remain outside this increment.
 
-## Joint Stage 7 conclusion
+## Joint Stage 7 first-order conclusion
 
 V-013A/B/C consistently support the following conclusions:
 
@@ -165,10 +165,10 @@ V-013A/B/C consistently support the following conclusions:
 - the current solver is a robust software/numerical verification baseline, not a
   physically validated or design-accurate wave-amplitude model.
 
-## 2026-07-20 — V-013 baseline formalization
+## 2026-07-20 — V-013 baseline formalization merged
 
-Status: `IN_PROGRESS; BASELINE FORMALIZATION READY FOR REVIEW` on branch
-`agent/stage7-v013-baseline-formalization` in PR #51.
+Status: `FORMALIZED; MERGED` in PR #51. Merge commit:
+`62390bd526ae99b6702f4ed76e3594e1bf01259b`.
 
 Starting point:
 
@@ -179,7 +179,7 @@ working tree:          clean
 production changes:    none
 ```
 
-The formalization increment adds:
+The formalization increment added:
 
 - a combined A/B/C baseline and limitation statement;
 - machine-readable baseline version `v013_baseline_v1`;
@@ -189,19 +189,8 @@ The formalization increment adds:
   numeric drift bands;
 - synchronized merged status in the V-013A and V-013B observation notes.
 
-The proposed baseline classifies the current first-order FVM as suitable for software and
-numerical regression comparison. It explicitly prohibits interpretation as physical
-Validation, design-use acceptance, an exact solution, or an approved accuracy band.
-
-The CI-light proposal is `PROPOSED; NOT APPROVED; NOT IMPLEMENTED`. Pull-request Tier 1
-would use inexpensive qualitative/invariant checks; scheduled Tier 2 would preserve the
-full `n=100/200/400` refinement trends. Numeric tolerances require a separate repeatability
-study before approval.
-
-### Windows review-readiness validation
-
-PR #51 was rechecked on Windows at head
-`61c4810d3aa0a13c2a0709628955512d1f1243a2`:
+Windows review-readiness validation at head
+`61c4810d3aa0a13c2a0709628955512d1f1243a2` passed:
 
 ```text
 baseline-definition integrity: 4 passed
@@ -211,16 +200,102 @@ working tree:                 clean
 permanent GitHub Actions:     4 / 4 success
 ```
 
-The permanent-workflow runs were `29708711863`, `29708711867`, `29708711868`, and
-`29708711869`; all completed successfully. This satisfies the review-readiness validation
-gate. The later closeout commits only record these results in documentation and do not
-change the baseline data, integrity-test logic, or production solver behavior.
+The current first-order FVM is now the selectable software/numerical control. The baseline
+does not approve physical Validation, design use, an exact solution, or any numeric
+accuracy/regression band. CI-light remains `PROPOSED; NOT APPROVED; NOT IMPLEMENTED`.
 
-Next:
+## 2026-07-20 — Numerical-diffusion improvement assets
 
-1. collect and address Codex/reviewer feedback on PR #51;
-2. merge the formalization PR without changing production solver behavior;
-3. decide Tier 1 CI-light runtime, path filters, and exact invariant list;
-4. perform a repeatability study before proposing numeric drift bands;
-5. begin numerical-diffusion improvement on a separate branch while retaining the current
-   first-order path as the control baseline.
+PR #52 is `OPEN; READY FOR REVIEW` and contains a solver-independent MUSCL/TVD
+reconstruction scaffold. Its final intended diff contains first-order and MUSCL
+reconstruction, minmod/MC/van Leer limiters, pure tests, and verification documentation.
+It does not connect to `FvmSolver` or change production numerical states.
+
+PR #53 is a `VALIDATED STACKED DRAFT` based on PR #52. It contains a periodic scalar
+linear-advection comparison and records material peak-retention, width-preservation, and
+L2-error improvements for all MUSCL variants relative to the same-time-integrator
+first-order control. It does not approve a production limiter or time integrator.
+
+These PRs remain useful numerical assets but are not dependencies of the HEM thermodynamic
+line. Higher-order production connection is deferred until a first-order HEM baseline is
+established.
+
+## 2026-07-20 — Pure-CO2 HEM thermodynamic scaffold
+
+Status: `VALIDATED DRAFT; NOT SOLVER CONNECTED` in PR #54 on branch
+`agent/stage7-lco2-hem-thermodynamic-scaffold`.
+
+The branch starts directly from PR #51 merge commit
+`62390bd526ae99b6702f4ed76e3594e1bf01259b`.
+
+The increment adds:
+
+- an HEM-oriented wrapper for `RealFluidPropertyBackend.state_from_rho_e`;
+- finite-positive density and finite internal-energy validation without imposing a
+  universal real-fluid `e >= 0` rule;
+- validation of pressure, temperature, quality, void fraction, and backend-reported sound
+  speed;
+- quality-regime classification for liquid endpoint, open two-phase interval, and vapor
+  endpoint;
+- backend-error wrapping with backend-name context;
+- input immutability and memory-independence guards;
+- a deterministic surrogate liquid/two-phase/vapor 0-D path;
+- JSON, CSV, Markdown, and NPZ evidence with explicit false approval flags.
+
+Primary validation:
+
+```text
+validation head:           c96567cb63a67b3d9be2f3f20e7e5790e7ee3828
+workflow run:              29739900542
+artifact ID:               8459985478
+artifact SHA256:           98c3e973d0f81c68bf0cf86396679964d87a3f4f1ecdb542bdbe1dbaeecf8103
+focused tests:             24 passed, 0 skipped
+full repository:           406 passed, 0 skipped
+CoolProp wrapper states:    2 compressed-liquid states passed
+0-D path states:           23 / 23
+0-D artifact formats:       4 / 4
+committed diff:             clean
+tracked/staged files:       unchanged
+permanent workflows:       4 / 4 success
+```
+
+The CoolProp states at `5 MPa / 280 K` and `8 MPa / 280 K` returned finite properties,
+quality `0`, void fraction `0`, and quality regime `liquid_endpoint`.
+
+The dependency-free 0-D path covered compressed liquid, saturated liquid, the open
+liquid-vapor quality interval, saturated vapor, and expanded vapor. All states had finite
+positive pressure, temperature, and backend-reported sound speed; quality and void fraction
+were monotone along the fixed path.
+
+Important limitations remain:
+
+```text
+production solver connected:                         false
+pure-CO2 HEM thermodynamic core complete:             false
+complete phase classification:                       false
+equilibrium two-phase sound-speed closure approved:  false
+backend-reported sound speed:                         diagnostic only
+critical region validated:                           false
+solid phase supported:                               false
+physical Validation:                                 false
+design-use acceptance:                               false
+```
+
+The current labels are quality-regime labels rather than complete phase labels. The next
+technical work must expose explicit backend phase classification, separate two-phase
+property evaluation from sound-speed evaluation, and establish a reviewed equilibrium
+sound-speed closure before solver connection.
+
+Temporary validation workflow changes were removed after evidence capture. No production
+solver, flux, EOS-adapter, phase-change, boundary, interface, or source behaviour changed.
+
+## Next
+
+1. review PR #54 as a thermodynamic scaffold, not a completed HEM model;
+2. complete PR #52/#53 independently as later numerical-improvement assets;
+3. expose explicit CoolProp phase classification for safe representative `rho/e` states;
+4. define critical- and solid-region stop guards;
+5. separate equilibrium two-phase `p/T/Q/phase` evaluation from sound-speed evaluation;
+6. define and verify an equilibrium two-phase sound-speed closure;
+7. generate a CoolProp pure-CO2 0-D phase/property map;
+8. then connect the closure to a first-order uniform HEM-state preservation case.
