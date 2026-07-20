@@ -1,0 +1,213 @@
+{
+  "baseline_name": "stage7_v013_first_order_observation_baseline",
+  "baseline_version": "v013_baseline_v1",
+  "formalization_status": "DRAFT_REVIEW_REQUIRED",
+  "stage_status": "IN_PROGRESS",
+  "baseline_kind": "software_numerical_observation_baseline",
+  "source_main_commit": "afba28c56dc43bee82dd6f169d0249333ed7bfe2",
+  "production_solver_behavior_changed": false,
+  "physical_validation": false,
+  "design_use_acceptance": false,
+  "property_backend_design_status": "not_approved_for_design_use",
+  "moc_role": "verification_only",
+  "finest_mesh_is_exact_solution": false,
+  "formal_fvm_regression_band_applied": false,
+  "design_accuracy_band_applied": false,
+  "common_case": {
+    "pipe_length_m": 100.0,
+    "initial_pressure_pa": 8000000.0,
+    "initial_temperature_K": 280.0,
+    "pressure_amplitude_pa": 100.0,
+    "pulse_center_m": 65.0,
+    "pulse_sigma_m": 2.0,
+    "fvm_mesh_cells": [
+      100,
+      200,
+      400
+    ],
+    "fvm_cfl": 0.5,
+    "moc_cfl": 1.0,
+    "property_backend": "coolprop_co2",
+    "coolprop_version": "8.0.0",
+    "time_shift_applied": false,
+    "parameter_tuning_applied": false
+  },
+  "sources": {
+    "V-013A": {
+      "pull_request": 48,
+      "merge_commit": "613b21622b22402fbf7b8d77b1d881db7ff5f28e",
+      "primary_workflow_run": 29647234616,
+      "review_close_workflow_run": 29673595870,
+      "primary_artifact_sha256": "ee537e0e32a14d01501e36b427af68f94881905bc01f4a3b68684508c15c0961"
+    },
+    "V-013B": {
+      "pull_request": 49,
+      "merge_commit": "bc874193de6a4c019073b6cf629e99ec5dfa6602",
+      "workflow_run": 29684930259,
+      "artifact_id": 8441899419,
+      "artifact_sha256": "709a78a29bd21d9b01d8785e296b30a8085c7d5af6a26aba7b808c9c6be19861"
+    },
+    "V-013C": {
+      "pull_request": 50,
+      "merge_commit": "f403103c46a1d618ce2f2345c986e29b921b664a",
+      "workflow_run": 29692477941,
+      "artifact_id": 8444138380,
+      "artifact_sha256": "6432fb8502687cb974c161356e4ac8364235ef2ba5c92ac7bb9f1e52dca54786"
+    }
+  },
+  "cases": {
+    "V-013A": {
+      "purpose": "incident_wave_propagation",
+      "state": "OBSERVED_MERGED",
+      "expected_behavior": {
+        "dominant_characteristic": "A+",
+        "propagation_direction": "positive_x",
+        "approximate_wave_speed_consistent": true
+      },
+      "mesh_observations": [
+        {
+          "n_cells": 100,
+          "dx_m": 1.0,
+          "final_pressure_peak_ratio": 0.3398705
+        },
+        {
+          "n_cells": 200,
+          "dx_m": 0.5,
+          "final_pressure_peak_ratio": 0.4469636
+        },
+        {
+          "n_cells": 400,
+          "dx_m": 0.25,
+          "final_pressure_peak_ratio": 0.5749943
+        }
+      ]
+    },
+    "V-013B": {
+      "purpose": "rigid_wall_reflection",
+      "state": "OBSERVED_MERGED",
+      "expected_behavior": {
+        "characteristic_identity": "A-_reflected = A+_incident",
+        "pressure_reflection_sign": "positive",
+        "velocity_reflection_sign": "negative",
+        "wall_velocity_expected_zero": true,
+        "wall_mass_flux_expected_zero": true,
+        "wall_energy_flux_expected_zero": true
+      },
+      "mesh_observations": [
+        {
+          "n_cells": 100,
+          "dx_m": 1.0,
+          "pressure_reflection_coefficient": 0.65777978,
+          "velocity_reflection_coefficient": -0.65771904,
+          "wall_pressure_amplification_ratio": 0.85567464,
+          "final_reflected_pressure_peak_ratio": 0.33987059,
+          "maximum_pressure_l2_relative_difference": 0.66558518,
+          "maximum_velocity_l2_relative_difference": 0.66558532
+        },
+        {
+          "n_cells": 200,
+          "dx_m": 0.5,
+          "pressure_reflection_coefficient": 0.71062343,
+          "velocity_reflection_coefficient": -0.71062316,
+          "wall_pressure_amplification_ratio": 1.11654918,
+          "final_reflected_pressure_peak_ratio": 0.44696373,
+          "maximum_pressure_l2_relative_difference": 0.54412398,
+          "maximum_velocity_l2_relative_difference": 0.54412425
+        },
+        {
+          "n_cells": 400,
+          "dx_m": 0.25,
+          "pressure_reflection_coefficient": 0.77589432,
+          "velocity_reflection_coefficient": -0.7758944,
+          "wall_pressure_amplification_ratio": 1.38056539,
+          "final_reflected_pressure_peak_ratio": 0.5749945,
+          "maximum_pressure_l2_relative_difference": 0.40713104,
+          "maximum_velocity_l2_relative_difference": 0.40713146
+        }
+      ]
+    },
+    "V-013C": {
+      "purpose": "fixed_pressure_reflection",
+      "state": "OBSERVED_MERGED",
+      "expected_behavior": {
+        "characteristic_identity": "A-_reflected = -A+_incident",
+        "pressure_reflection_sign": "negative",
+        "velocity_reflection_sign": "positive",
+        "boundary_pressure_perturbation_ideal_pa": 0.0,
+        "boundary_velocity_ratio_ideal": 2.0,
+        "zero_mass_flux_expected": false,
+        "zero_energy_flux_expected": false
+      },
+      "mesh_observations": [
+        {
+          "n_cells": 100,
+          "dx_m": 1.0,
+          "pressure_reflection_coefficient": -0.63395297,
+          "velocity_reflection_coefficient": 0.63399661,
+          "normalized_fixed_pressure_residual": 0.05654903,
+          "boundary_velocity_amplification_ratio": 0.82447607,
+          "final_reflected_pressure_peak_ratio": 0.33190828,
+          "maximum_pressure_l2_relative_difference": 0.68067093,
+          "maximum_velocity_l2_relative_difference": 0.68067092,
+          "integrated_right_boundary_mass_kg": 0.0001364845,
+          "integrated_right_boundary_energy_j": 28.98455
+        },
+        {
+          "n_cells": 200,
+          "dx_m": 0.5,
+          "pressure_reflection_coefficient": -0.69829946,
+          "velocity_reflection_coefficient": 0.69829998,
+          "normalized_fixed_pressure_residual": 0.04880759,
+          "boundary_velocity_amplification_ratio": 1.09704849,
+          "final_reflected_pressure_peak_ratio": 0.44185022,
+          "maximum_pressure_l2_relative_difference": 0.55451247,
+          "maximum_velocity_l2_relative_difference": 0.55451245,
+          "integrated_right_boundary_mass_kg": 0.0001668497,
+          "integrated_right_boundary_energy_j": 35.43306
+        },
+        {
+          "n_cells": 400,
+          "dx_m": 0.25,
+          "pressure_reflection_coefficient": -0.77022729,
+          "velocity_reflection_coefficient": 0.77022778,
+          "normalized_fixed_pressure_residual": 0.03712903,
+          "boundary_velocity_amplification_ratio": 1.37073388,
+          "final_reflected_pressure_peak_ratio": 0.57212615,
+          "maximum_pressure_l2_relative_difference": 0.41332543,
+          "maximum_velocity_l2_relative_difference": 0.41332538,
+          "integrated_right_boundary_mass_kg": 0.0001895418,
+          "integrated_right_boundary_energy_j": 40.25207
+        }
+      ]
+    }
+  },
+  "cross_case_findings": {
+    "propagation_direction_consistent": true,
+    "approximate_timing_consistent": true,
+    "reflection_signs_consistent": true,
+    "essential_boundary_behavior_consistent": true,
+    "principal_metrics_improve_with_mesh_refinement": true,
+    "dominant_limitation": "strong_first_order_fvm_numerical_diffusion",
+    "n400_final_pressure_peak_ratio_approximately": 0.57
+  },
+  "approved_uses": [
+    "software_regression_reference",
+    "numerical_behavior_reference",
+    "qualitative_wave_direction_and_reflection_sign_checks",
+    "boundary_condition_behavior_checks",
+    "comparison_reference_for_future_optional_higher_order_methods"
+  ],
+  "prohibited_interpretations": [
+    "physical_validation",
+    "design_use_acceptance",
+    "design_accurate_wave_amplitude",
+    "exact_solution",
+    "approved_accuracy_or_regression_band"
+  ],
+  "ci_light": {
+    "status": "PROPOSED_NOT_APPROVED",
+    "numeric_regression_bands": null,
+    "current_peak_ratios_are_design_accuracy": false,
+    "proposal_document": "stage7_v013_ci_light_proposal.md"
+  }
+}

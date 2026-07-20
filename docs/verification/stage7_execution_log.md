@@ -165,5 +165,62 @@ V-013A/B/C consistently support the following conclusions:
 - the current solver is a robust software/numerical verification baseline, not a
   physically validated or design-accurate wave-amplitude model.
 
-Next: formalize the combined V-013 baseline and limitation statement, propose cautious
-CI-light monitoring, and then begin a separate numerical-diffusion improvement phase.
+## 2026-07-20 — V-013 baseline formalization
+
+Status: `IN_PROGRESS; BASELINE FORMALIZATION READY FOR REVIEW` on branch
+`agent/stage7-v013-baseline-formalization` in PR #51.
+
+Starting point:
+
+```text
+base main commit:      afba28c56dc43bee82dd6f169d0249333ed7bfe2
+Windows full baseline: 385 passed in 151.59 s
+working tree:          clean
+production changes:    none
+```
+
+The formalization increment adds:
+
+- a combined A/B/C baseline and limitation statement;
+- machine-readable baseline version `v013_baseline_v1`;
+- pure integrity tests for source commits, fixed configuration, signs, refinement trends,
+  and false acceptance flags;
+- a two-tier CI-light proposal that separates exact qualitative invariants from future
+  numeric drift bands;
+- synchronized merged status in the V-013A and V-013B observation notes.
+
+The proposed baseline classifies the current first-order FVM as suitable for software and
+numerical regression comparison. It explicitly prohibits interpretation as physical
+Validation, design-use acceptance, an exact solution, or an approved accuracy band.
+
+The CI-light proposal is `PROPOSED; NOT APPROVED; NOT IMPLEMENTED`. Pull-request Tier 1
+would use inexpensive qualitative/invariant checks; scheduled Tier 2 would preserve the
+full `n=100/200/400` refinement trends. Numeric tolerances require a separate repeatability
+study before approval.
+
+### Windows review-readiness validation
+
+PR #51 was rechecked on Windows at head
+`61c4810d3aa0a13c2a0709628955512d1f1243a2`:
+
+```text
+baseline-definition integrity: 4 passed
+full repository:              389 passed
+committed diff:               clean
+working tree:                 clean
+permanent GitHub Actions:     4 / 4 success
+```
+
+The permanent-workflow runs were `29708711863`, `29708711867`, `29708711868`, and
+`29708711869`; all completed successfully. This satisfies the review-readiness validation
+gate. The later closeout commits only record these results in documentation and do not
+change the baseline data, integrity-test logic, or production solver behavior.
+
+Next:
+
+1. collect and address Codex/reviewer feedback on PR #51;
+2. merge the formalization PR without changing production solver behavior;
+3. decide Tier 1 CI-light runtime, path filters, and exact invariant list;
+4. perform a repeatability study before proposing numeric drift bands;
+5. begin numerical-diffusion improvement on a separate branch while retaining the current
+   first-order path as the control baseline.

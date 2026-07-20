@@ -3,8 +3,9 @@
 Detailed pre-finalization evidence is preserved in
 [`archive/stage7_v013a_observation_evidence_pre_finalization.md`](archive/stage7_v013a_observation_evidence_pre_finalization.md).
 
-Status: `OBSERVED; READY FOR REVIEW`. V-013 remains `IN_PROGRESS`; V-013B
-rigid-wall reflection is next.
+Status: `OBSERVED; MERGED` in PR #48. Merge commit:
+`613b21622b22402fbf7b8d77b1d881db7ff5f28e`. V-013 baseline formalization is in
+progress.
 
 ## Primary observation evidence
 
