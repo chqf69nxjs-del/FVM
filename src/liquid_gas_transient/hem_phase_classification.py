@@ -1,9 +1,8 @@
-"""Explicit phase classification for the pure-CO2 HEM development path.
+"""Explicit pure-CO2 phase classification for HEM development.
 
-This module deliberately separates equilibrium state evaluation from acoustic
-closure.  It obtains pressure, temperature, phase and quality from CoolProp for
-``rho/e`` states, but it does not request or return a speed of sound.  The output
-is verification-only and is not connected to ``FvmSolver``.
+The phase/property path is intentionally separate from acoustic closure. It
+returns p, T, explicit phase, quality and void fraction where meaningful, but
+never requests a speed of sound and is not connected to ``FvmSolver``.
 """
 
 from __future__ import annotations
@@ -16,7 +15,6 @@ from pathlib import Path
 from typing import Literal, Sequence
 
 import numpy as np
-
 
 PhaseClass = Literal[
     "compressed_or_subcooled_liquid",
@@ -31,13 +29,11 @@ ScopeStatus = Literal["supported_candidate", "guarded_out", "unknown"]
 
 
 class HEMPhaseClassificationError(RuntimeError):
-    """Raised when an explicit phase state cannot be evaluated safely."""
+    """Raised when explicit phase evaluation is unusable."""
 
 
 @dataclass(frozen=True)
 class HEMPhaseClassificationConfig:
-    """Guard settings for the liquid/vapor-only pure-CO2 HEM scope."""
-
     critical_temperature_margin_K: float = 0.5
     critical_pressure_margin_Pa: float = 5.0e4
     endpoint_tolerance: float = 1.0e-10
@@ -50,18 +46,12 @@ class HEMPhaseClassificationConfig:
         )
         if not all(np.isfinite(value) for value in values):
             raise ValueError("phase-classification settings must be finite")
-        if self.critical_temperature_margin_K < 0.0:
-            raise ValueError("critical_temperature_margin_K must be non-negative")
-        if self.critical_pressure_margin_Pa < 0.0:
-            raise ValueError("critical_pressure_margin_Pa must be non-negative")
-        if self.endpoint_tolerance < 0.0:
-            raise ValueError("endpoint_tolerance must be non-negative")
+        if min(values) < 0.0:
+            raise ValueError("phase-classification settings must be non-negative")
 
 
 @dataclass(frozen=True)
 class HEMPhaseState:
-    """One or more explicitly classified equilibrium states without sound speed."""
-
     backend_name: str
     rho: np.ndarray
     e: np.ndarray
@@ -79,22 +69,12 @@ class HEMPhaseState:
     def __post_init__(self) -> None:
         expected = self.rho.shape
         for name in (
-            "e",
-            "p",
-            "T",
-            "quality",
-            "quality_defined",
-            "alpha",
-            "alpha_defined",
-            "raw_phase",
-            "phase_class",
-            "scope_status",
+            "e", "p", "T", "quality", "quality_defined", "alpha",
+            "alpha_defined", "raw_phase", "phase_class", "scope_status",
         ):
             value = getattr(self, name)
             if value.shape != expected:
-                raise ValueError(
-                    f"{name} must have shape {expected}; received {value.shape}"
-                )
+                raise ValueError(f"{name} must have shape {expected}; received {value.shape}")
         if self.sound_speed_evaluated:
             raise ValueError("phase-state path must not evaluate sound speed")
 
@@ -118,8 +98,6 @@ class PhaseMapRecord:
 
 
 def normalize_coolprop_phase(raw_phase: str) -> str:
-    """Normalize a CoolProp phase label for stable classification."""
-
     return raw_phase.strip().lower().replace("phase_", "")
 
 
@@ -133,22 +111,18 @@ def classify_explicit_phase(
     triple_temperature_K: float,
     config: HEMPhaseClassificationConfig | None = None,
 ) -> tuple[PhaseClass, ScopeStatus]:
-    """Map explicit backend phase information to the current HEM scope.
+    """Map CoolProp phase labels to the first liquid-vapor HEM scope.
 
-    The supported candidate scope is deliberately restricted to ordinary liquid,
-    liquid-vapor two-phase, and ordinary gas states above the CO2 triple
-    temperature and away from the critical guard box.
+    CoolProp may label a dense state above critical pressure but below critical
+    temperature as ``supercritical_liquid``. Away from the critical guard box,
+    that label is retained as a dense-liquid candidate, consistent with the
+    existing project property adapter. High-temperature ``supercritical`` and
+    ``supercritical_gas`` states remain outside the first liquid-vapor scope.
     """
 
     cfg = config or HEMPhaseClassificationConfig()
-    numeric = (
-        p_pa,
-        T_K,
-        critical_pressure_pa,
-        critical_temperature_K,
-        triple_temperature_K,
-    )
-    if not all(np.isfinite(value) for value in numeric):
+    values = (p_pa, T_K, critical_pressure_pa, critical_temperature_K, triple_temperature_K)
+    if not all(np.isfinite(value) for value in values):
         raise HEMPhaseClassificationError("phase-classification inputs must be finite")
     if p_pa <= 0.0 or T_K <= 0.0:
         raise HEMPhaseClassificationError("pressure and temperature must be positive")
@@ -157,43 +131,33 @@ def classify_explicit_phase(
     if phase == "solid" or T_K <= triple_temperature_K:
         return "solid_or_below_triple_guard", "guarded_out"
 
-    critical_box = (
+    in_critical_box = (
         abs(T_K - critical_temperature_K) <= cfg.critical_temperature_margin_K
         and abs(p_pa - critical_pressure_pa) <= cfg.critical_pressure_margin_Pa
     )
-    if phase in {"critical_point", "critical"} or critical_box:
+    if phase in {"critical_point", "critical"} or in_critical_box:
         return "critical_region", "guarded_out"
 
-    if phase in {
-        "supercritical",
-        "supercritical_gas",
-        "supercritical_liquid",
-    }:
-        return "supercritical", "guarded_out"
-    if phase in {"liquid", "subcooled_liquid"}:
+    if phase in {"liquid", "subcooled_liquid", "supercritical_liquid"}:
         return "compressed_or_subcooled_liquid", "supported_candidate"
     if phase in {"twophase", "two_phase"}:
         return "liquid_vapor_two_phase", "supported_candidate"
     if phase in {"gas", "vapor", "superheated_gas"}:
         return "single_phase_vapor", "supported_candidate"
+    if phase in {"supercritical", "supercritical_gas"}:
+        return "supercritical", "guarded_out"
     return "unknown", "unknown"
 
 
 def _coolprop_api():
     try:
         from CoolProp.CoolProp import PhaseSI, PropsSI  # type: ignore
-    except Exception as exc:  # pragma: no cover - installed-only path
+    except Exception as exc:  # pragma: no cover
         raise ImportError("CoolProp is required for explicit HEM phase classification") from exc
     return PropsSI, PhaseSI
 
 
-def _alpha_from_quality_pressure(
-    quality: float,
-    pressure_pa: float,
-    *,
-    fluid: str,
-    props_si,
-) -> float:
+def _alpha_from_quality_pressure(quality: float, pressure_pa: float, *, fluid: str, props_si) -> float:
     rho_l = float(props_si("Dmass", "P", pressure_pa, "Q", 0.0, fluid))
     rho_v = float(props_si("Dmass", "P", pressure_pa, "Q", 1.0, fluid))
     v_v = quality / rho_v
@@ -211,15 +175,13 @@ def evaluate_coolprop_hem_phase_state(
     fluid: str = "CO2",
     config: HEMPhaseClassificationConfig | None = None,
 ) -> HEMPhaseState:
-    """Evaluate explicit CoolProp phase information without requesting sound speed."""
+    """Evaluate explicit CoolProp phase information without sound speed."""
 
     cfg = config or HEMPhaseClassificationConfig()
     props_si, phase_si = _coolprop_api()
-    rho_arr, e_arr = np.broadcast_arrays(
-        np.asarray(rho, dtype=float), np.asarray(e, dtype=float)
-    )
-    rho_arr = np.array(rho_arr, dtype=float, copy=True)
-    e_arr = np.array(e_arr, dtype=float, copy=True)
+    rho_arr, e_arr = np.broadcast_arrays(np.asarray(rho, float), np.asarray(e, float))
+    rho_arr = np.array(rho_arr, copy=True)
+    e_arr = np.array(e_arr, copy=True)
     if not np.all(np.isfinite(rho_arr)) or np.any(rho_arr <= 0.0):
         raise HEMPhaseClassificationError("rho must be finite and strictly positive")
     if not np.all(np.isfinite(e_arr)):
@@ -229,21 +191,21 @@ def evaluate_coolprop_hem_phase_state(
         critical_T = float(props_si("Tcrit", fluid))
         critical_p = float(props_si("Pcrit", fluid))
         triple_T = float(props_si("Ttriple", fluid))
-    except Exception as exc:  # pragma: no cover - installed-only path
+    except Exception as exc:  # pragma: no cover
         raise HEMPhaseClassificationError("CoolProp failed to provide CO2 limits") from exc
 
     shape = rho_arr.shape
-    p = np.empty(shape, dtype=float)
-    T = np.empty(shape, dtype=float)
-    quality = np.full(shape, np.nan, dtype=float)
+    p = np.empty(shape)
+    T = np.empty(shape)
+    quality = np.full(shape, np.nan)
     quality_defined = np.zeros(shape, dtype=bool)
-    alpha = np.full(shape, np.nan, dtype=float)
+    alpha = np.full(shape, np.nan)
     alpha_defined = np.zeros(shape, dtype=bool)
     raw_phase = np.empty(shape, dtype="<U40")
     phase_class = np.empty(shape, dtype="<U40")
     scope_status = np.empty(shape, dtype="<U24")
 
-    for index in np.ndindex(shape):  # pragma: no cover - installed-only path
+    for index in np.ndindex(shape):  # pragma: no cover
         rho_i = float(rho_arr[index])
         e_i = float(e_arr[index])
         try:
@@ -266,15 +228,12 @@ def evaluate_coolprop_hem_phase_state(
             triple_temperature_K=triple_T,
             config=cfg,
         )
-        normalized = normalize_coolprop_phase(raw_i)
         q_i: float | None = None
         alpha_i: float | None = None
         if class_i == "compressed_or_subcooled_liquid":
-            q_i = 0.0
-            alpha_i = 0.0
+            q_i, alpha_i = 0.0, 0.0
         elif class_i == "single_phase_vapor":
-            q_i = 1.0
-            alpha_i = 1.0
+            q_i, alpha_i = 1.0, 1.0
         elif class_i == "liquid_vapor_two_phase":
             try:
                 q_i = float(props_si("Q", "Dmass", rho_i, "Umass", e_i, fluid))
@@ -285,13 +244,11 @@ def evaluate_coolprop_hem_phase_state(
             if not np.isfinite(q_i) or q_i < -cfg.endpoint_tolerance or q_i > 1.0 + cfg.endpoint_tolerance:
                 raise HEMPhaseClassificationError("two-phase quality is outside [0, 1]")
             q_i = float(np.clip(q_i, 0.0, 1.0))
-            alpha_i = _alpha_from_quality_pressure(
-                q_i, p_i, fluid=fluid, props_si=props_si
-            )
+            alpha_i = _alpha_from_quality_pressure(q_i, p_i, fluid=fluid, props_si=props_si)
 
         p[index] = p_i
         T[index] = T_i
-        raw_phase[index] = normalized
+        raw_phase[index] = normalize_coolprop_phase(raw_i)
         phase_class[index] = class_i
         scope_status[index] = scope_i
         if q_i is not None:
@@ -319,8 +276,6 @@ def evaluate_coolprop_hem_phase_state(
 
 
 def build_representative_coolprop_phase_map() -> list[PhaseMapRecord]:
-    """Build a small representative pure-CO2 phase map without sound-speed calls."""
-
     props_si, _ = _coolprop_api()
     specifications = [
         ("compressed_liquid_8mpa_280k", "PT", 8.0e6, 280.0),
@@ -335,12 +290,10 @@ def build_representative_coolprop_phase_map() -> list[PhaseMapRecord]:
     ]
     records: list[PhaseMapRecord] = []
     for case_id, pair, value_1, value_2 in specifications:  # pragma: no cover
-        input_2 = "T" if pair == "PT" else "Q"
-        rho = float(props_si("Dmass", "P", value_1, input_2, value_2, "CO2"))
-        e = float(props_si("Umass", "P", value_1, input_2, value_2, "CO2"))
+        second_name = "T" if pair == "PT" else "Q"
+        rho = float(props_si("Dmass", "P", value_1, second_name, value_2, "CO2"))
+        e = float(props_si("Umass", "P", value_1, second_name, value_2, "CO2"))
         state = evaluate_coolprop_hem_phase_state(rho, e)
-        quality_value = float(state.quality) if bool(state.quality_defined) else None
-        alpha_value = float(state.alpha) if bool(state.alpha_defined) else None
         records.append(
             PhaseMapRecord(
                 case_id=case_id,
@@ -351,8 +304,8 @@ def build_representative_coolprop_phase_map() -> list[PhaseMapRecord]:
                 e_j_kg=e,
                 p_pa=float(state.p),
                 T_K=float(state.T),
-                quality=quality_value,
-                alpha=alpha_value,
+                quality=float(state.quality) if bool(state.quality_defined) else None,
+                alpha=float(state.alpha) if bool(state.alpha_defined) else None,
                 raw_phase=str(state.raw_phase),
                 phase_class=str(state.phase_class),
                 scope_status=str(state.scope_status),
@@ -362,11 +315,7 @@ def build_representative_coolprop_phase_map() -> list[PhaseMapRecord]:
     return records
 
 
-def write_phase_map_artifacts(
-    output_dir: str | Path, records: Sequence[PhaseMapRecord]
-) -> dict[str, Path]:
-    """Write JSON, CSV and Markdown evidence for the representative map."""
-
+def write_phase_map_artifacts(output_dir: str | Path, records: Sequence[PhaseMapRecord]) -> dict[str, Path]:
     destination = Path(output_dir)
     destination.mkdir(parents=True, exist_ok=True)
     stem = "stage7_lco2_hem_coolprop_phase_map"
@@ -383,6 +332,7 @@ def write_phase_map_artifacts(
         "critical_region_guarded_out": True,
         "solid_region_guarded_out": True,
         "supercritical_in_current_liquid_vapor_scope": False,
+        "supercritical_liquid_dense_state_supported_candidate": True,
         "physical_validation": False,
         "design_use_acceptance": False,
         "results": rows,
@@ -405,10 +355,10 @@ def write_phase_map_artifacts(
     ]
     for row in rows:
         q = "undefined" if row["quality"] is None else f'{row["quality"]:.6g}'
-        alpha = "undefined" if row["alpha"] is None else f'{row["alpha"]:.6g}'
+        a = "undefined" if row["alpha"] is None else f'{row["alpha"]:.6g}'
         lines.append(
             f'| {row["case_id"]} | {row["raw_phase"]} | {row["phase_class"]} | '
-            f'{row["scope_status"]} | {row["p_pa"]:.8g} | {row["T_K"]:.8g} | {q} | {alpha} |'
+            f'{row["scope_status"]} | {row["p_pa"]:.8g} | {row["T_K"]:.8g} | {q} | {a} |'
         )
     markdown_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return {"json": json_path, "csv": csv_path, "markdown": markdown_path}
