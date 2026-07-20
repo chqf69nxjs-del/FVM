@@ -2,7 +2,7 @@
 
 ## 1. Status
 
-`IN_PROGRESS; DRAFT PR #54; THERMODYNAMIC SCAFFOLD; NOT SOLVER CONNECTED`
+`VALIDATED DRAFT PR #54; REVIEW REQUIRED; NOT SOLVER CONNECTED`
 
 This increment begins the project line that leads from the established first-order FVM
 baseline toward a pure-CO2 liquid/vapor homogeneous-equilibrium model (HEM).
@@ -148,7 +148,61 @@ The focused tests cover:
 - deterministic four-format artifact output;
 - false production, Validation, design-use, sound-speed-approval, and accuracy-band flags.
 
-## 8. Deliberately excluded
+## 8. Validation evidence
+
+Primary validation head:
+
+```text
+c96567cb63a67b3d9be2f3f20e7e5790e7ee3828
+```
+
+GitHub Actions evidence:
+
+```text
+workflow run:              29739900542
+artifact ID:               8459985478
+artifact SHA256:           98c3e973d0f81c68bf0cf86396679964d87a3f4f1ecdb542bdbe1dbaeecf8103
+focused tests:             24 passed, 0 skipped
+full repository:           406 passed, 0 skipped
+CoolProp wave regression:  1 passed, 0 skipped
+CoolProp wrapper states:    2 compressed-liquid states passed
+0-D path states:           23 / 23
+0-D artifact formats:       4 / 4
+committed diff:             clean
+tracked/staged files:       unchanged
+```
+
+The two CoolProp wrapper states were `5 MPa / 280 K` and `8 MPa / 280 K`. Both returned
+finite pressure, temperature, and backend-reported sound speed, with quality and void
+fraction exactly zero and quality regime `liquid_endpoint`.
+
+The deterministic surrogate path covered:
+
+```text
+compressed-liquid endpoint
+saturated-liquid endpoint
+open liquid-vapor quality interval
+saturated-vapor endpoint
+expanded-vapor endpoint
+```
+
+All 23 states had finite positive pressure, temperature, and backend-reported sound speed.
+Quality and void fraction were monotone along the fixed path. These are software and
+thermodynamic-path observations, not accuracy evidence for real CO2.
+
+All four permanent workflows passed on the validation head:
+
+```text
+CoolProp Wave Regression:                 29739900542
+CoolProp Controlled Pressure Ramp:        29739900604
+CoolProp Boundary Reflection Regression:  29739900491
+CoolProp Internal Valve Regression:       29739900522
+```
+
+The validation workflow modifications are temporary and are removed before review-ready
+state. Their removal does not change the HEM module, focused tests, or numerical evidence.
+
+## 9. Deliberately excluded
 
 This increment does not:
 
@@ -166,7 +220,7 @@ This increment does not:
 - connect MUSCL/TVD to production;
 - claim physical Validation or design-use acceptance.
 
-## 9. Next technical increments
+## 10. Next technical increments
 
 After this scaffold is reviewed, the recommended sequence is:
 
@@ -181,7 +235,7 @@ After this scaffold is reviewed, the recommended sequence is:
 7. only then build the first LCO2 pipeline depressurization prototype;
 8. retain MUSCL/TVD as a later comparison option after the first-order HEM baseline exists.
 
-## 10. Completion boundary
+## 11. Completion boundary
 
 This scaffold is complete for review when:
 
@@ -190,6 +244,7 @@ This scaffold is complete for review when:
 - the full repository suite remains green;
 - committed-diff and tracked-file checks are clean;
 - permanent GitHub Actions remain green;
+- temporary validation workflow changes are removed;
 - no production solver, flux, EOS-adapter, phase-change, boundary, or source behavior changes.
 
 Completion of this scaffold does not mean that the pure-CO2 HEM thermodynamic core, the
