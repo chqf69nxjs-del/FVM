@@ -165,10 +165,10 @@ V-013A/B/C consistently support the following conclusions:
 - the current solver is a robust software/numerical verification baseline, not a
   physically validated or design-accurate wave-amplitude model.
 
-## 2026-07-20 — V-013 baseline formalization start
+## 2026-07-20 — V-013 baseline formalization
 
-Status: `IN_PROGRESS; BASELINE FORMALIZATION UNDER REVIEW` on branch
-`agent/stage7-v013-baseline-formalization`.
+Status: `IN_PROGRESS; BASELINE FORMALIZATION READY FOR REVIEW` on branch
+`agent/stage7-v013-baseline-formalization` in PR #51.
 
 Starting point:
 
@@ -198,11 +198,29 @@ would use inexpensive qualitative/invariant checks; scheduled Tier 2 would prese
 full `n=100/200/400` refinement trends. Numeric tolerances require a separate repeatability
 study before approval.
 
+### Windows review-readiness validation
+
+PR #51 was rechecked on Windows at head
+`61c4810d3aa0a13c2a0709628955512d1f1243a2`:
+
+```text
+baseline-definition integrity: 4 passed
+full repository:              389 passed
+committed diff:               clean
+working tree:                 clean
+permanent GitHub Actions:     4 / 4 success
+```
+
+The permanent-workflow runs were `29708711863`, `29708711867`, `29708711868`, and
+`29708711869`; all completed successfully. This satisfies the review-readiness validation
+gate. The later closeout commits only record these results in documentation and do not
+change the baseline data, integrity-test logic, or production solver behavior.
+
 Next:
 
-1. run the new baseline integrity tests and full repository suite on Windows;
-2. review the baseline and CI-light documents;
-3. keep production solver behavior unchanged;
-4. open a Draft PR and collect review;
-5. after formalization, begin numerical-diffusion improvement on a separate branch while
-   retaining the current first-order path as the control baseline.
+1. collect and address Codex/reviewer feedback on PR #51;
+2. merge the formalization PR without changing production solver behavior;
+3. decide Tier 1 CI-light runtime, path filters, and exact invariant list;
+4. perform a repeatability study before proposing numeric drift bands;
+5. begin numerical-diffusion improvement on a separate branch while retaining the current
+   first-order path as the control baseline.
