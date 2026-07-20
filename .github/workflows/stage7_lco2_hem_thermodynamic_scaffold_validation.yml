@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - agent/stage7-lco2-hem-thermodynamic-scaffold
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 permissions:
