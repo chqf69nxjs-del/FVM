@@ -1,8 +1,8 @@
-# Stage 7 — Pure-CO2 HEM Uniform-State Preservation Plan
+# Stage 7 — Pure-CO2 HEM Uniform-State Preservation
 
 ## Status
 
-`IN_PROGRESS; STACKED ON PR #56; VERIFICATION-ONLY FVM CONNECTION`
+`VALIDATED STACKED DRAFT PR #57; VERIFICATION-ONLY FVM CONNECTION`
 
 This increment is based on PR #56 final head
 `3e032ced2cb8f65e058783886b36b58a72b7719e`.
@@ -83,7 +83,57 @@ The fixed case is expected to preserve the state exactly in floating-point arith
 all interfaces see identical left and right states and therefore have identical fluxes.
 Conservative and primitive drift metrics are recorded even when they are zero.
 
-## Evidence
+## Validation evidence
+
+Primary validation:
+
+```text
+validation head:          068bd1d9d1a57c30687cf217273d9f87eb04f424
+workflow run:             29751190749
+artifact ID:              8464712262
+artifact SHA256:          71f7934f6f0061191f8af09b9cdf802a5b797f628878cd045a13a94273f5e999
+focused HEM tests:        76 passed, 0 skipped
+full repository:          460 passed, 0 skipped
+uniform cells / steps:    8 / 8
+final time:               0.018414079163974254 s
+dt:                       0.002301759895496782 s
+CFL maximum:              0.25
+```
+
+Fixed-state thermodynamics:
+
+```text
+rho:                       99.97757528102285 kg/m3
+e:                         276181.4404260976 J/kg
+T:                         253.64735829812284 K
+quality:                   0.5
+void fraction:             0.951436972434191
+equilibrium sound speed:   135.76568112572576 m/s
+```
+
+Observed drift after eight first-order steps:
+
+```text
+conserved maximum absolute drift:  0.0
+conserved maximum relative drift:  0.0
+rho drift:                         0.0
+velocity drift:                    0.0
+pressure drift:                    0.0
+temperature drift:                 0.0
+quality drift:                     0.0
+void-fraction drift:               0.0
+sound-speed drift:                 0.0
+mass inventory drift:              0.0
+momentum inventory drift:          0.0
+energy inventory drift:            0.0
+vapor-mass inventory drift:        0.0
+```
+
+The EOS cache contained one unique `rho/e` state, and phase and sound-speed evaluation were
+each performed once. The result demonstrates exact uniform-state preservation for this fixed
+software path. It does not demonstrate accuracy for a nonuniform two-phase flow.
+
+## Evidence artifacts
 
 The runner emits:
 
@@ -94,7 +144,7 @@ stage7_lco2_hem_uniform_state_preservation.md
 stage7_lco2_hem_uniform_state_preservation.npz
 ```
 
-Required flags include:
+Required flags remain:
 
 ```text
 fvm_solver_exercised = true
@@ -123,7 +173,7 @@ This increment does not:
 
 ## Next gate
 
-If the uniform state is preserved, the next increment is a first-order one-dimensional
-liquid-to-two-phase expansion problem with simple transmissive boundaries. That case will
-introduce real spatial gradients and test whether phase classification, equilibrium flash,
-sound speed, flux and CFL remain consistent when a two-phase region evolves.
+The next increment is a first-order one-dimensional liquid-to-two-phase expansion problem
+with simple transmissive boundaries. That case will introduce real spatial gradients and test
+whether phase classification, equilibrium flash, sound speed, flux and CFL remain consistent
+when a two-phase region evolves.
