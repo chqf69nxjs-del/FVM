@@ -50,6 +50,30 @@ design_use_acceptance = false
 numeric_accuracy_band_approved = false
 ```
 
+## GitHub validation evidence
+
+```text
+validation head:           c96567cb63a67b3d9be2f3f20e7e5790e7ee3828
+workflow run:              29739900542
+artifact ID:               8459985478
+artifact SHA256:           98c3e973d0f81c68bf0cf86396679964d87a3f4f1ecdb542bdbe1dbaeecf8103
+focused tests:             24 passed, 0 skipped
+full repository:           406 passed, 0 skipped
+CoolProp wave regression:  1 passed, 0 skipped
+0-D path states:           23 / 23
+artifact formats:          4 / 4
+committed diff:             clean
+tracked/staged files:       unchanged
+permanent workflows:       4 / 4 success
+```
+
+The validated artifact contains the focused/full JUnit files, full-suite summary, existing
+CoolProp wave regression evidence, and the four HEM 0-D outputs.
+
+The temporary validation workflow and the temporary additions to the permanent wave
+workflow are removed after evidence capture. Their removal must not change the HEM source,
+tests, or recorded numerical observations.
+
 ## Review note
 
 A green scaffold demonstrates only that the existing property-backend contract can be
