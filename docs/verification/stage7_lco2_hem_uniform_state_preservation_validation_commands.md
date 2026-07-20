@@ -67,5 +67,37 @@ mass, momentum, energy and vapor-mass inventories unchanged
 CFL maximum equals the configured value for the stationary uniform state
 ```
 
-These are uniform-state software invariants. They are not an accuracy band for a nonuniform
-two-phase flow, an acoustic Validation result, or design-use acceptance.
+## GitHub validation evidence
+
+```text
+validation head:          068bd1d9d1a57c30687cf217273d9f87eb04f424
+workflow run:             29751190749
+artifact ID:              8464712262
+artifact SHA256:          71f7934f6f0061191f8af09b9cdf802a5b797f628878cd045a13a94273f5e999
+focused HEM tests:        76 passed, 0 skipped
+full repository:          460 passed, 0 skipped
+uniform-state history:    9 records including step zero
+uniform cells / steps:    8 / 8
+```
+
+Observed fixed-case results:
+
+```text
+rho:                              99.97757528102285 kg/m3
+internal energy:                  276181.4404260976 J/kg
+temperature:                      253.64735829812284 K
+quality:                          0.5
+void fraction:                    0.951436972434191
+equilibrium sound speed:          135.76568112572576 m/s
+dt:                               0.002301759895496782 s
+final time:                       0.018414079163974254 s
+maximum CFL:                      0.25
+conserved maximum absolute drift: 0.0
+conserved maximum relative drift: 0.0
+all primitive drifts:             0.0
+all inventory drifts:             0.0
+```
+
+The temporary validation workflow extension is removed before review-ready state. These are
+uniform-state software invariants. They are not an accuracy band for a nonuniform two-phase
+flow, an acoustic Validation result, or design-use acceptance.
