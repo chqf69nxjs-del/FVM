@@ -2,7 +2,7 @@
 
 ## 1. Status
 
-`IN_PROGRESS; THERMODYNAMIC SCAFFOLD; NOT SOLVER CONNECTED`
+`IN_PROGRESS; DRAFT PR #54; THERMODYNAMIC SCAFFOLD; NOT SOLVER CONNECTED`
 
 This increment begins the project line that leads from the established first-order FVM
 baseline toward a pure-CO2 liquid/vapor homogeneous-equilibrium model (HEM).
@@ -13,9 +13,10 @@ The branch starts from merged PR #51 at:
 62390bd526ae99b6702f4ed76e3594e1bf01259b
 ```
 
-Open MUSCL/TVD PRs #52 and #53 are intentionally not dependencies of this work. Higher-order
-transport remains a later numerical-improvement option after the two-phase thermodynamic
-closure and first-order HEM path are established.
+Draft PR #54 is intentionally based directly on that merge commit. Open MUSCL/TVD PRs #52
+and #53 are not dependencies of this work. Higher-order transport remains a later
+numerical-improvement option after the two-phase thermodynamic closure and first-order HEM
+path are established.
 
 ## 2. Project objective
 
