@@ -1,0 +1,162 @@
+name: Stage 7 Scalar-Advection Validation
+
+on:
+  pull_request:
+    branches:
+      - agent/stage7-muscl-reconstruction-scaffold
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    env:
+      MPLBACKEND: Agg
+      PYTHONPATH: src
+      OUTPUT_DIR: ${{ runner.temp }}/stage7_scalar_advection
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Confirm clean checkout
+        run: test -z "$(git status --porcelain --untracked-files=no)"
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[coolprop,plotting]" pytest
+
+      - name: Smoke check environment
+        run: |
+          python - <<'PY'
+          import CoolProp
+          import matplotlib
+          import numpy
+          import liquid_gas_transient
+          from liquid_gas_transient import reconstruction
+          from liquid_gas_transient import verification_scalar_advection
+
+          print("CoolProp", CoolProp.__version__)
+          print("matplotlib", matplotlib.__version__)
+          print("numpy", numpy.__version__)
+          print("package", liquid_gas_transient.__version__)
+          print("limiters", reconstruction.LIMITER_NAMES)
+          print("variants", [
+              item.name
+              for item in verification_scalar_advection.DEFAULT_COMPARISON_VARIANTS
+          ])
+          PY
+
+      - name: Run focused Stage 7 tests
+        run: |
+          python -m pytest -q \
+            tests/test_stage7_v013_baseline_definition.py \
+            tests/test_stage7_muscl_reconstruction.py \
+            tests/test_stage7_scalar_advection.py
+
+      - name: Run full repository suite
+        run: python -m pytest -q
+
+      - name: Generate canonical scalar-advection evidence
+        run: |
+          python -m liquid_gas_transient.verification_scalar_advection \
+            --output-dir "$OUTPUT_DIR" \
+            --meshes 100 200 400
+          find "$OUTPUT_DIR" -maxdepth 1 -type f -printf '%f\n' | sort
+
+      - name: Validate comparison evidence
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          output_dir = Path(os.environ["OUTPUT_DIR"])
+          payload = json.loads(
+              (output_dir / "stage7_scalar_advection_comparison.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          assert payload["schema_version"] == "stage7_scalar_advection_comparison_v1"
+          assert payload["scope"] == "verification_only"
+          assert payload["production_solver_connected"] is False
+          assert payload["production_solver_behavior_changed"] is False
+          assert payload["production_time_integrator_approved"] is False
+          assert payload["physical_validation"] is False
+          assert payload["design_use_acceptance"] is False
+          assert payload["numeric_accuracy_band_approved"] is False
+
+          rows = payload["results"]
+          assert len(rows) == 15
+          assert {row["n_cells"] for row in rows} == {100, 200, 400}
+          expected_variants = {
+              "first_order_euler",
+              "first_order_ssprk2",
+              "muscl_minmod_ssprk2",
+              "muscl_mc_ssprk2",
+              "muscl_van_leer_ssprk2",
+          }
+          assert {row["variant_name"] for row in rows} == expected_variants
+          for row in rows:
+              assert abs(row["pulse_mass_relative_error"]) < 1.0e-12
+              assert row["overshoot"] < 1.0e-12
+              assert row["undershoot"] < 1.0e-12
+              assert row["total_variation_ratio"] <= 1.0 + 1.0e-12
+              assert row["cfl_actual_max"] <= row["cfl"] + 1.0e-14
+
+          lookup = {
+              (row["n_cells"], row["variant_name"]): row
+              for row in rows
+          }
+          control = lookup[(200, "first_order_ssprk2")]
+          for name in (
+              "muscl_minmod_ssprk2",
+              "muscl_mc_ssprk2",
+              "muscl_van_leer_ssprk2",
+          ):
+              candidate = lookup[(200, name)]
+              assert candidate["peak_retention"] > control["peak_retention"]
+              assert candidate["l2_error"] < 0.25 * control["l2_error"]
+
+          print("n=200 comparison")
+          for name in sorted(expected_variants):
+              row = lookup[(200, name)]
+              print(
+                  name,
+                  "peak_retention=", f'{row["peak_retention"]:.8f}',
+                  "width_growth=", f'{row["width_growth_ratio"]:.8f}',
+                  "l2=", f'{row["l2_error"]:.8e}',
+                  "runtime_s=", f'{row["runtime_seconds"]:.6f}',
+              )
+          PY
+
+      - name: Check committed diffs
+        run: |
+          git diff --check \
+            origin/agent/stage7-muscl-reconstruction-scaffold...HEAD
+          git diff --check origin/main...HEAD
+
+      - name: Confirm tracked and staged files remain unchanged
+        run: |
+          git diff --exit-code
+          git diff --cached --exit-code
+
+      - name: Upload scalar-advection evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: stage7-scalar-advection-comparison
+          path: ${{ runner.temp }}/stage7_scalar_advection
+          if-no-files-found: error
+          retention-days: 14
