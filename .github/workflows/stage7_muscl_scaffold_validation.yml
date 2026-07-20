@@ -26,6 +26,9 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Confirm clean checkout
+        run: test -z "$(git status --porcelain)"
+
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
@@ -62,5 +65,10 @@ jobs:
       - name: Check committed diff
         run: git diff --check origin/main...HEAD
 
-      - name: Confirm clean working tree
-        run: test -z "$(git status --porcelain)"
+      - name: Report generated test artifacts
+        run: git status --short
+
+      - name: Confirm tracked files remain unchanged
+        run: |
+          test -z "$(git diff --name-only)"
+          test -z "$(git diff --cached --name-only)"
