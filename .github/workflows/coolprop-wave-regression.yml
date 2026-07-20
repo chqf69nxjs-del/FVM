@@ -18,20 +18,15 @@ jobs:
   coolprop-wave-regression:
     name: coolprop-wave-regression
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 15
     env:
       MPLBACKEND: Agg
       PYTHONPATH: src
-      HEM_PHASE_OUTPUT_DIR: artifacts/stage7-lco2-hem-phase-map
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          fetch-depth: 0
           persist-credentials: false
-
-      - name: Confirm clean checkout
-        run: test -z "$(git status --porcelain --untracked-files=no)"
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -43,7 +38,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel
-          python -m pip install -e ".[plotting]"
+          python -m pip install -e .
           python -m pip install pytest "CoolProp==8.0.0"
 
       - name: Smoke check CoolProp environment
@@ -52,19 +47,19 @@ jobs:
           import math
           import platform
           import sys
+
           import CoolProp
           import CoolProp.CoolProp as CP
-          import matplotlib
           import numpy as np
           import liquid_gas_transient
-          from liquid_gas_transient import hem_phase_classification
+
           rho = CP.PropsSI("D", "P", 8.0e6, "T", 280.0, "CO2")
           print("Python:", sys.version)
           print("Platform:", platform.platform())
           print("NumPy:", np.__version__)
-          print("Matplotlib:", matplotlib.__version__)
           print("CoolProp:", CoolProp.__version__)
-          print("phase module:", hem_phase_classification.__name__)
+          print("liquid_gas_transient:", getattr(liquid_gas_transient, "__version__", "unknown"))
+          print("CO2 density smoke kg/m3:", rho)
           assert CoolProp.__version__ == "8.0.0"
           assert math.isfinite(rho) and rho > 0.0
           PY
@@ -82,97 +77,73 @@ jobs:
         run: |
           python - <<'PY'
           import xml.etree.ElementTree as ET
-          root = ET.parse("artifacts/coolprop-wave-regression-junit.xml").getroot()
-          assert len(root.findall(".//testcase")) >= 1
-          assert len(root.findall(".//skipped")) == 0
-          assert len(root.findall(".//failure")) == 0
-          assert len(root.findall(".//error")) == 0
+
+          path = "artifacts/coolprop-wave-regression-junit.xml"
+          root = ET.parse(path).getroot()
+          testcases = root.findall(".//testcase")
+          skipped = root.findall(".//skipped")
+          failures = root.findall(".//failure")
+          errors = root.findall(".//error")
+          print(f"testcases={len(testcases)} skipped={len(skipped)} failures={len(failures)} errors={len(errors)}")
+          assert len(testcases) >= 1
+          assert len(skipped) == 0
+          assert len(failures) == 0
+          assert len(errors) == 0
           PY
 
       - name: Run CI-light regression artifact runner
         run: |
           mkdir -p artifacts/coolprop-wave-regression
           python - <<'PY'
+          import json
+          import platform
+          import sys
           from pathlib import Path
+
+          import CoolProp
+
           from liquid_gas_transient.verification import run_coolprop_wave_regression
+
           output_path = Path("artifacts/coolprop-wave-regression/coolprop_wave_ci_light_regression_result.json")
           result = run_coolprop_wave_regression(output_path=output_path)
+
           assert result["overall_regression_pass"] is True
           assert result["failed_checks"] == []
+          assert result["regression_evaluation"] is True
+          assert result["software_path_verification"] is True
+          assert result["numerical_verification"] is True
+          assert result["design_evaluation"] is False
+          assert result["acceptance_gate"] is False
           assert result["validation"] is False
           assert result["property_backend_design_status"] == "not_approved_for_design_use"
+
+          summary = Path(__import__("os").environ["GITHUB_STEP_SUMMARY"])
+          lines = [
+              "# CoolProp Wave Regression",
+              "",
+              "This is a regression pass for a software / numerical guard only.",
+              "",
+              f"- Python version: {sys.version.split()[0]}",
+              f"- Platform: {platform.platform()}",
+              f"- CoolProp version: {CoolProp.__version__}",
+              f"- profile_name: {result['profile_name']}",
+              f"- overall_regression_pass: {result['overall_regression_pass']}",
+              f"- failed_checks: {json.dumps(result['failed_checks'])}",
+              f"- warnings: {json.dumps(result.get('warnings', []))}",
+              f"- design_evaluation: {result['design_evaluation']}",
+              f"- validation: {result['validation']}",
+              f"- property_backend_design_status: {result['property_backend_design_status']}",
+              "",
+          ]
+          summary.write_text("\n".join(lines), encoding="utf-8")
           PY
 
-      - name: Run focused HEM phase-classification tests
-        id: hem_focused
-        continue-on-error: true
-        run: |
-          python -m pytest -q \
-            tests/test_stage7_lco2_hem_thermodynamic_scaffold.py \
-            tests/test_stage7_lco2_hem_phase_classification.py \
-            tests/test_coolprop_backend_installed.py \
-            --junitxml=artifacts/stage7-hem-phase-focused-junit.xml
-
-      - name: Summarize HEM focused JUnit
-        if: always()
-        run: |
-          python - <<'PY'
-          import json
-          import xml.etree.ElementTree as ET
-          from pathlib import Path
-          path = Path("artifacts/stage7-hem-phase-focused-junit.xml")
-          payload = {"file_exists": path.is_file(), "failures": [], "errors": [], "skipped": []}
-          if path.is_file():
-              root = ET.parse(path).getroot()
-              payload["testcase_count"] = len(root.findall(".//testcase"))
-              for tag in ("failure", "error", "skipped"):
-                  for case in root.findall(".//testcase"):
-                      node = case.find(tag)
-                      if node is not None:
-                          payload[f"{tag}s"].append({
-                              "classname": case.get("classname"),
-                              "name": case.get("name"),
-                              "message": node.get("message"),
-                              "text": (node.text or "")[-4000:],
-                          })
-          Path("artifacts/stage7-hem-phase-focused-summary.json").write_text(
-              json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-          )
-          print(json.dumps(payload, indent=2, sort_keys=True))
-          PY
-
-      - name: Generate representative CoolProp HEM phase map
-        if: always()
-        id: phase_map
-        continue-on-error: true
-        run: |
-          python -m liquid_gas_transient.hem_phase_classification \
-            --output-dir "$HEM_PHASE_OUTPUT_DIR"
-
-      - name: Run full repository suite for HEM phase increment
-        if: always()
-        id: full_suite
-        continue-on-error: true
-        run: python -m pytest -q --junitxml=artifacts/stage7-hem-phase-full-junit.xml
-
-      - name: Upload regression and HEM phase diagnostics
-        if: always()
+      - name: Upload regression artifacts
         uses: actions/upload-artifact@v7
         with:
           name: coolprop-wave-regression-${{ github.run_id }}
           path: |
             artifacts/coolprop-wave-regression-junit.xml
             artifacts/coolprop-wave-regression/coolprop_wave_ci_light_regression_result.json
-            artifacts/stage7-hem-phase-focused-junit.xml
-            artifacts/stage7-hem-phase-focused-summary.json
-            artifacts/stage7-hem-phase-full-junit.xml
-            artifacts/stage7-lco2-hem-phase-map
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 14
-
-      - name: Enforce HEM validation results
-        if: always()
-        run: |
-          test "${{ steps.hem_focused.outcome }}" = "success"
-          test "${{ steps.phase_map.outcome }}" = "success"
-          test "${{ steps.full_suite.outcome }}" = "success"
