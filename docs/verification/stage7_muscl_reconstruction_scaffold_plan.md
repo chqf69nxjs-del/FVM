@@ -2,12 +2,12 @@
 
 ## 1. Status
 
-`IN_PROGRESS; PURE RECONSTRUCTION SCAFFOLD`
+`PURE RECONSTRUCTION SCAFFOLD VALIDATED; REVIEW REQUIRED`
 
 The V-013 first-order baseline was formalized and merged in PR #51 at merge commit
 `62390bd526ae99b6702f4ed76e3594e1bf01259b`. This increment begins the separate
 numerical-diffusion improvement phase on branch
-`agent/stage7-muscl-reconstruction-scaffold`.
+`agent/stage7-muscl-reconstruction-scaffold` in Draft PR #52.
 
 The present increment does not connect MUSCL reconstruction to `FvmSolver`, does not
 change production numerical states, and does not claim second-order production accuracy.
@@ -66,32 +66,65 @@ The focused tests require:
 8. unknown methods, unknown limiters, undersized slope arrays, and non-finite values fail
    explicitly.
 
-Isolated scaffold validation currently passes `9` tests.
+The reconstruction file expands to `9` pytest cases through the supported-limiter matrix.
+Together with the `4` V-013 baseline-definition tests, the focused inventory is `13`.
 
-## 6. Integration sequence
+## 6. Branch validation evidence
+
+Validation head:
+
+```text
+commit:                     c00cd2ccd5ced099bf4ea0e31a3f8a1070681a92
+workflow run:               29721475855
+focused inventory:          13 tests
+full repository inventory:  398 tests
+clean checkout:             success
+focused test step:          success
+full repository step:       success
+committed diff check:       success
+tracked files unchanged:    success
+```
+
+The four permanent workflows also completed successfully on this validation head:
+
+```text
+CoolProp Wave Regression:                 29721475864
+CoolProp Controlled Pressure Ramp:        29721475869
+CoolProp Boundary Reflection Regression:  29721475940
+CoolProp Internal Valve Regression:       29721475854
+```
+
+Generated untracked cache/build artifacts are reported after the tests but are not confused
+with source-tree mutation. The workflow separately requires a clean checkout before setup
+and verifies that no tracked or staged file changes after execution.
+
+The temporary scaffold-validation workflow is removed after this evidence is recorded.
+Later closeout commits are documentation/workflow-only and do not change the reconstruction
+module, its tests, or any production numerical path.
+
+## 7. Integration sequence
 
 The recommended sequence after this scaffold is:
 
-1. validate the pure module in the full repository suite;
-2. add a scalar linear-advection harness comparing first-order and MUSCL transport;
-3. measure Gaussian peak retention, width growth, phase error, total variation, and cost;
-4. review conservative/primitive/characteristic reconstruction choices;
-5. define EOS-validity and local first-order fallback rules;
-6. connect reconstruction as an explicit optional `FvmSolver` path;
-7. add second-order-compatible time integration;
-8. rerun V-013A before any boundary-reflection claim;
-9. rerun V-013B/C only after boundary reconstruction policy is explicit;
-10. compare all results against `v013_baseline_v1` while retaining first order unchanged.
+1. add a scalar linear-advection harness comparing first-order and MUSCL transport;
+2. measure Gaussian peak retention, width growth, phase error, total variation, and cost;
+3. review conservative/primitive/characteristic reconstruction choices;
+4. define EOS-validity and local first-order fallback rules;
+5. connect reconstruction as an explicit optional `FvmSolver` path;
+6. add second-order-compatible time integration;
+7. rerun V-013A before any boundary-reflection claim;
+8. rerun V-013B/C only after boundary reconstruction policy is explicit;
+9. compare all results against `v013_baseline_v1` while retaining first order unchanged.
 
-## 7. Completion boundary
+## 8. Completion boundary
 
 This scaffold is complete for review when:
 
-- focused reconstruction tests pass;
-- the existing V-013 baseline integrity tests remain green;
+- focused reconstruction and baseline-integrity tests pass;
 - the full repository suite remains green;
 - `git diff --check origin/main...HEAD` is clean;
 - permanent GitHub Actions remain green;
+- the temporary validation workflow is removed;
 - no production solver, flux, EOS inversion, time integration, source, phase-change,
   internal-interface, or boundary behavior is changed.
 
