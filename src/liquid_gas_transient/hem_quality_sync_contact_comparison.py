@@ -33,6 +33,12 @@ from .hem_uniform_state_preservation import VerificationHEMEquilibriumEOS
 from .solver import FvmSolver
 from .state import inventory, make_conserved
 
+PROPERTY_BACKEND_NAME = "coolprop_co2"
+PROPERTY_BACKEND_DESIGN_STATUS = "not_approved_for_design_use"
+MODEL_NAME = "pure_co2_hem_equilibrium_quality_projection_verification"
+OUTPUT_VERSION = "stage7_lco2_hem_quality_sync_contact_comparison_v1"
+FLUID_NAME = "CO2"
+
 
 class HEMQualitySyncContactComparisonError(RuntimeError):
     """Raised when the fixed contact comparison is inconsistent."""
@@ -111,12 +117,26 @@ class HEMQualitySyncContactComparisonResult:
     activated: HEMNonuniformQualitySyncResult
 
 
-def _props_si():
+def _coolprop_api():
     try:
+        import CoolProp  # type: ignore
         from CoolProp.CoolProp import PropsSI  # type: ignore
     except Exception as exc:  # pragma: no cover
         raise ImportError("CoolProp is required for the HEM contact case") from exc
-    return PropsSI
+    return PropsSI, str(CoolProp.__version__)
+
+
+def _traceability() -> dict[str, str]:
+    _, coolprop_version = _coolprop_api()
+    return {
+        "model_name": MODEL_NAME,
+        "fluid_name": FLUID_NAME,
+        "property_backend_name": PROPERTY_BACKEND_NAME,
+        "property_backend_design_status": PROPERTY_BACKEND_DESIGN_STATUS,
+        "coolprop_version": coolprop_version,
+        "numpy_version": str(np.__version__),
+        "output_version": OUTPUT_VERSION,
+    }
 
 
 def _profiles(primitive) -> dict[str, np.ndarray]:
@@ -153,12 +173,12 @@ def _run_equal_pressure_contact(
         quality_sync_tolerance=cfg.quality_sync_tolerance,
         budget_relative_tolerance=cfg.budget_relative_tolerance,
     )
-    props_si = _props_si()
-    states = []
+    props_si, _ = _coolprop_api()
+    states: list[tuple[float, float]] = []
     for quality in (cfg.left_quality, cfg.right_quality):
         try:
-            rho = float(props_si("Dmass", "P", cfg.pressure_pa, "Q", quality, "CO2"))
-            e = float(props_si("Umass", "P", cfg.pressure_pa, "Q", quality, "CO2"))
+            rho = float(props_si("Dmass", "P", cfg.pressure_pa, "Q", quality, FLUID_NAME))
+            e = float(props_si("Umass", "P", cfg.pressure_pa, "Q", quality, FLUID_NAME))
         except Exception as exc:
             raise HEMQualitySyncContactComparisonError(
                 "CoolProp failed to construct the equal-pressure contact"
@@ -227,9 +247,7 @@ def _run_equal_pressure_contact(
         )
 
         primitive = solver.primitive()
-        current_inventory = inventory(
-            solver.U, grid.dx, grid.geometry.area_m2
-        )
+        current_inventory = inventory(solver.U, grid.dx, grid.geometry.area_m2)
         if (
             solver.boundary_budget is None
             or solver.phase_budget is None
@@ -321,24 +339,17 @@ def _run_equal_pressure_contact(
     )
     mass_residual = _max_abs(history, "budget_mass_relative_residual")
     momentum_residual = _max_abs(history, "budget_momentum_relative_residual")
-    energy_residual = _max_abs(
-        history, "energy_budget_balance_relative_residual"
-    )
-    vapor_residual = _max_abs(
-        history, "phase_vapor_mass_balance_relative_residual"
-    )
-    vapor_source = _max_abs(
-        history, "phase_vapor_mass_source_cumulative_kg"
-    )
-    phase_energy_delta = _max_abs(
-        history, "phase_energy_delta_cumulative_j"
-    )
+    energy_residual = _max_abs(history, "energy_budget_balance_relative_residual")
+    vapor_residual = _max_abs(history, "phase_vapor_mass_balance_relative_residual")
+    vapor_source = _max_abs(history, "phase_vapor_mass_source_cumulative_kg")
+    phase_energy_delta = _max_abs(history, "phase_energy_delta_cumulative_j")
     final_inventory = inventory(solver.U, grid.dx, grid.geometry.area_m2)
 
     summary: dict[str, object] = {
         "schema_version": "stage7_lco2_hem_equal_pressure_contact_noop_v1",
         "scope": "verification_only",
         "case_kind": "equal_pressure_quality_contact_no_op",
+        **_traceability(),
         "completed_steps": int(solver.step_count),
         "final_time_s": float(solver.t),
         "cfl_max": max(row["cfl_max"] for row in history),
@@ -461,13 +472,12 @@ def run_hem_quality_sync_contact_comparison(
     ratio = activated_delta / max(no_op_delta, float(np.finfo(float).eps))
     no_op_source = float(no_op.summary["phase_vapor_source_max_abs_kg"])
     activated_source = abs(
-        float(
-            activated.history[-1]["phase_vapor_mass_source_cumulative_kg"]
-        )
+        float(activated.history[-1]["phase_vapor_mass_source_cumulative_kg"])
     )
     summary: dict[str, object] = {
-        "schema_version": "stage7_lco2_hem_quality_sync_contact_comparison_v1",
+        "schema_version": OUTPUT_VERSION,
         "scope": "verification_only",
+        **_traceability(),
         "no_op_projection_total_cell_updates": int(
             no_op.summary["projection_total_cell_updates"]
         ),
@@ -544,6 +554,10 @@ def _jsonable(value):
     return value
 
 
+def _case_summary_with_traceability(summary: dict[str, object]) -> dict[str, object]:
+    return {**summary, **_traceability()}
+
+
 def write_hem_quality_sync_contact_comparison_artifacts(
     output_dir: str | Path,
     result: HEMQualitySyncContactComparisonResult,
@@ -558,12 +572,13 @@ def write_hem_quality_sync_contact_comparison_artifacts(
         "markdown": out / f"{stem}.md",
         "npz": out / f"{stem}.npz",
     }
+    trace = _traceability()
     payload = {
         **result.summary,
         "config": asdict(result.config),
         "no_op": {
             "config": asdict(result.no_op.config),
-            "summary": result.no_op.summary,
+            "summary": _case_summary_with_traceability(result.no_op.summary),
             "history": result.no_op.history,
             "x_m": result.no_op.x_m,
             "initial_profiles": result.no_op.initial_profiles,
@@ -572,7 +587,7 @@ def write_hem_quality_sync_contact_comparison_artifacts(
         },
         "activated": {
             "config": asdict(result.activated.config),
-            "summary": result.activated.summary,
+            "summary": _case_summary_with_traceability(result.activated.summary),
             "history": result.activated.history,
             "x_m": result.activated.x_m,
             "initial_profiles": result.activated.initial_profiles,
@@ -589,6 +604,7 @@ def write_hem_quality_sync_contact_comparison_artifacts(
     for no_op, activated in zip(result.no_op.history, result.activated.history):
         rows.append(
             {
+                **trace,
                 "step": no_op["step"],
                 "no_op_projection_cell_count": no_op["projection_cell_count"],
                 "activated_projection_cell_count": activated[
@@ -616,6 +632,7 @@ def write_hem_quality_sync_contact_comparison_artifacts(
         writer.writerows(rows)
 
     fields = (
+        *trace.keys(),
         "x_m",
         "no_op_initial_quality",
         "no_op_final_quality",
@@ -632,6 +649,7 @@ def write_hem_quality_sync_contact_comparison_artifacts(
         for i, x_m in enumerate(result.no_op.x_m):
             writer.writerow(
                 {
+                    **trace,
                     "x_m": float(x_m),
                     "no_op_initial_quality": float(
                         result.no_op.initial_profiles["quality"][i]
@@ -655,9 +673,7 @@ def write_hem_quality_sync_contact_comparison_artifacts(
                         result.activated.final_projection["delta_q"][i]
                     ),
                     "activated_projection_applied": bool(
-                        result.activated.final_projection[
-                            "projection_applied"
-                        ][i]
+                        result.activated.final_projection["projection_applied"][i]
                     ),
                 }
             )
@@ -666,6 +682,14 @@ def write_hem_quality_sync_contact_comparison_artifacts(
         "# Stage 7 LCO2 HEM Quality-Sync Contact Comparison",
         "",
         "`VERIFICATION ONLY; NOT PRODUCTION HEM ACTIVATION`",
+        "",
+        "## Traceability",
+        "",
+        "```text",
+        *[f"{key}: {value}" for key, value in trace.items()],
+        "```",
+        "",
+        "## Comparison result",
         "",
         "```text",
     ]
@@ -684,7 +708,8 @@ def write_hem_quality_sync_contact_comparison_artifacts(
             "",
             "The equal-pressure contact spreads under Rusanov transport but remains",
             "on one saturation line, so quality projection is a numerical no-op.",
-            "This evidence is verification-only and does not approve production HEM.",
+            "This evidence is verification-only and does not approve production HEM",
+            "or the CoolProp backend for design use.",
             "",
         ]
     )
@@ -698,8 +723,26 @@ def write_hem_quality_sync_contact_comparison_artifacts(
         activated_final_U=result.activated.final_U,
         no_op_delta_q=result.no_op.final_projection["delta_q"],
         activated_delta_q=result.activated.final_projection["delta_q"],
+        **{key: np.asarray(value) for key, value in trace.items()},
     )
     return paths
+
+
+def _figure_footer(result: HEMQualitySyncContactComparisonResult) -> str:
+    trace = result.summary
+    return (
+        f"model={trace['model_name']} | fluid={trace['fluid_name']} | "
+        f"backend={trace['property_backend_name']} "
+        f"({trace['property_backend_design_status']}) | "
+        f"CoolProp={trace['coolprop_version']} | output={trace['output_version']} | "
+        "VERIFICATION ONLY"
+    )
+
+
+def _save_figure(fig, path: Path, footer: str) -> None:
+    fig.text(0.5, 0.01, footer, ha="center", va="bottom", fontsize=7)
+    fig.tight_layout(rect=(0.0, 0.04, 1.0, 1.0))
+    fig.savefig(path, dpi=160)
 
 
 def write_hem_quality_sync_contact_comparison_plots(
@@ -718,8 +761,10 @@ def write_hem_quality_sync_contact_comparison_plots(
         "projection_activity_png": out / "projection_activity_comparison.png",
         "budget_history_png": out / "contact_comparison_budgets.png",
     }
+    footer = _figure_footer(result)
     x = result.no_op.x_m
     fig, axes = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+    fig.suptitle("Stage 7 HEM quality-contact comparison")
     for axis, case, label in (
         (axes[0], result.no_op, "equal-pressure"),
         (axes[1], result.activated, "pressure-offset"),
@@ -730,12 +775,12 @@ def write_hem_quality_sync_contact_comparison_plots(
         axis.legend()
         axis.grid(True, alpha=0.3)
     axes[1].set_xlabel("x [m]")
-    fig.tight_layout()
-    fig.savefig(paths["quality_profiles_png"], dpi=160)
+    _save_figure(fig, paths["quality_profiles_png"], footer)
     plt.close(fig)
 
     steps = [row["step"] for row in result.no_op.history]
     fig, axes = plt.subplots(2, 1, figsize=(10, 7), sharex=True)
+    fig.suptitle("Stage 7 HEM projection activity")
     axes[0].plot(
         steps,
         [row["projection_cell_count"] for row in result.no_op.history],
@@ -770,11 +815,11 @@ def write_hem_quality_sync_contact_comparison_plots(
     axes[1].set_ylabel("max |delta q|")
     axes[1].legend()
     axes[1].grid(True, alpha=0.3)
-    fig.tight_layout()
-    fig.savefig(paths["projection_activity_png"], dpi=160)
+    _save_figure(fig, paths["projection_activity_png"], footer)
     plt.close(fig)
 
     fig, axis = plt.subplots(figsize=(10, 5))
+    fig.suptitle("Stage 7 HEM cumulative projection vapor source")
     axis.plot(
         steps,
         [
@@ -797,8 +842,7 @@ def write_hem_quality_sync_contact_comparison_plots(
     axis.set_ylabel("cumulative vapor source [kg]")
     axis.legend()
     axis.grid(True, alpha=0.3)
-    fig.tight_layout()
-    fig.savefig(paths["budget_history_png"], dpi=160)
+    _save_figure(fig, paths["budget_history_png"], footer)
     plt.close(fig)
     return paths
 
@@ -814,9 +858,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.output_dir, result
     )
     paths.update(
-        write_hem_quality_sync_contact_comparison_plots(
-            args.output_dir, result
-        )
+        write_hem_quality_sync_contact_comparison_plots(args.output_dir, result)
     )
     print(json.dumps({key: str(value) for key, value in paths.items()}, indent=2))
     return 0
