@@ -1,0 +1,61 @@
+name: Temporary Stage 7 HEM Contact Traceability Validation
+
+on:
+  push:
+    branches:
+      - agent/stage7-lco2-hem-contact-noop-comparison
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install verification dependencies
+        run: python -m pip install -e '.[coolprop,plotting]' pytest
+
+      - name: Run focused Stage 7 tests
+        run: |
+          python -m pytest -q \
+            tests/test_stage7_lco2_hem_equilibrium_quality_sync.py \
+            tests/test_stage7_lco2_hem_nonuniform_quality_sync.py \
+            tests/test_stage7_lco2_hem_quality_sync_contact_comparison.py \
+            tests/test_stage7_lco2_hem_uniform_state_preservation.py
+
+      - name: Run fixed comparison
+        run: |
+          python -m liquid_gas_transient.hem_quality_sync_contact_comparison \
+            --output-dir artifacts/stage7_lco2_hem_quality_sync_contact_comparison
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path('artifacts/stage7_lco2_hem_quality_sync_contact_comparison/stage7_lco2_hem_quality_sync_contact_comparison.json')
+          data = json.loads(path.read_text(encoding='utf-8'))
+          assert data['comparison_acceptance_satisfied'] is True
+          assert data['property_backend_name'] == 'coolprop_co2'
+          assert data['property_backend_design_status'] == 'not_approved_for_design_use'
+          assert data['coolprop_version']
+          PY
+
+      - name: Run full repository
+        run: python -m pytest -q
+
+      - name: Static checks
+        run: |
+          git diff --check origin/main...HEAD
+          git status --short
+
+      - name: Upload validation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage7-hem-contact-traceability-validation
+          path: artifacts/stage7_lco2_hem_quality_sync_contact_comparison
