@@ -2,7 +2,7 @@
 
 ## Status
 
-`IMPLEMENTATION DRAFT; VERIFICATION ONLY; NOT PRODUCTION HEM ACTIVATION`
+`VALIDATED IMPLEMENTATION DRAFT; VERIFICATION ONLY; NOT PRODUCTION HEM ACTIVATION`
 
 The governing design contract is recorded in
 [`stage7_lco2_hem_equilibrium_quality_sync_spec.md`](stage7_lco2_hem_equilibrium_quality_sync_spec.md).
@@ -116,10 +116,10 @@ projection_applied = abs(q_eq - q_before) > activation_tolerance
 
 For cells within the tolerance, the original `rho*q` value is preserved bitwise.
 This makes an already equilibrated state a true no-op and supports idempotence.
-All cells must still satisfy
+All cells must still satisfy:
 
 ```text
-abs(q_after - q_eq) <= activation_tolerance.
+abs(q_after - q_eq) <= activation_tolerance
 ```
 
 ## Diagnostics
@@ -166,10 +166,10 @@ Dependency-free tests require:
 
 ## Gate B — existing FVM phase-change slot
 
-A dependency-free analytic strict HEM EOS is used to create a small nonuniform
-four-cell state. The EOS rejects transported/equilibrium quality mismatch.
-Rusanov diffusion creates a mismatch at the internal transition, and the
-projection runs through the existing post-source phase-change slot.
+A dependency-free analytic strict HEM EOS creates a small nonuniform four-cell
+state. The EOS rejects transported/equilibrium quality mismatch. Rusanov
+diffusion creates a mismatch at the internal transition, and the projection runs
+through the existing post-source phase-change slot.
 
 Required evidence:
 
@@ -211,11 +211,48 @@ projection repairs rho*q
 strict VerificationHEMEquilibriumEOS accepts post-projection state
 ```
 
+## Validation evidence
+
+Primary corrected validation completed at head
+`341657d17789d5b53b875f3f790c227f136e09d2`.
+
+```text
+workflow run:          29800804296
+artifact ID:           8483707741
+artifact SHA256:       bdf06b22fbc81ca044ed57dfab9b3a18987c05914bc03b0da3734dc7e7885a6f
+focused tests:         72 passed, 0 failed, 0 errors, 0 skipped
+full repository:       478 passed, 0 failed, 0 errors, 0 skipped
+focused duration:      3.109 s
+full duration:         152.2 s
+committed diff check:  success
+tracked-file check:    success
+artifact upload:       success
+```
+
+The focused inventory includes the new synchronization tests together with the
+phase-classification, equilibrium-sound-speed and uniform-state-preservation
+suites. Gates A–D all passed.
+
+The first temporary validation run (`29800573582`) also passed both focused and
+full tests. It failed only because generated JUnit XML files were intentionally
+untracked and the post-test check used `git status --porcelain`. The workflow was
+corrected to check tracked files only with `--untracked-files=no`; no source,
+test or numerical result changed as part of that correction.
+
+At the corrected validation head, the four permanent CoolProp regression
+workflows also passed:
+
+```text
+CoolProp Wave Regression:                 29800804335
+CoolProp Controlled Pressure Ramp:        29800804313
+CoolProp Boundary Reflection Regression:  29800804298
+CoolProp Internal Valve Regression:       29800804342
+```
+
 ## Deferred gate — real-fluid nonuniform dynamic run
 
-This first implementation does not yet claim the fixed real-CO2 weak pressure-
-offset run from the specification. After Gates A–D are stable, the next commit or
-stacked increment will add:
+This implementation does not yet claim the fixed real-CO2 weak pressure-offset
+run from the specification. The next increment will add:
 
 ```text
 left:  p near 2.01 MPa, q near 0.45, u = 0
@@ -242,8 +279,9 @@ numeric_accuracy_band_approved = false
 
 ## Next gate
 
-1. validate and review the operator and Gates A–D;
-2. add the fixed weak pressure-offset real-CO2 run and saved artifacts;
-3. add human-review plots from saved artifacts only;
-4. run the equal-pressure nonuniform contact/no-op case;
-5. only then attempt liquid-to-two-phase phase-boundary crossing.
+1. remove the temporary validation workflow and confirm the permanent four-file diff;
+2. complete final-head permanent CI and merge this operator foundation;
+3. add the fixed weak pressure-offset real-CO2 run and saved artifacts;
+4. add human-review plots from saved artifacts only;
+5. run the equal-pressure nonuniform contact/no-op case;
+6. only then attempt liquid-to-two-phase phase-boundary crossing.
