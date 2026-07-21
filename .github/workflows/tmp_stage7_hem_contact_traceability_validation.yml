@@ -1,9 +1,9 @@
 name: Temporary Stage 7 HEM Contact Traceability Validation
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/stage7-lco2-hem-contact-noop-comparison
+      - main
 
 jobs:
   validate:
