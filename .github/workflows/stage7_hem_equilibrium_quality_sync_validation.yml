@@ -1,0 +1,62 @@
+name: Stage 7 HEM Equilibrium Quality Sync Validation
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  validate-equilibrium-quality-sync:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.head_ref == 'agent/stage7-lco2-hem-equilibrium-quality-sync'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install project and validation dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[coolprop,plotting]" pytest
+
+      - name: Run focused HEM synchronization tests
+        run: |
+          python -m pytest -q \
+            tests/test_stage7_lco2_hem_equilibrium_quality_sync.py \
+            tests/test_stage7_lco2_hem_phase_classification.py \
+            tests/test_stage7_lco2_hem_equilibrium_sound_speed.py \
+            tests/test_stage7_lco2_hem_uniform_state_preservation.py \
+            --junitxml=stage7_hem_equilibrium_quality_sync_focused.xml
+
+      - name: Run full repository suite
+        run: |
+          python -m pytest -q \
+            --junitxml=stage7_hem_equilibrium_quality_sync_full.xml
+
+      - name: Check committed diff
+        run: |
+          git diff --check origin/main...HEAD
+
+      - name: Check validation did not mutate tracked files
+        run: |
+          test -z "$(git status --porcelain)"
+
+      - name: Upload validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage7-hem-equilibrium-quality-sync-validation
+          path: |
+            stage7_hem_equilibrium_quality_sync_focused.xml
+            stage7_hem_equilibrium_quality_sync_full.xml
+          if-no-files-found: warn
