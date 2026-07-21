@@ -78,6 +78,10 @@ def test_equal_pressure_contact_transports_without_projection(fixed_result):
     assert summary["equal_pressure_span_tolerance_satisfied"] is True
     assert summary["pressure_span_max_pa"] <= cfg.equal_pressure_span_tolerance_pa
 
+    assert summary["property_backend_name"] == "coolprop_co2"
+    assert summary["property_backend_design_status"] == "not_approved_for_design_use"
+    assert summary["coolprop_version"]
+    assert summary["output_version"]
     assert summary["budget_tolerance_satisfied"] is True
     assert summary["phase_vapor_source_max_abs_kg"] == 0.0
     assert summary["phase_energy_delta_max_abs_j"] == 0.0
@@ -126,6 +130,9 @@ def test_pressure_offset_case_provides_activated_contrast(fixed_result):
     assert activated["budget_tolerance_satisfied"] is True
     assert activated["all_projection_states_open_two_phase"] is True
 
+    assert comparison["property_backend_name"] == "coolprop_co2"
+    assert comparison["property_backend_design_status"] == "not_approved_for_design_use"
+    assert comparison["coolprop_version"]
     assert comparison["projection_activity_contrast_satisfied"] is True
     assert comparison["delta_q_contrast_satisfied"] is True
     assert comparison["vapor_source_contrast_satisfied"] is True
@@ -192,7 +199,14 @@ def test_contact_comparison_artifacts_and_plots_are_traceable(
         == "stage7_lco2_hem_quality_sync_contact_comparison_v1"
     )
     assert payload["scope"] == "verification_only"
+    assert payload["property_backend_name"] == "coolprop_co2"
+    assert payload["property_backend_design_status"] == "not_approved_for_design_use"
+    assert payload["coolprop_version"]
+    assert payload["model_name"]
+    assert payload["output_version"]
     assert payload["comparison_acceptance_satisfied"] is True
+    assert payload["no_op"]["summary"]["property_backend_name"] == "coolprop_co2"
+    assert payload["activated"]["summary"]["property_backend_name"] == "coolprop_co2"
     assert payload["no_op"]["summary"]["projection_ever_applied"] is False
     assert payload["activated"]["summary"]["projection_ever_applied"] is True
     assert len(payload["no_op"]["history"]) == fixed_result.config.n_steps
@@ -204,6 +218,11 @@ def test_contact_comparison_artifacts_and_plots_are_traceable(
         profile_rows = list(csv.DictReader(handle))
     assert len(history_rows) == fixed_result.config.n_steps
     assert len(profile_rows) == fixed_result.config.n_cells
+    assert all(row["property_backend_name"] == "coolprop_co2" for row in history_rows)
+    assert all(
+        row["property_backend_design_status"] == "not_approved_for_design_use"
+        for row in profile_rows
+    )
     assert all(
         float(row["no_op_projection_cell_count"]) == 0.0
         for row in history_rows
@@ -215,6 +234,8 @@ def test_contact_comparison_artifacts_and_plots_are_traceable(
 
     markdown = files["markdown"].read_text(encoding="utf-8")
     assert "VERIFICATION ONLY; NOT PRODUCTION HEM ACTIVATION" in markdown
+    assert "property_backend_name: coolprop_co2" in markdown
+    assert "property_backend_design_status: not_approved_for_design_use" in markdown
     assert "comparison_acceptance_satisfied: True" in markdown
 
     archive = np.load(files["npz"])
@@ -222,3 +243,5 @@ def test_contact_comparison_artifacts_and_plots_are_traceable(
     assert archive["no_op_final_U"].shape == (fixed_result.config.n_cells, 4)
     assert archive["activated_final_U"].shape == (fixed_result.config.n_cells, 4)
     assert archive["no_op_delta_q"].shape == (fixed_result.config.n_cells,)
+    assert str(archive["property_backend_name"]) == "coolprop_co2"
+    assert str(archive["property_backend_design_status"]) == "not_approved_for_design_use"
