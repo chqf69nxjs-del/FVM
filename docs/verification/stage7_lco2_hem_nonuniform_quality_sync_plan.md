@@ -2,7 +2,7 @@
 
 ## Status
 
-`IMPLEMENTATION DRAFT; VERIFICATION ONLY; OPEN-TWO-PHASE DYNAMIC CASE`
+`VALIDATED DYNAMIC CASE; VERIFICATION ONLY; OPEN TWO-PHASE REGION`
 
 ## Objective
 
@@ -12,9 +12,9 @@ boundary crossing.
 
 The test asks one narrow question:
 
-> When conservative transport creates a disagreement between transported
-> `rho*q` and the equilibrium quality implied by `rho/e`, does the post-source
-> projection repair the state without changing mass, momentum or total energy?
+> When conservative transport creates disagreement between transported `rho*q`
+> and the equilibrium quality implied by `rho/e`, does the post-source projection
+> repair the state without changing mass, momentum or total energy?
 
 ## Fixed case
 
@@ -35,9 +35,8 @@ phase operator:           HEMEquilibriumQualityProjection
 EOS:                      PR #57 verification-only real-fluid HEM adapter
 ```
 
-Both initial states are deliberately placed well inside the open liquid-vapor
-region. The small pressure offset is intended to activate the projection while
-avoiding a phase boundary.
+Both initial states are deliberately inside the open liquid-vapor region. The
+small pressure offset activates the projection while avoiding a phase boundary.
 
 ## Existing code boundary
 
@@ -70,12 +69,12 @@ equilibrium-quality projection
 strict HEM primitive evaluation at time n+1
 ```
 
-The strict EOS is expected to be valid before each flux evaluation because the
-previous step has already synchronized `rho*q`.
+The strict EOS remains valid before every flux evaluation because the previous
+step has already synchronized `rho*q`.
 
-## Required dynamic evidence
+## Dynamic acceptance requirements
 
-Across the four steps:
+Across four steps:
 
 ```text
 at least one cell is projected
@@ -84,8 +83,7 @@ q_after matches q_equilibrium within tolerance
 rho / rho*u / rho*E are bitwise unchanged by each projection
 all projection states remain liquid_vapor_two_phase
 all equilibrium sound speeds are finite and positive
-CFL does not exceed the fixed value
-second-order or production activation is not implied
+CFL does not exceed 0.10
 ```
 
 The case does not compare against an exact transient solution and does not set a
@@ -105,25 +103,66 @@ The existing trackers must show:
 
 The fixed relative budget tolerance is `1e-11`.
 
-## Recorded history
+## Validation evidence
 
-Each step records:
+Primary validation completed at head
+`8284bf549f9937bdd5d75ed4640dee37a0baae1b`.
 
 ```text
-step / time / dt / CFL
-projected / evaporation / condensation cell counts
-max |delta q| / sum delta(rho*q)
-pressure / velocity / density extrema
-quality / void-fraction / sound-speed extrema
-mass / momentum / energy relative budget residuals
-phase-vapor relative budget residual
-cumulative phase-vapor source
-cumulative conservative phase-energy delta
+workflow run:          29801484953
+artifact ID:           8483939146
+artifact SHA256:       4156346821f0c04b5d5a569fd6bb64edeb07854a4ae905c4b29f5b3e51152447
+focused tests:         46 passed, 0 failed, 0 errors, 0 skipped
+full repository:       493 passed, 0 failed, 0 errors, 0 skipped
+focused duration:      4.556 s
+full duration:         166.858 s
+fixed runner:          success
+committed diff check:  success
+tracked-file check:    success
+artifact upload:       success
 ```
+
+### Numerical observations
+
+```text
+completed steps:                         4
+final time:                              8.695454540831607e-4 s
+maximum CFL:                             0.10
+projection total cell updates:          20
+projected cells by step:                 2, 4, 6, 8
+maximum |delta q|:                       2.4143668471476865e-5
+maximum post-projection q mismatch:      5.551115123125783e-16
+maximum velocity:                        0.2547984084365163 m/s
+pressure range:                          1.99 to 2.01 MPa
+quality range:                           0.45 to 0.55
+all projection states open two-phase:    true
+all sound speeds finite and positive:    true
+```
+
+The projection region expands outward from the initial interface as the first-
+order Rusanov update spreads the nonuniform state. The maximum correction is at
+the interface and decreases from step to step.
+
+### Budget observations
+
+```text
+maximum mass relative residual:          1.121454445127481e-16
+maximum momentum relative residual:      8.465450562766819e-16
+maximum energy relative residual:        0.0
+maximum phase-vapor relative residual:   4.528904014764725e-16
+maximum conservative phase-energy delta: 0.0 J
+cumulative vapor source after step 4:    3.501570117236952e-5 kg
+initial vapor mass:                      3.9222314611531215 kg
+final vapor mass:                        3.922266476854292 kg
+```
+
+The vapor-mass change is therefore accounted for by boundary vapor transport plus
+the projection source, while mass, momentum and conservative total energy remain
+closed to floating-point tolerance.
 
 ## Evidence artifacts
 
-The runner writes:
+The runner produced:
 
 ```text
 stage7_lco2_hem_nonuniform_quality_sync.json
@@ -136,42 +175,40 @@ hem_state_profiles.png
 conservation_and_projection_history.png
 ```
 
-The PNG files are generated from the in-memory result returned by the completed
-run. Plotting does not rerun or alter the numerical solution.
+The PNG files are generated from the completed result. Plotting does not rerun or
+alter the numerical solution.
 
-## Human-review plots
+## Human-review findings
 
-`quality_sync_snapshot.png` shows:
+`quality_sync_snapshot.png` shows that the correction is localized near the
+initial interface. `q_after` overlaps `q_equilibrium`; the visible correction is
+of order `1e-5`.
 
-- quality before projection;
-- equilibrium quality;
-- quality after projection;
-- cellwise `delta q`.
+`hem_state_profiles.png` shows smooth first-order transition profiles without
+isolated non-finite spikes. The pressure remains inside the prescribed 1.99–2.01
+MPa range, velocity remains small, and quality, void fraction and sound speed
+remain bounded.
 
-`hem_state_profiles.png` shows final pressure, velocity, density, void fraction,
-equilibrium sound speed and quality profiles. Phase classification is recorded
-cellwise in the profile CSV and must be uniformly `liquid_vapor_two_phase` for
-this fixed case.
+`conservation_and_projection_history.png` shows the projected-cell count expanding
+as `2, 4, 6, 8`, conservative residuals at approximately `1e-16`, and cumulative
+vapor source growth with a near-zero vapor-budget residual.
 
-`conservation_and_projection_history.png` shows projection activity, conservative
-budget residuals, cumulative vapor source and vapor-budget residual.
+Phase classification is stored cellwise in the final-profile CSV and is uniformly
+`liquid_vapor_two_phase`.
 
-## Acceptance conditions
-
-The case passes only if:
+## Acceptance result
 
 ```text
-completed steps = 4
-projection ever applied = true
-projection total cell updates >= 1
-all projection invariants satisfied = true
-all projection states open two-phase = true
-all sound speeds finite and positive = true
-maximum post-projection quality mismatch <= 1e-10
-all required relative budget residuals <= 1e-11
-maximum conservative phase-energy delta = 0
-EOS / phase / acoustic failure count = 0
-all artifact and PNG files exist and are nonempty
+completed steps = 4:                              PASS
+projection ever applied:                          PASS
+projection total cell updates >= 1:               PASS
+all projection invariants satisfied:              PASS
+all projection states open two-phase:             PASS
+all sound speeds finite and positive:             PASS
+post-projection mismatch <= 1e-10:                 PASS
+required relative budget residuals <= 1e-11:      PASS
+conservative phase-energy delta = 0:               PASS
+all artifact and PNG files nonempty:               PASS
 ```
 
 ## Required flags
@@ -198,8 +235,8 @@ This increment does not:
 
 ## Next gate
 
-After this case is reviewed:
-
-1. add the equal-pressure `q=0.45 / 0.55` nonuniform contact/no-op case;
-2. compare its near-zero projection against this activated pressure-offset case;
-3. then define the first liquid-to-two-phase expansion problem.
+1. remove the temporary validation workflow and confirm the permanent four-file diff;
+2. complete final-head permanent CI and merge this activated dynamic case;
+3. add the equal-pressure `q=0.45 / 0.55` nonuniform contact/no-op case;
+4. compare its near-zero projection against this pressure-offset case;
+5. then define the first liquid-to-two-phase expansion problem.
