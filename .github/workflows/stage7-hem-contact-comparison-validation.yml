@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - agent/stage7-lco2-hem-contact-noop-comparison
+  pull_request:
+    branches:
+      - main
 
 jobs:
   validate:
