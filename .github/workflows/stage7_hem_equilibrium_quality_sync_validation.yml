@@ -49,7 +49,7 @@ jobs:
 
       - name: Check validation did not mutate tracked files
         run: |
-          test -z "$(git status --porcelain)"
+          test -z "$(git status --porcelain --untracked-files=no)"
 
       - name: Upload validation evidence
         if: always()
