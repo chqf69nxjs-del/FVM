@@ -18,7 +18,7 @@ n=400 peak ratio:    0.57499430
 
 Wave direction and approximate propagation speed are consistent. Strong numerical
 broadening and peak loss decrease with mesh refinement but remain material at `n=400`.
-Production solver behaviour is unchanged.
+Production solver behavior is unchanged.
 
 Review-close validation run `29673595870` passed focused `40` and full `316` tests,
 with `git diff --check` clean. Temporary validation helpers were removed.
@@ -38,10 +38,6 @@ wall velocity = 0
 wall pressure ratio = 2
 ```
 
-Draft review found and resolved runtime-import independence and secondary-return-window
-issues. A plotting-key mismatch and a wall-contact zero-denominator error metric were
-also corrected without changing production numerical states.
-
 Final evidence:
 
 ```text
@@ -53,33 +49,14 @@ artifact ID:        8441899419
 artifact SHA256:    709a78a29bd21d9b01d8785e296b30a8085c7d5af6a26aba7b808c9c6be19861
 ```
 
-| n | pressure reflection | velocity reflection | wall pressure ratio | final peak ratio |
-|---:|---:|---:|---:|---:|
-| 100 | 0.65777978 | -0.65771904 | 0.85567464 | 0.33987059 |
-| 200 | 0.71062343 | -0.71062316 | 1.11654918 | 0.44696373 |
-| 400 | 0.77589432 | -0.77589440 | 1.38056539 | 0.57499450 |
-
 Pressure and velocity reflection signs are correct. Wall-face velocity, mass flux, and
-energy flux are exactly zero. Strong FVM numerical diffusion remains at the finest mesh.
+energy flux are exactly zero. Strong first-order numerical broadening remains at the
+finest mesh.
 
 ## 2026-07-19 to 2026-07-20 — V-013C fixed-pressure reflection
 
 Status: `OBSERVED; MERGED` in PR #50. Merge commit:
-`f403103c46a1d618ce2f2345c986e29b921b664a`. V-013 overall remains `IN_PROGRESS`.
-
-### Fixed case
-
-```text
-pulse:                         100 Pa right-going Gaussian
-x0 / sigma:                    65 / 2 m
-right boundary:                fixed pressure at p0
-left boundary:                 transmissive
-FVM mesh / CFL:                100, 200, 400 / 0.5
-MOC mesh / CFL:                100, 200, 400 / 1.0
-probes x/L:                    0.75, 0.85, 0.90
-matched path travel:           0, 15, 25, 35, 45, 55, 65 m
-probe half width / field guard: 2 sigma / 5 sigma
-```
+`f403103c46a1d618ce2f2345c986e29b921b664a`.
 
 Fixed identities:
 
@@ -91,211 +68,282 @@ boundary pressure perturbation = 0
 boundary velocity / incident velocity amplitude = 2
 ```
 
-The production path is the existing
-`PressureTankBoundary(ConstantPressure(p0), flow_direction="bidirectional",
-velocity_policy="copy")`. Unlike the rigid wall, this pressure boundary may carry
-nonzero mass and energy flux; those quantities are observations rather than zero-flux
-acceptance conditions.
-
-### Specification and platform validation
-
-The initial scaffold validation passed but used a working-tree-only `git diff --check`.
-A P3 review finding required an explicit committed range. The corrected validation used
-`git diff --check origin/main...HEAD`, focused `53` tests, and full `380` tests; all
-passed and the review thread was resolved.
-
-The Windows project recheck then passed:
-
-```text
-focused tests:      58 passed in 10.61 s
-full repository:    385 passed in 277.41 s
-committed diff:     clean
-working tree:       clean
-```
-
-### Final observation evidence
+Final evidence:
 
 ```text
 workflow run:       29692477941
 PR head:            2f5c10b3f99f561d457ab8d391d5e91be98b7ff3
-Actions merge SHA:  e2eb1a075d229d51d28366aa211a1642fbcc1463
 focused tests:      58 passed, 0 skipped
 full repository:    385 passed, 0 skipped
 runs / figures:     3 / 3, 7 / 7
-plotting errors:    0
-CoolProp:           8.0.0
 artifact ID:        8444138380
-artifact entries:   59
 artifact SHA256:    6432fb8502687cb974c161356e4ac8364235ef2ba5c92ac7bb9f1e52dca54786
 ```
 
-Plotting used saved artifacts only:
-`solver_rerun = false`, `numerical_results_changed = false`.
-
-| n | pressure reflection | velocity reflection | fixed-pressure residual | boundary velocity ratio | final peak ratio |
-|---:|---:|---:|---:|---:|---:|
-| 100 | -0.63395297 | 0.63399661 | 0.05654903 | 0.82447607 | 0.33190828 |
-| 200 | -0.69829946 | 0.69829998 | 0.04880759 | 1.09704849 | 0.44185022 |
-| 400 | -0.77022729 | 0.77022778 | 0.03712903 | 1.37073388 | 0.57212615 |
-
 The reflected pressure sign is negative, reflected velocity sign is positive, and the
-returning characteristic is left-going `A-`. Fixed-pressure residuals and boundary
-velocity amplification improve monotonically with refinement. Nonzero boundary mass and
-energy transfer are recorded and expected for this ideal pressure boundary.
-
-Maximum pressure/velocity L2 relative differences decrease from about `0.681` at
-`n=100` to about `0.413` at `n=400`. The final peak ratio remains about `57.2%`,
-confirming that strong numerical diffusion remains the dominant limitation.
-
-Temporary V-013C observation, finalization, and review-helper workflows were removed
-before review-ready state. Final-head permanent workflows passed `4 / 4`, and all
-review threads were resolved. Production solver, numerical flux, EOS inversion, and
-boundary behaviour remain unchanged. Physical Validation, design-use acceptance, and
-V-013 acceptance bands remain outside this increment.
-
-## Joint Stage 7 first-order conclusion
-
-V-013A/B/C consistently support the following conclusions:
-
-- propagation direction and approximate timing are correct;
-- rigid-wall and fixed-pressure reflection signs are correct;
-- the essential boundary-condition behaviour is reproduced;
-- all principal differences improve with mesh refinement;
-- strong first-order FVM numerical diffusion remains common to all three cases;
-- the current solver is a robust software/numerical verification baseline, not a
-  physically validated or design-accurate wave-amplitude model.
+returning characteristic is left-going `A-`. The finest-mesh final peak ratio is
+`0.57212615`, confirming that strong numerical diffusion remains the dominant
+limitation.
 
 ## 2026-07-20 — V-013 baseline formalization merged
 
 Status: `FORMALIZED; MERGED` in PR #51. Merge commit:
 `62390bd526ae99b6702f4ed76e3594e1bf01259b`.
 
-Starting point:
+Review-readiness validation:
 
 ```text
-base main commit:      afba28c56dc43bee82dd6f169d0249333ed7bfe2
-Windows full baseline: 385 passed in 151.59 s
-working tree:          clean
-production changes:    none
+baseline-definition integrity:  4 passed
+full repository:               389 passed
+committed diff:                clean
+working tree:                  clean
+permanent GitHub Actions:      4 / 4 success
 ```
 
-The formalization increment added:
-
-- a combined A/B/C baseline and limitation statement;
-- machine-readable baseline version `v013_baseline_v1`;
-- pure integrity tests for source commits, fixed configuration, signs, refinement trends,
-  and false acceptance flags;
-- a two-tier CI-light proposal that separates exact qualitative invariants from future
-  numeric drift bands;
-- synchronized merged status in the V-013A and V-013B observation notes.
-
-Windows review-readiness validation at head
-`61c4810d3aa0a13c2a0709628955512d1f1243a2` passed:
-
-```text
-baseline-definition integrity: 4 passed
-full repository:              389 passed
-committed diff:               clean
-working tree:                 clean
-permanent GitHub Actions:     4 / 4 success
-```
-
-The current first-order FVM is now the selectable software/numerical control. The baseline
-does not approve physical Validation, design use, an exact solution, or any numeric
+The first-order FVM is fixed as the selectable software/numerical control. It is not an
+exact solution, physical Validation result, design-use approval, or approved numeric
 accuracy/regression band. CI-light remains `PROPOSED; NOT APPROVED; NOT IMPLEMENTED`.
 
 ## 2026-07-20 — Numerical-diffusion improvement assets
 
 PR #52 is `OPEN; READY FOR REVIEW` and contains a solver-independent MUSCL/TVD
-reconstruction scaffold. Its final intended diff contains first-order and MUSCL
-reconstruction, minmod/MC/van Leer limiters, pure tests, and verification documentation.
-It does not connect to `FvmSolver` or change production numerical states.
+reconstruction scaffold. Final head:
+`829880e88010ea808b316e09f28f26a0a18c7f03`.
 
-PR #53 is a `VALIDATED STACKED DRAFT` based on PR #52. It contains a periodic scalar
-linear-advection comparison and records material peak-retention, width-preservation, and
-L2-error improvements for all MUSCL variants relative to the same-time-integrator
-first-order control. It does not approve a production limiter or time integrator.
-
-These PRs remain useful numerical assets but are not dependencies of the HEM thermodynamic
-line. Higher-order production connection is deferred until a first-order HEM baseline is
-established.
-
-## 2026-07-20 — Pure-CO2 HEM thermodynamic scaffold
-
-Status: `VALIDATED DRAFT; NOT SOLVER CONNECTED` in PR #54 on branch
-`agent/stage7-lco2-hem-thermodynamic-scaffold`.
-
-The branch starts directly from PR #51 merge commit
-`62390bd526ae99b6702f4ed76e3594e1bf01259b`.
-
-The increment adds:
-
-- an HEM-oriented wrapper for `RealFluidPropertyBackend.state_from_rho_e`;
-- finite-positive density and finite internal-energy validation without imposing a
-  universal real-fluid `e >= 0` rule;
-- validation of pressure, temperature, quality, void fraction, and backend-reported sound
-  speed;
-- quality-regime classification for liquid endpoint, open two-phase interval, and vapor
-  endpoint;
-- backend-error wrapping with backend-name context;
-- input immutability and memory-independence guards;
-- a deterministic surrogate liquid/two-phase/vapor 0-D path;
-- JSON, CSV, Markdown, and NPZ evidence with explicit false approval flags.
-
-Primary validation:
+Its intended diff contains four files:
 
 ```text
-validation head:           c96567cb63a67b3d9be2f3f20e7e5790e7ee3828
-workflow run:              29739900542
-artifact ID:               8459985478
-artifact SHA256:           98c3e973d0f81c68bf0cf86396679964d87a3f4f1ecdb542bdbe1dbaeecf8103
-focused tests:             24 passed, 0 skipped
-full repository:           406 passed, 0 skipped
-CoolProp wrapper states:    2 compressed-liquid states passed
-0-D path states:           23 / 23
-0-D artifact formats:       4 / 4
-committed diff:             clean
-tracked/staged files:       unchanged
-permanent workflows:       4 / 4 success
+src/liquid_gas_transient/reconstruction.py
+tests/test_stage7_muscl_reconstruction.py
+docs/verification/stage7_muscl_reconstruction_scaffold_plan.md
+docs/verification/stage7_muscl_scaffold_validation_commands.md
 ```
 
-The CoolProp states at `5 MPa / 280 K` and `8 MPa / 280 K` returned finite properties,
-quality `0`, void fraction `0`, and quality regime `liquid_endpoint`.
+PR #53 is a `VALIDATED STACKED DRAFT` based on PR #52. Final head:
+`ff72bd303a99d832bad6d13536ff9b5682eeb4f9`.
 
-The dependency-free 0-D path covered compressed liquid, saturated liquid, the open
-liquid-vapor quality interval, saturated vapor, and expanded vapor. All states had finite
-positive pressure, temperature, and backend-reported sound speed; quality and void fraction
-were monotone along the fixed path.
-
-Important limitations remain:
+The scalar-advection evidence shows material reduction in numerical diffusion for all
+MUSCL variants. At `n=200`, peak retention under SSP-RK2 was:
 
 ```text
-production solver connected:                         false
-pure-CO2 HEM thermodynamic core complete:             false
-complete phase classification:                       false
-equilibrium two-phase sound-speed closure approved:  false
-backend-reported sound speed:                         diagnostic only
-critical region validated:                           false
-solid phase supported:                               false
-physical Validation:                                 false
-design-use acceptance:                               false
+first order:       0.57795218
+MUSCL minmod:      0.88811719
+MUSCL MC:          0.96768181
+MUSCL van Leer:    0.94953622
 ```
 
-The current labels are quality-regime labels rather than complete phase labels. The next
-technical work must expose explicit backend phase classification, separate two-phase
-property evaluation from sound-speed evaluation, and establish a reviewed equilibrium
-sound-speed closure before solver connection.
+The numerical-improvement line remains separate from the HEM physical-model line.
+Production activation is deferred.
 
-Temporary validation workflow changes were removed after evidence capture. No production
-solver, flux, EOS-adapter, phase-change, boundary, interface, or source behaviour changed.
+## 2026-07-20 to 2026-07-21 — Pure-CO2 HEM foundation
+
+### PR #54 — thermodynamic scaffold and 0-D path
+
+Status: `MERGED`. Merge commit:
+`6e0779346a9adb0f3c74d790f558a6813f009ee7`.
+
+Final reviewed head:
+`39a394698383879225216aee403c1221fe454e0e`.
+
+Primary evidence:
+
+```text
+workflow run:         29739900542
+artifact ID:          8459985478
+artifact SHA256:      98c3e973d0f81c68bf0cf86396679964d87a3f4f1ecdb542bdbe1dbaeecf8103
+focused tests:        24 passed, 0 skipped
+full repository:      406 passed, 0 skipped
+0-D path states:      23 / 23
+artifact formats:     4 / 4
+permanent workflows:  4 / 4 success
+```
+
+The increment adds an HEM-oriented wrapper around
+`RealFluidPropertyBackend.state_from_rho_e`, explicit finite-value guards, backend-error
+traceability, input immutability, and a deterministic liquid/two-phase/vapor path.
+
+Backend-reported sound speed remains diagnostic only. No production solver, flux, CFL,
+boundary, source, interface, or phase-change behavior was changed.
+
+### PR #55 — explicit CoolProp phase classification
+
+Status: `MERGED`. Merge commit:
+`e45362d1aa07bf7144f606dc32595d4ab2f7093d`.
+
+Final reviewed head:
+`97ffe4e57c3a006ae27702749c417f9e3989aba8`.
+
+Primary evidence:
+
+```text
+workflow run:         29744597504
+artifact ID:          8461927762
+artifact SHA256:      d91869f6d7fd3d18ab9e2abf1b3e9b6fecfa87228dabd5546fd8024aa7252c6a
+focused tests:        39 passed, 0 skipped
+full repository:      423 passed, 0 skipped
+phase-map states:     9 / 9
+sound-speed calls:    none
+permanent workflows:  4 / 4 success
+```
+
+The increment uses CoolProp `PhaseSI` rather than inferring phase from quality alone. It
+separates equilibrium state evaluation from acoustic closure and defines explicit
+critical, solid/below-triple, and unknown-state guards.
+
+CoolProp reports `8 MPa / 280 K` as `supercritical_liquid`; away from the critical
+guard this is treated as a high-density liquid candidate for the first LCO2 path.
+
+### PR #56 — equilibrium sound-speed closure candidate
+
+Status: `MERGED`. Merge commit:
+`b098f67b71bf53bd20fc14bf80d7f4cea595a707`.
+
+Final reviewed head:
+`3c21be4410e808f22888edd9814204a25df40a4c`.
+
+Implemented candidate:
+
+```text
+c_eq^2 = (dp/drho)|e + (p/rho^2) (dp/de)|rho
+```
+
+Primary evidence:
+
+```text
+workflow run:           29748093054
+artifact ID:            8463388994
+artifact SHA256:        97b6f04a38cd6debafc66fac3dc8b902d1abdf1fed982e04c48000ca5682ad79
+focused HEM tests:      63 passed, 0 skipped
+full repository:        447 passed, 0 skipped
+sound-speed states:     10 / 10
+two-phase states:       7 / 7
+CoolProp two-phase A:   never requested
+permanent workflows:    4 / 4 success
+```
+
+The closure uses adaptive phase-preserving central finite differences of `p(rho,e)`.
+Non-finite or non-positive results are rejected without clipping. Single-phase estimates
+agree with CoolProp reference sound speed within the qualitative test guard.
+
+Representative two-phase observations at `2 MPa` range from `37.846900 m/s` at
+`q=0.05` to `197.788354 m/s` at `q=0.95`. These are closure observations, not approved
+physical accuracy results.
+
+### PR #57 — uniform HEM-state preservation
+
+Status: `OBSERVED; MERGED`. Merge commit:
+`f27ec42d0e191065cd4d3d214a14009b07be800f`.
+
+Final reviewed head:
+`45cdfe3da409e98825bc3b2ab52265f5f51f2900`.
+
+Fixed case:
+
+```text
+p:                    2 MPa
+quality:              0.50
+velocity:             0 m/s
+cells / steps:        8 / 8
+CFL:                  0.25
+boundaries:           transmissive
+source:               NoSource
+phase change:         NoPhaseChange
+internal interfaces:  none
+```
+
+Primary evidence:
+
+```text
+workflow run:          29751190749
+artifact ID:           8464712262
+artifact SHA256:       71f7934f6f0061191f8af09b9cdf802a5b797f628878cd045a13a94273f5e999
+focused HEM tests:     76 passed, 0 skipped
+full repository:       460 passed, 0 skipped
+uniform cells / steps: 8 / 8
+permanent workflows:   4 / 4 success
+```
+
+Fixed-state observations:
+
+```text
+rho:                       99.97757528102285 kg/m3
+temperature:               253.64735829812284 K
+quality:                   0.5
+void fraction:             0.951436972434191
+equilibrium sound speed:   135.76568112572576 m/s
+dt:                        0.002301759895496782 s
+final time:                0.018414079163974254 s
+```
+
+Every measured drift in conservative state, primitive variables, acoustic quantities,
+and mass/momentum/energy/vapor-mass inventories was exactly zero after eight steps.
+
+This demonstrates exact preservation of one uniform stationary open-two-phase state
+through the verification-only adapter. It does not establish nonuniform-flow accuracy,
+dynamic flashing, phase-boundary crossing, or production readiness.
+
+## 2026-07-21 — Stacked PR convergence
+
+PRs #54–#57 were originally prepared as a stacked sequence. They were merged
+sequentially into `main` using squash merge. After each parent merge, the next PR was:
+
+1. rebased onto the updated `main`;
+2. force-pushed with `--force-with-lease`;
+3. retargeted from the former parent branch to `main`;
+4. checked for the intended PR-specific file set;
+5. checked against the four permanent workflows;
+6. marked ready for review and merged.
+
+Final PR-specific diffs after restacking were:
+
+```text
+PR #54: 6 files
+PR #55: 3 files
+PR #56: 4 files
+PR #57: 4 files
+```
+
+During the PR #57 restack, an initial rebase used the new PR #56 head instead of the
+original stacked boundary and encountered already-upstream commits and an add/add
+documentation conflict. The rebase was aborted. A stale `.git/rebase-merge` directory,
+held under the OneDrive-synchronized working path, was renamed and retained for recovery.
+A backup branch `backup/pr57-before-rebase` was created before retrying.
+
+The correct original PR #56 head
+`3e032ced2cb8f65e058783886b36b58a72b7719e` was then used as the cut boundary. The
+resulting PR #57 diff contained only the intended four files and was merged normally.
+
+No production source changes were introduced by the restacking operation itself.
+
+## Current technical conclusion
+
+The HEM foundation on `main` now supports:
+
+- guarded `rho/e` thermodynamic evaluation;
+- explicit phase classification;
+- an independently defined equilibrium sound-speed candidate;
+- verification-only connection to existing Rusanov flux and CFL;
+- exact preservation of one uniform stationary open-two-phase state.
+
+The current evidence does not support the following claims:
+
+```text
+dynamic equilibrium-quality synchronization:  not implemented
+nonuniform two-phase flow:                     not verified
+phase-boundary crossing:                       not verified
+pipeline depressurization:                     not implemented
+two-phase acoustic accuracy band:              not approved
+production HEM activation:                     not approved
+physical Validation:                           false
+design-use acceptance:                         false
+```
 
 ## Next
 
-1. review PR #54 as a thermodynamic scaffold, not a completed HEM model;
-2. complete PR #52/#53 independently as later numerical-improvement assets;
-3. expose explicit CoolProp phase classification for safe representative `rho/e` states;
-4. define critical- and solid-region stop guards;
-5. separate equilibrium two-phase `p/T/Q/phase` evaluation from sound-speed evaluation;
-6. define and verify an equilibrium two-phase sound-speed closure;
-7. generate a CoolProp pure-CO2 0-D phase/property map;
-8. then connect the closure to a first-order uniform HEM-state preservation case.
+1. merge this documentation synchronization PR;
+2. define and verify dynamic equilibrium-quality synchronization;
+3. run a small nonuniform open-two-phase case before phase-boundary crossing;
+4. add a first-order one-dimensional liquid-to-two-phase expansion case;
+5. build the first LCO2 pipeline depressurization prototype;
+6. retain PR #52/#53 as later numerical-improvement assets until the first-order dynamic
+   HEM path is stable.
