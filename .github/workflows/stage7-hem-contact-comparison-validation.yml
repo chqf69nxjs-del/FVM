@@ -1,0 +1,82 @@
+name: Stage 7 HEM Contact Comparison Validation
+
+on:
+  push:
+    branches:
+      - agent/stage7-lco2-hem-contact-noop-comparison
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install verification dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[coolprop,plotting]" pytest
+
+      - name: Run focused Stage 7 tests
+        run: |
+          python -m pytest -q \
+            tests/test_stage7_lco2_hem_equilibrium_quality_sync.py \
+            tests/test_stage7_lco2_hem_nonuniform_quality_sync.py \
+            tests/test_stage7_lco2_hem_quality_sync_contact_comparison.py \
+            tests/test_stage7_lco2_hem_uniform_state_preservation.py
+
+      - name: Run fixed comparison and inspect summary
+        run: |
+          python -m liquid_gas_transient.hem_quality_sync_contact_comparison \
+            --output-dir artifacts/stage7_lco2_hem_quality_sync_contact_comparison
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("artifacts/stage7_lco2_hem_quality_sync_contact_comparison/stage7_lco2_hem_quality_sync_contact_comparison.json")
+          data = json.loads(path.read_text(encoding="utf-8"))
+          assert data["comparison_acceptance_satisfied"] is True
+          assert data["no_op_projection_total_cell_updates"] == 0
+          assert data["activated_projection_total_cell_updates"] > 0
+          print(json.dumps({
+              "no_op_projection_total_cell_updates": data["no_op_projection_total_cell_updates"],
+              "activated_projection_total_cell_updates": data["activated_projection_total_cell_updates"],
+              "no_op_max_abs_delta_q": data["no_op_max_abs_delta_q"],
+              "activated_max_abs_delta_q": data["activated_max_abs_delta_q"],
+              "activated_to_no_op_delta_q_ratio": data["activated_to_no_op_delta_q_ratio"],
+              "no_op_pressure_span_max_pa": data["no_op"]["summary"]["pressure_span_max_pa"],
+              "no_op_mixed_quality_cell_count": data["no_op"]["summary"]["mixed_quality_cell_count"],
+              "no_op_mass_budget_max_relative_residual": data["no_op"]["summary"]["mass_budget_max_relative_residual"],
+              "activated_mass_budget_max_relative_residual": data["activated"]["summary"]["mass_budget_max_relative_residual"],
+          }, indent=2))
+          PY
+
+      - name: Run full repository
+        run: python -m pytest -q
+
+      - name: Static diff checks
+        run: |
+          git diff --check origin/main...HEAD
+          git diff --stat origin/main...HEAD
+          git status -sb
+
+      - name: Write artifact checksums
+        run: |
+          cd artifacts/stage7_lco2_hem_quality_sync_contact_comparison
+          sha256sum * > SHA256SUMS.txt
+
+      - name: Upload validation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage7-lco2-hem-quality-sync-contact-comparison
+          path: artifacts/stage7_lco2_hem_quality_sync_contact_comparison
+          if-no-files-found: error
