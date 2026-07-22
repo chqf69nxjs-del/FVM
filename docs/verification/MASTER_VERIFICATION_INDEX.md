@@ -3,32 +3,36 @@
 Historical detail through the V-013 reference-core checkpoint is preserved in
 [`archive/MASTER_VERIFICATION_INDEX_through_v013_reference_core.md`](archive/MASTER_VERIFICATION_INDEX_through_v013_reference_core.md).
 
-## Current state — 2026-07-21
+## Current state — 2026-07-22
 
 - Stage 1–6: `COMPLETE`
 - Stage 7: `IN_PROGRESS`
-- current `main`: `3e116cbcd853bcb1b52fe001819a4b300d5997ff`
+- recorded development `main`: `fb078da84fa17d6aa8d840616c494a0bf3efd71c`
 - V-013 first-order propagation/reflection baseline: `FORMALIZED; MERGED` in PR #51
 - pure-CO2 HEM thermodynamic and phase foundation: `MERGED` in PRs #54–#57
 - dynamic equilibrium-quality synchronization: `IMPLEMENTED; MERGED` in PRs #59–#60
 - nonuniform open-two-phase activated case: `OBSERVED; MERGED` in PR #61
 - equal-pressure contact no-op comparison: `OBSERVED; MERGED` in PR #62
+- central quality-sync record synchronization: `MERGED` in PR #63
+- first liquid-to-two-phase boundary-crossing specification: `MERGED` in PR #64
+- liquid-to-two-phase boundary-region and transition classifier: `IMPLEMENTED; MERGED` in PR #65
 - MUSCL/TVD reconstruction scaffold: `OPEN; READY FOR REVIEW` in PR #52
 - scalar-advection comparison: `VALIDATED STACKED DRAFT` in PR #53
-- active physical-model gate: first liquid-to-two-phase phase-boundary crossing specification
+- active physical-model gate: mixed liquid/open-two-phase accepted-state verification EOS
 - physical Validation: `NOT ESTABLISHED`
 - design-use acceptance: `NOT ESTABLISHED`
 - production HEM activation: `NOT APPROVED`
 
 The main development objective remains a conservative one-dimensional LCO2 pipeline
 transient code that can progress from liquid states through flashing and liquid-vapor
-two-phase formation. The current first-order FVM remains the numerical control.
+two-phase formation. The existing first-order FVM remains the numerical control.
 
 The merged HEM path now supports guarded real-fluid state evaluation, explicit phase
 classification, an equilibrium sound-speed candidate, exact preservation of a uniform
-two-phase state, and dynamic equilibrium-quality synchronization inside the open
-two-phase region. Liquid-to-two-phase boundary crossing and pipeline depressurization
-remain unverified.
+open-two-phase state, dynamic equilibrium-quality synchronization inside the open
+two-phase region, and verification-only classification of liquid-side boundary regions
+and transition events. An actual first-order liquid-to-two-phase FVM crossing and
+pipeline depressurization remain unverified.
 
 ## Stage 7 milestone index
 
@@ -49,12 +53,15 @@ remain unverified.
 | PR #60 | equilibrium-quality projection implementation | `MERGED` | merge `a4d525a004ae7bf5e284a882706155dce41b3eba` |
 | PR #61 | pressure-offset nonuniform dynamic case | `OBSERVED; MERGED` | merge `ceca2b48eb2f34cb8c1d584d80ae2619ff77271a` |
 | PR #62 | equal-pressure contact/no-op comparison | `OBSERVED; MERGED` | merge `3e116cbcd853bcb1b52fe001819a4b300d5997ff` |
+| PR #63 | quality-sync central-record synchronization | `MERGED` | merge `33349ff6c16373443b2626d13c1a867d54275d0a` |
+| PR #64 | first liquid-to-two-phase crossing specification | `MERGED` | merge `f2b8335132741765b6d5e42f65f742cf5e241c66` |
+| PR #65 | boundary-region and transition classifier | `IMPLEMENTED; MERGED` | merge `fb078da84fa17d6aa8d840616c494a0bf3efd71c` |
 
 ## First-order V-013 baseline
 
-The current production FVM is fixed as a selectable first-order software/numerical
-control. It reproduces wave direction, approximate timing, reflection signs, and
-essential boundary-condition behavior across V-013A/B/C.
+The current production FVM is fixed as a selectable software/numerical control. It
+reproduces wave direction, approximate timing, reflection signs, and essential boundary
+behavior across V-013A/B/C.
 
 | case | expected identity | observed conclusion | finest-mesh final peak ratio |
 |---|---|---|---:|
@@ -62,9 +69,8 @@ essential boundary-condition behavior across V-013A/B/C.
 | V-013B | `A-_reflected = A+_incident` | pressure sign positive; velocity sign negative | `0.57499450` |
 | V-013C | `A-_reflected = -A+_incident` | pressure sign negative; velocity sign positive | `0.57212615` |
 
-The common limiting issue is strong first-order numerical diffusion. Approximately
-`57%` peak retention at `n=400` is an observed limitation, not an approved accuracy
-target, design margin, or CI regression band.
+Approximately `57%` peak retention at `n=400` is an observed first-order numerical-
+diffusion limitation, not an approved accuracy target, design margin, or CI band.
 
 Formalization documents:
 
@@ -80,8 +86,8 @@ PR #52 contains a solver-independent reconstruction layer with exact first-order
 componentwise MUSCL reconstruction plus minmod, MC, and van Leer limiters. It does not
 connect to `FvmSolver` or change production numerical states.
 
-PR #53 contains a periodic scalar-advection comparison. At `n=200`, peak retention
-under SSP-RK2 was approximately:
+PR #53 contains a periodic scalar-advection comparison. At `n=200`, peak retention under
+SSP-RK2 was approximately:
 
 ```text
 first order:       0.57795218
@@ -91,11 +97,9 @@ MUSCL van Leer:    0.94953622
 ```
 
 At `n=400`, MUSCL MC retained `0.98833595` of the peak. These results rank later
-numerical candidates; they do not approve a production limiter, reconstruction
-variable set, fallback policy, or time integrator.
-
-Higher-order production connection remains deferred until the first-order dynamic HEM
-path, including phase-boundary crossing, is established.
+numerical candidates; they do not approve a production limiter, reconstruction variable
+set, fallback policy, or time integrator. Higher-order production connection remains
+deferred until the first-order dynamic HEM path is stable.
 
 ## Pure-CO2 HEM foundation — PRs #54–#57
 
@@ -106,36 +110,22 @@ path, including phase-boundary crossing, is established.
 | #56 | equilibrium sound-speed closure candidate | `3c21be4410e808f22888edd9814204a25df40a4c` | `63 / 447` | sound-speed states `10 / 10`; two-phase states `7 / 7` |
 | #57 | uniform stationary two-phase FVM preservation | `45cdfe3da409e98825bc3b2ab52265f5f51f2900` | `76 / 460` | cells / steps `8 / 8`; all measured drift exactly `0` |
 
-The foundation demonstrates:
-
-- guarded `rho/e` evaluation through the real-fluid backend contract;
-- explicit distinction among liquid, liquid-vapor two-phase, vapor, and guarded-out states;
-- equilibrium `p/T/Q/phase/alpha` evaluation separated from acoustic closure;
-- an independently defined equilibrium sound-speed candidate;
-- verification-only connection to Rusanov flux and CFL;
-- exact preservation of one uniform stationary open-two-phase state.
-
-The two-phase sound-speed observations remain closure candidates, not an approved
-physical acoustic map.
+The foundation demonstrates guarded `rho/e` evaluation, explicit liquid/two-phase/vapor
+classification, separation of equilibrium state evaluation from acoustic closure, an
+independent equilibrium sound-speed candidate, verification-only Rusanov/CFL connection,
+and exact preservation of one uniform stationary open-two-phase state. The two-phase
+sound-speed values remain closure observations, not an approved physical acoustic map.
 
 ## Dynamic equilibrium-quality synchronization — PRs #59–#62
 
-### Purpose
-
-The FVM transports the fourth conservative component `rho*q`. The thermodynamic state
-`rho/e` independently implies an equilibrium quality `q_eq`. The synchronization
+The FVM transports `rho*q`, while `rho/e` independently implies `q_eq`. The reviewed
 operator enforces:
 
 ```text
 rho*q <- rho*q_eq
 ```
 
-while requiring `rho`, `rho*u`, and `rho*E` to remain bitwise unchanged.
-
-The operator is verification-only, fail-fast, and separate from the generic HEM/HNE
-phase-change skeletons.
-
-### Milestone summary
+while preserving `rho`, `rho*u`, and `rho*E` bitwise.
 
 | PR | increment | final reviewed head | focused / full tests | primary evidence |
 |---|---|---|---|---|
@@ -144,94 +134,101 @@ phase-change skeletons.
 | #61 | real-CO2 nonuniform pressure-offset case | `a0e1024aa5bf9f54c205dfc8e81e614080354214` | `46 / 493` | artifact `8483939146`; SHA256 `4156346821f0c04b5d5a569fd6bb64edeb07854a4ae905c4b29f5b3e51152447` |
 | #62 | equal-pressure no-op and activated contrast | `1b4a754de4e79b0d4bb88acb22b94301d72ca142` | `67 / 514` | artifacts `8488096499`, `8491343302`; backend traceability added after review |
 
-### PR #60 — projection implementation
-
-The operator:
-
-- evaluates equilibrium quality directly from `rho/e`;
-- changes only `rho*q`;
-- preserves mass, momentum, and total energy bitwise;
-- preserves exact no-op behavior inside its activation tolerance;
-- rejects unsupported, undefined, non-finite, guarded, or out-of-range states;
-- records phase, quality, projection, vapor-source, and energy-budget diagnostics.
-
-This establishes software behavior, not production HEM approval.
-
-### PR #61 — activated nonuniform open-two-phase case
-
-Fixed case:
-
-```text
-left:        2.01 MPa / q=0.45 / u=0
-right:       1.99 MPa / q=0.55 / u=0
-cells:       32
-CFL:         0.10
-steps:       4
-boundaries:  transmissive
-source:      none
-```
-
-Primary observations:
+PR #61 produced measurable projection activity while remaining open two-phase:
 
 ```text
 projection total cell updates:          20
 projected cells by step:                 2, 4, 6, 8
 maximum |delta q|:                       2.4143668471476865e-5
 maximum post-projection q mismatch:      5.551115123125783e-16
-maximum velocity:                        0.2547984084365163 m/s
 cumulative vapor source:                 3.501570117236952e-5 kg
 ```
 
-All cells remained in the open liquid-vapor two-phase region. Mass, momentum, energy,
-and vapor budgets closed to floating-point tolerance.
-
-### PR #62 — equal-pressure no-op contrast
-
-The equal-pressure case uses:
-
-```text
-left:        2.00 MPa / q=0.45 / u=0
-right:       2.00 MPa / q=0.55 / u=0
-cells:       32
-CFL:         0.10
-steps:       4
-```
-
-Primary observations:
+PR #62 exercised an equal-pressure nonuniform contact as a true no-op:
 
 ```text
 projection total cell updates:          0
-projected cells by step:                 0, 0, 0, 0
 maximum |delta q|:                       4.440892098500626e-16
-transport-changed cells:                 8
-mixed-quality cells:                     8
-initial maximum quality jump:            0.10000000000000037
-final maximum quality jump:              0.06788855198828081
-maximum pressure span:                   1.6298145055770874e-9 Pa
 projection vapor source:                 0.0 kg
 ```
 
-The contact spreads through first-order numerical diffusion, but conservative mixing
-remains on the same saturation line. The zero projection count is therefore an
-exercised no-op, not an unexercised solver path.
+Mass, momentum, energy, and phase-vapor budgets closed in both cases. The latest
+artifacts retain backend, version, and `not_approved_for_design_use` traceability.
 
-The activated/no-op maximum-`|delta q|` ratio is approximately `5.44e10`.
+## Liquid-to-two-phase boundary groundwork — PRs #64–#65
 
-A P2 review required property-backend traceability. The final artifacts now retain:
+### PR #64 — specification
+
+PR #64 fixes the first narrow liquid-to-open-two-phase crossing contract. Key decisions
+include:
+
+- detect raw thermodynamic transitions directly from updated `rho/e` before projection;
+- do not use transported quality as the phase classifier;
+- distinguish ordinary liquid `q=0` from saturated-liquid endpoint `q=0` by explicit
+  phase classification;
+- classify endpoint arrival as `BOUNDARY_TOUCH` and fail the first integration gate until
+  endpoint acoustic closure is separately established;
+- separate crossing detection from projection activation;
+- reuse the reviewed endpoint and projection tolerances from their configuration objects;
+- keep `crossing_evidence_min_quality = 1e-6` as test evidence only, never a solver switch;
+- retain the current `e >= 0` solver integration constraint;
+- compare crossing and no-crossing cases over a matched physical-time horizon;
+- permit logged case-condition exploration while keeping algorithms and thresholds fixed.
+
+PR #64 is specification only. It does not prove an FVM crossing.
+
+### PR #65 — transition classifier
+
+PR #65 implements a verification-only boundary-region mapper and transition-event
+classifier. It derives:
 
 ```text
-model_name
-fluid_name
-property_backend_name = coolprop_co2
-property_backend_design_status = not_approved_for_design_use
-coolprop_version
-numpy_version
-output_version
+LIQUID_CANDIDATE
+SATURATED_LIQUID_ENDPOINT
+OPEN_TWO_PHASE
+SATURATED_VAPOR_ENDPOINT
+VAPOR_CANDIDATE
 ```
 
-The same information is included in the PNG figure footers. Follow-up validation run
-`29820825656` and artifact `8491343302` completed successfully. Artifact SHA256:
-`ec93eb009d6c9b0d870437d1a9b493ff16823d55d944726bacd5237c184eeec5`.
+and classifies:
+
+```text
+NO_TRANSITION
+BOUNDARY_TOUCH
+LIQUID_TO_TWO_PHASE_CROSSING
+REVERSE_TRANSITION
+FORBIDDEN_TRANSITION
+```
+
+The classifier evaluates phase directly from `rho/e`, is independent of transported
+`q`, performs no clipping, retains the current non-negative-internal-energy guard, and
+fails atomically for guarded, invalid, undefined, or inconsistent states. It is not
+connected to `FvmSolver` and does not modify EOS, flux, CFL, sound speed, or projection.
+
+Authoritative validation:
+
+```text
+workflow run:          29927030452
+artifact ID:           8532470595
+artifact SHA256:       c8968363e4c2cd612fd34a96fcade13bb012dbba1b73ba90568712431d930915
+focused tests:         32 passed, 0 skipped
+related Stage 7 HEM:   67 passed, 0 skipped
+full repository:       546 passed, 0 skipped
+failures / errors:     0 / 0
+CoolProp:              8.0.0
+compileall:            success
+git diff --check:      success
+```
+
+The installed-CoolProp endpoint test confirmed through the canonical `rho/e` path:
+
+```text
+2 MPa / Q=0 -> SATURATED_LIQUID_ENDPOINT
+2 MPa / Q=1 -> SATURATED_VAPOR_ENDPOINT
+```
+
+All four permanent CoolProp workflows passed after removal of the temporary validation
+workflow.
 
 ## Current technical conclusion
 
@@ -239,25 +236,27 @@ The first-order verification path now demonstrates that:
 
 - a pure-CO2 `rho/e` state can be evaluated through explicit HEM guards;
 - open two-phase states can be advanced through Rusanov flux and CFL;
-- one uniform stationary state is preserved exactly;
-- a nonuniform open-two-phase state can create a measurable transported/equilibrium
+- one uniform stationary open-two-phase state is preserved exactly;
+- nonuniform open-two-phase transport can create a measurable transported/equilibrium
   quality mismatch;
-- the projection repairs that mismatch without changing conservative mass, momentum,
-  or total energy;
-- an equal-pressure quality contact remains a true projection no-op even while the FVM
-  numerically diffuses the contact;
-- mass, momentum, energy, and phase-vapor budgets remain closed in both cases.
+- projection repairs that mismatch without changing conservative mass, momentum, or
+  total energy;
+- an equal-pressure quality contact remains a true projection no-op;
+- mass, momentum, energy, and phase-vapor budgets close for the reviewed dynamic cases;
+- liquid-side regions, endpoints, and transition events can be classified directly from
+  `rho/e` without using transported quality.
 
 The current evidence does **not** demonstrate:
 
 ```text
-liquid-to-two-phase phase-boundary crossing:   not verified
-open-two-phase to vapor crossing:              not verified
-pipeline depressurization:                     not implemented
-two-phase acoustic accuracy band:              not approved
-production HEM activation:                     not approved
-physical Validation:                           false
-design-use acceptance:                         false
+mixed liquid/open-two-phase accepted-state EOS: not implemented
+liquid-to-two-phase FVM boundary crossing:      not verified
+open-two-phase to vapor crossing:               not verified
+pipeline depressurization:                      not implemented
+two-phase acoustic accuracy band:               not approved
+production HEM activation:                      not approved
+physical Validation:                            false
+design-use acceptance:                          false
 ```
 
 ## Approval boundary
@@ -275,11 +274,13 @@ numeric_accuracy_band_approved = false
 
 ## Next gates
 
-1. define the first liquid-to-two-phase boundary-crossing state pair;
-2. specify allowed phase-class transitions per step;
-3. define the `q=0` endpoint and tolerance policy;
-4. define fail-fast behavior for critical, solid, unknown, and backend-invalid states;
-5. define required phase, quality, sound-speed, projection, and budget evidence;
-6. implement a short first-order transmissive-boundary expansion runner;
-7. only after stable boundary crossing, build the first LCO2 pipeline depressurization prototype;
-8. retain PRs #52/#53 as later numerical-improvement assets until the first-order dynamic HEM path is stable.
+1. implement and unit-test a mixed liquid/open-two-phase accepted-state verification EOS;
+2. verify that the same reviewed equilibrium sound-speed estimator handles both supported
+   regions without introducing a runtime backend-`A` branch;
+3. perform a logged CoolProp state-pair survey within the current guards;
+4. perform minimal first-order FVM dry runs while varying only permitted case parameters;
+5. freeze the first successful crossing Case A and matched no-crossing Case B;
+6. implement the first-crossing capture runner and close conservation and vapor budgets;
+7. only after stable crossing, build the first LCO2 pipeline-depressurization prototype;
+8. retain PRs #52/#53 as later numerical-improvement assets until the first-order dynamic
+   HEM path is stable.
