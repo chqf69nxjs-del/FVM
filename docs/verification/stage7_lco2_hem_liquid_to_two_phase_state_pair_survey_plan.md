@@ -2,7 +2,7 @@
 
 ## Status
 
-`IMPLEMENTED DRAFT; PROPERTY-LEVEL SCREENING ONLY; NOT AN FVM CROSSING`
+`VALIDATED DRAFT; PROPERTY-LEVEL SCREENING ONLY; NOT AN FVM CROSSING`
 
 This increment follows merged PR #67. It creates the first reproducible, logged
 survey of pure-CO2 liquid initial-state candidates and ordered left/right pairs
@@ -286,6 +286,80 @@ zero skips.
 
 The temporary validation workflow additionally runs the complete fixed default
 survey and uploads all ledgers.
+
+## Validation evidence — 2026-07-23
+
+Authoritative temporary-workflow validation:
+
+```text
+validated head:       cac6887fee4f6accc4be77d59075e0da08fab77d
+workflow run:         30008209125
+artifact ID:          8563976259
+artifact SHA256:      688b7e0c79647a9c203f24317e7404f34e5a471c22852095796f72391ca36f02
+CoolProp:             8.0.0
+focused tests:        18 passed, 0 skipped
+related Stage 7 HEM:  159 passed, 0 skipped
+full repository:      601 passed, 0 skipped
+failures / errors:    0 / 0
+```
+
+The fixed candidate matrix produced:
+
+```text
+candidate count:             11
+accepted liquid candidates:  11
+endpoint candidates:          0
+guard failures:               0
+backend failures:             0
+```
+
+The fixed pair screen produced:
+
+```text
+pair count:                   9
+ALL_LIQUID:                   1
+OPEN_TWO_PHASE:               8
+endpoint-only pairs:          0
+guard/backend/forbidden:      0
+```
+
+The strongest screened pair was:
+
+```text
+left:                         5 MPa / 5 K subcooling
+right:                        2 MPa / 5 K subcooling
+first sampled open fraction:  lambda = 0.1
+maximum screened q_eq:        1.3397273027615007e-3
+all sampled open acoustics:   finite and positive
+```
+
+The moderate-span candidate:
+
+```text
+left:                         5 MPa / 5 K subcooling
+right:                        3 MPa / 5 K subcooling
+first sampled open fraction:  lambda = 0.2
+maximum screened q_eq:        5.331295761643359e-4
+```
+
+The nearest-span comparison remained liquid at every sampled blend:
+
+```text
+left:                         5 MPa / 5 K subcooling
+right:                        4 MPa / 5 K subcooling
+outcome:                      ALL_LIQUID
+maximum screened q_eq:        0
+```
+
+These observations nominate the 5-to-2 MPa pair as the leading Case A dry-run
+candidate and the 5-to-4 MPa pair as a useful no-crossing comparison candidate.
+They do not freeze either case. The next FVM dry-run increment must still test
+whether the actual first-order Rusanov update reproduces the screening trend.
+
+Within the fixed survey, increasing pressure span was more influential than
+reducing the lower-pressure subcooling margin. This is an observation from the
+screening ledger, not a new physical rule or solver branch. No algorithm,
+tolerance, or acceptance threshold was changed after observing the result.
 
 ## Completion criteria
 
