@@ -344,10 +344,125 @@ CoolProp workflows passed on the final permanent head.
 PR #65 does not modify `FvmSolver`, flux, CFL, EOS, projection, or acoustic behavior. It
 does not yet demonstrate a liquid-to-two-phase FVM crossing.
 
-## Current technical conclusion
+### PR #66 — crossing-groundwork central record synchronization
+
+Status: `MERGED`. Merge commit:
+`7acaa005c6d32cd48042ca5a333dcc19b5006d23`.
+
+The central verification index and execution log were synchronized through PR #65. No
+solver, EOS, flux, CFL, projection, or production behavior changed.
+
+## 2026-07-22 to 2026-07-23 — Mixed accepted-state EOS and state-pair survey
+
+### PR #67 — mixed liquid/open-two-phase accepted-state EOS
+
+Status: `IMPLEMENTED; VALIDATED; MERGED`. Merge commit:
+`74b019993823ec4c52f1be38fa8c12580f560686`.
+
+The adapter `VerificationHEMLiquidOpenTwoPhaseEOS` accepts synchronized arrays containing
+both `LIQUID_CANDIDATE` and `OPEN_TWO_PHASE` cells. It rejects endpoints, vapor-side and
+guarded states, invalid acoustic values, and transported/equilibrium quality mismatch.
+The same existing equilibrium sound-speed estimator is used on both accepted regions.
+
+```text
+quality tolerance:       1e-10
+projection activation:   1e-12
+transported q bounds:    strict [0, 1]
+quality clipping:        none
+runtime CoolProp A:      none
+FvmSolver.step:          not exercised
+```
+
+The installed-CoolProp mixed-array test combined `5 MPa / 280 K` liquid and
+`2 MPa / Q=0.50` open two phase. The `2 MPa / Q=0` endpoint was rejected with the expected
+`endpoint_acoustic_closure_not_established` message.
+
+Authoritative validation:
+
+```text
+validated head:             e8814c5d724f923a38f3acfa0120c10edde2c202
+workflow run:               29933435558
+artifact ID:                8535107304
+artifact SHA256:            55a0362a7e40b681d017f1ae7405f581129c55acecef81e6e95e5bcf324a0c61
+focused mixed-EOS tests:   37 passed, 0 skipped
+related Stage 7 HEM:      141 passed, 0 skipped
+full repository:          583 passed, 0 skipped
+failures / errors:          0 / 0
+CoolProp:                   8.0.0
+```
+
+The temporary validation workflow was removed after evidence capture. All four permanent
+CoolProp workflows passed on the final permanent head.
+
+### PR #68 — liquid state-pair property survey
+
+Status: `VALIDATED; MERGED`. Merge commit:
+`640b69c576501ec812cbc2919f35c62526b15974`.
+
+The deterministic survey constructed 11 liquid candidates over 2–5 MPa and 0.5–10 K
+subcooling. Every candidate was converted to canonical `rho/e` and re-evaluated through
+the reviewed phase and acoustic paths. All 11 were accepted as supported liquids.
+
+Nine controlled ordered pairs were screened with a stationary conservative-blend proxy.
+The proxy is not an FVM update, physical process path, or formal crossing result.
+
+```text
+candidate count:             11
+accepted liquid candidates:  11
+pair count:                   9
+ALL_LIQUID:                   1
+OPEN_TWO_PHASE:               8
+endpoint/guard/backend:       0
+```
+
+Leading dry-run candidate:
+
+```text
+left:                         5 MPa / 5 K subcooling
+right:                        2 MPa / 5 K subcooling
+first sampled open fraction:  lambda = 0.1
+maximum screened q_eq:        1.3397273027615007e-3
+```
+
+Moderate candidate:
+
+```text
+left:                         5 MPa / 5 K subcooling
+right:                        3 MPa / 5 K subcooling
+first sampled open fraction:  lambda = 0.2
+maximum screened q_eq:        5.331295761643359e-4
+```
+
+Liquid negative-control candidate:
+
+```text
+left:                         5 MPa / 5 K subcooling
+right:                        4 MPa / 5 K subcooling
+outcome:                      ALL_LIQUID
+maximum screened q_eq:        0
+```
+
+Authoritative validation:
+
+```text
+validated head:             cac6887fee4f6accc4be77d59075e0da08fab77d
+workflow run:               30008209125
+artifact ID:                8563976259
+artifact SHA256:            688b7e0c79647a9c203f24317e7404f34e5a471c22852095796f72391ca36f02
+focused survey tests:       18 passed, 0 skipped
+related Stage 7 HEM:       159 passed, 0 skipped
+full repository:           601 passed, 0 skipped
+failures / errors:           0 / 0
+CoolProp:                   8.0.0
+```
+
+The temporary validation workflow was removed after evidence capture. All four permanent
+CoolProp workflows passed on the final permanent head.
+
+## Current technical conclusion — 2026-07-23
 
 The HEM verification path on recorded development `main`
-`fb078da84fa17d6aa8d840616c494a0bf3efd71c` now supports:
+`640b69c576501ec812cbc2919f35c62526b15974` now supports:
 
 - guarded pure-CO2 `rho/e` thermodynamic evaluation;
 - explicit phase classification;
@@ -359,14 +474,17 @@ The HEM verification path on recorded development `main`
 - equal-pressure contact transport as a true projection no-op;
 - budget closure and backend/design-status traceability for the reviewed dynamic cases;
 - direct liquid-side boundary-region and transition-event classification independent of
-  transported quality.
+  transported quality;
+- accepted mixed liquid/open-two-phase primitive and acoustic evaluation;
+- reproducible property-level state-pair screening with strong, moderate, and liquid-control
+  dry-run candidates.
 
 The current evidence does not support the following claims:
 
 ```text
-mixed liquid/open-two-phase accepted-state EOS: not implemented
 liquid-to-two-phase FVM boundary crossing:      not verified
 open-two-phase to vapor crossing:               not verified
+Case A / matched Case B:                        not frozen
 pipeline depressurization:                      not implemented
 two-phase acoustic accuracy band:               not approved
 production HEM activation:                      not approved
@@ -380,6 +498,10 @@ design-use acceptance:                          false
 verification_only = true
 property_backend_name = coolprop_co2
 property_backend_design_status = not_approved_for_design_use
+actual_first_order_fvm_crossing_verified = false
+screening_is_fvm_solution = false
+case_a_frozen = false
+case_b_frozen = false
 production_default_changed = false
 production_hem_activation_approved = false
 physical_validation = false
@@ -389,11 +511,12 @@ numeric_accuracy_band_approved = false
 
 ## Next
 
-1. add and unit-test a mixed liquid/open-two-phase accepted-state verification EOS;
-2. verify the same existing equilibrium sound-speed estimator on both supported regions;
-3. perform a logged CoolProp state-pair survey within the current guards;
-4. perform minimal first-order FVM dry runs while varying only permitted case parameters;
-5. freeze the first successful crossing Case A and matched no-crossing Case B;
-6. implement and validate the first-crossing capture runner and budgets;
-7. synchronize formal crossing evidence into the central records;
-8. only after stable crossing, begin a longer pipeline-depressurization prototype.
+1. perform minimal first-order FVM dry runs on the three ledger-backed candidate pairs;
+2. start with one raw Rusanov update before projection and classify the resulting regions;
+3. retain 8–16 cells, transmissive boundaries, no source, low CFL, and fixed algorithms;
+4. after the raw path is understood, connect projection and mixed accepted-state evaluation;
+5. record every attempt and vary only one permitted case parameter at a time;
+6. freeze the first repeatable crossing Case A and matched no-crossing Case B;
+7. implement and validate the first-crossing capture runner and budgets;
+8. synchronize formal crossing evidence into the central records;
+9. only after stable crossing, begin a longer pipeline-depressurization prototype.

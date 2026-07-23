@@ -3,11 +3,11 @@
 Historical detail through the V-013 reference-core checkpoint is preserved in
 [`archive/MASTER_VERIFICATION_INDEX_through_v013_reference_core.md`](archive/MASTER_VERIFICATION_INDEX_through_v013_reference_core.md).
 
-## Current state — 2026-07-22
+## Current state — 2026-07-23
 
 - Stage 1–6: `COMPLETE`
 - Stage 7: `IN_PROGRESS`
-- recorded development `main`: `fb078da84fa17d6aa8d840616c494a0bf3efd71c`
+- recorded development `main`: `640b69c576501ec812cbc2919f35c62526b15974`
 - V-013 first-order propagation/reflection baseline: `FORMALIZED; MERGED` in PR #51
 - pure-CO2 HEM thermodynamic and phase foundation: `MERGED` in PRs #54–#57
 - dynamic equilibrium-quality synchronization: `IMPLEMENTED; MERGED` in PRs #59–#60
@@ -16,12 +16,16 @@ Historical detail through the V-013 reference-core checkpoint is preserved in
 - central quality-sync record synchronization: `MERGED` in PR #63
 - first liquid-to-two-phase boundary-crossing specification: `MERGED` in PR #64
 - liquid-to-two-phase boundary-region and transition classifier: `IMPLEMENTED; MERGED` in PR #65
+- crossing-groundwork central-record synchronization: `MERGED` in PR #66
+- mixed liquid/open-two-phase accepted-state verification EOS: `IMPLEMENTED; MERGED` in PR #67
+- liquid state-pair property survey: `VALIDATED; MERGED` in PR #68
 - MUSCL/TVD reconstruction scaffold: `OPEN; READY FOR REVIEW` in PR #52
 - scalar-advection comparison: `VALIDATED STACKED DRAFT` in PR #53
-- active physical-model gate: mixed liquid/open-two-phase accepted-state verification EOS
+- active physical-model gate: minimal first-order liquid-to-two-phase FVM dry run
 - physical Validation: `NOT ESTABLISHED`
 - design-use acceptance: `NOT ESTABLISHED`
 - production HEM activation: `NOT APPROVED`
+- two-phase acoustic accuracy band: `NOT APPROVED`
 
 The main development objective remains a conservative one-dimensional LCO2 pipeline
 transient code that can progress from liquid states through flashing and liquid-vapor
@@ -30,9 +34,10 @@ two-phase formation. The existing first-order FVM remains the numerical control.
 The merged HEM path now supports guarded real-fluid state evaluation, explicit phase
 classification, an equilibrium sound-speed candidate, exact preservation of a uniform
 open-two-phase state, dynamic equilibrium-quality synchronization inside the open
-two-phase region, and verification-only classification of liquid-side boundary regions
-and transition events. An actual first-order liquid-to-two-phase FVM crossing and
-pipeline depressurization remain unverified.
+two-phase region, verification-only classification of liquid-side boundary regions and
+transition events, mixed accepted liquid/open-two-phase primitive evaluation, and
+reproducible property-level state-pair screening. An actual first-order liquid-to-two-phase
+FVM crossing and pipeline depressurization remain unverified.
 
 ## Stage 7 milestone index
 
@@ -56,6 +61,9 @@ pipeline depressurization remain unverified.
 | PR #63 | quality-sync central-record synchronization | `MERGED` | merge `33349ff6c16373443b2626d13c1a867d54275d0a` |
 | PR #64 | first liquid-to-two-phase crossing specification | `MERGED` | merge `f2b8335132741765b6d5e42f65f742cf5e241c66` |
 | PR #65 | boundary-region and transition classifier | `IMPLEMENTED; MERGED` | merge `fb078da84fa17d6aa8d840616c494a0bf3efd71c` |
+| PR #66 | crossing-groundwork central-record synchronization | `MERGED` | merge `7acaa005c6d32cd48042ca5a333dcc19b5006d23` |
+| PR #67 | mixed liquid/open-two-phase accepted-state EOS | `IMPLEMENTED; MERGED` | merge `74b019993823ec4c52f1be38fa8c12580f560686` |
+| PR #68 | liquid state-pair property survey | `VALIDATED; MERGED` | merge `640b69c576501ec812cbc2919f35c62526b15974` |
 
 ## First-order V-013 baseline
 
@@ -155,7 +163,7 @@ projection vapor source:                 0.0 kg
 Mass, momentum, energy, and phase-vapor budgets closed in both cases. The latest
 artifacts retain backend, version, and `not_approved_for_design_use` traceability.
 
-## Liquid-to-two-phase boundary groundwork — PRs #64–#65
+## Liquid-to-two-phase boundary groundwork — PRs #64–#68
 
 ### PR #64 — specification
 
@@ -230,6 +238,79 @@ The installed-CoolProp endpoint test confirmed through the canonical `rho/e` pat
 All four permanent CoolProp workflows passed after removal of the temporary validation
 workflow.
 
+### PR #66 — central record synchronization
+
+PR #66 synchronized the central verification index and execution log through PR #65.
+No production source or numerical behavior changed.
+
+### PR #67 — mixed accepted-state EOS
+
+PR #67 added `VerificationHEMLiquidOpenTwoPhaseEOS` for synchronized accepted arrays that
+contain both supported liquid and open liquid-vapor two-phase cells. It accepts only
+`LIQUID_CANDIDATE` and `OPEN_TWO_PHASE`, rejects endpoints and vapor-side or guarded
+states, requires transported quality to match equilibrium quality within `1e-10`, and
+uses the same existing equilibrium sound-speed estimator on both accepted regions.
+
+Authoritative validation:
+
+```text
+workflow run:          29933435558
+artifact ID:           8535107304
+artifact SHA256:       55a0362a7e40b681d017f1ae7405f581129c55acecef81e6e95e5bcf324a0c61
+focused tests:         37 passed, 0 skipped
+related Stage 7 HEM:  141 passed, 0 skipped
+full repository:      583 passed, 0 skipped
+failures / errors:     0 / 0
+CoolProp:              8.0.0
+```
+
+The installed-CoolProp mixed array combined `5 MPa / 280 K` liquid with
+`2 MPa / Q=0.50` open two phase. The `2 MPa / Q=0` endpoint was rejected with
+`endpoint_acoustic_closure_not_established`.
+
+### PR #68 — liquid state-pair property survey
+
+PR #68 constructed 11 fixed liquid candidates over 2–5 MPa and 0.5–10 K subcooling.
+Every candidate was re-evaluated through the canonical `rho/e` phase and acoustic paths;
+all 11 were accepted as supported liquid states.
+
+Nine controlled ordered pairs were screened through a stationary conservative-blend
+proxy:
+
+```text
+candidate count:             11
+accepted liquid candidates:  11
+pair count:                   9
+ALL_LIQUID pairs:             1
+OPEN_TWO_PHASE pairs:         8
+endpoint/guard/backend:       0
+```
+
+The blend proxy is not an FVM step or physical process path. It nominates candidates for
+the next dry run only.
+
+| role | left state | right state | property-screen observation |
+|---|---|---|---|
+| strong candidate | 5 MPa / 5 K subcooling | 2 MPa / 5 K subcooling | first sampled open point at `lambda=0.1`; max `q_eq=1.3397273027615007e-3` |
+| moderate candidate | 5 MPa / 5 K subcooling | 3 MPa / 5 K subcooling | first sampled open point at `lambda=0.2`; max `q_eq=5.331295761643359e-4` |
+| liquid control | 5 MPa / 5 K subcooling | 4 MPa / 5 K subcooling | all sampled points liquid; max `q_eq=0` |
+
+Authoritative validation:
+
+```text
+workflow run:          30008209125
+artifact ID:           8563976259
+artifact SHA256:       688b7e0c79647a9c203f24317e7404f34e5a471c22852095796f72391ca36f02
+focused tests:         18 passed, 0 skipped
+related Stage 7 HEM:  159 passed, 0 skipped
+full repository:      601 passed, 0 skipped
+failures / errors:     0 / 0
+CoolProp:              8.0.0
+```
+
+All four permanent CoolProp workflows passed after removal of the temporary validation
+workflow.
+
 ## Current technical conclusion
 
 The first-order verification path now demonstrates that:
@@ -244,14 +325,18 @@ The first-order verification path now demonstrates that:
 - an equal-pressure quality contact remains a true projection no-op;
 - mass, momentum, energy, and phase-vapor budgets close for the reviewed dynamic cases;
 - liquid-side regions, endpoints, and transition events can be classified directly from
-  `rho/e` without using transported quality.
+  `rho/e` without using transported quality;
+- mixed accepted liquid/open-two-phase arrays can be converted to primitive and acoustic
+  states cell by cell;
+- reproducible liquid state-pair screening can nominate strong, moderate, and liquid-control
+  candidates without changing algorithms or tolerances.
 
 The current evidence does **not** demonstrate:
 
 ```text
-mixed liquid/open-two-phase accepted-state EOS: not implemented
 liquid-to-two-phase FVM boundary crossing:      not verified
 open-two-phase to vapor crossing:               not verified
+Case A / matched Case B:                        not frozen
 pipeline depressurization:                      not implemented
 two-phase acoustic accuracy band:               not approved
 production HEM activation:                      not approved
@@ -265,6 +350,10 @@ design-use acceptance:                          false
 verification_only = true
 property_backend_name = coolprop_co2
 property_backend_design_status = not_approved_for_design_use
+actual_first_order_fvm_crossing_verified = false
+screening_is_fvm_solution = false
+case_a_frozen = false
+case_b_frozen = false
 production_default_changed = false
 production_hem_activation_approved = false
 physical_validation = false
@@ -274,13 +363,13 @@ numeric_accuracy_band_approved = false
 
 ## Next gates
 
-1. implement and unit-test a mixed liquid/open-two-phase accepted-state verification EOS;
-2. verify that the same reviewed equilibrium sound-speed estimator handles both supported
-   regions without introducing a runtime backend-`A` branch;
-3. perform a logged CoolProp state-pair survey within the current guards;
-4. perform minimal first-order FVM dry runs while varying only permitted case parameters;
-5. freeze the first successful crossing Case A and matched no-crossing Case B;
-6. implement the first-crossing capture runner and close conservation and vapor budgets;
-7. only after stable crossing, build the first LCO2 pipeline-depressurization prototype;
-8. retain PRs #52/#53 as later numerical-improvement assets until the first-order dynamic
+1. perform minimal first-order FVM dry runs on the three ledger-backed candidate pairs;
+2. begin with one raw Rusanov update before projection and classify the resulting regions;
+3. retain 8–16 cells, transmissive boundaries, no source, low CFL, and fixed algorithms;
+4. after the raw path is understood, connect projection and mixed accepted-state evaluation;
+5. record every attempt and vary only one permitted case parameter at a time;
+6. freeze the first repeatable crossing Case A and matched no-crossing Case B;
+7. implement the first-crossing capture runner and close conservation and vapor budgets;
+8. only after stable crossing, build the first LCO2 pipeline-depressurization prototype;
+9. retain PRs #52/#53 as later numerical-improvement assets until the first-order dynamic
    HEM path is stable.
