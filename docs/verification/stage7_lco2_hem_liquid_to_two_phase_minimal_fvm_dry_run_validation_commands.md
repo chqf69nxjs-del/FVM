@@ -34,6 +34,7 @@ src/liquid_gas_transient/hem_liquid_to_two_phase_minimal_fvm_dry_run.py
 tests/test_stage7_lco2_hem_liquid_to_two_phase_minimal_fvm_dry_run.py
 docs/verification/stage7_lco2_hem_liquid_to_two_phase_minimal_fvm_dry_run_plan.md
 docs/verification/stage7_lco2_hem_liquid_to_two_phase_minimal_fvm_dry_run_validation_commands.md
+docs/verification/stage7_lco2_hem_liquid_to_two_phase_minimal_fvm_dry_run_evidence.md
 ```
 
 ## Syntax and diff checks
