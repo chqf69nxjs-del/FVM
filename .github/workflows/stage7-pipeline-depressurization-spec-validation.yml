@@ -1,0 +1,218 @@
+name: Stage 7 Pipeline Depressurization Spec Validation
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage7-pipeline-depressurization-spec-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-pipeline-depressurization-spec:
+    name: validate-pipeline-depressurization-spec
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      MPLBACKEND: Agg
+      PYTHONPATH: src
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install validation dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -e ".[plotting]"
+          python -m pip install pytest "CoolProp==8.0.0"
+
+      - name: Smoke check environment
+        run: |
+          python - <<'PY'
+          import sys
+          import CoolProp
+          import numpy as np
+
+          print("Python:", sys.version)
+          print("NumPy:", np.__version__)
+          print("CoolProp:", CoolProp.__version__)
+          assert CoolProp.__version__ == "8.0.0"
+          PY
+
+      - name: Static and diff checks
+        run: |
+          python -m compileall -q src/liquid_gas_transient
+          python -m json.tool \
+            docs/verification/stage7_lco2_hem_pipeline_depressurization_prototype_contract_v1.json \
+            > /dev/null
+          git diff --check origin/main...HEAD
+
+      - name: Run specification integrity tests
+        run: |
+          mkdir -p artifacts
+          python -m pytest -q \
+            tests/test_stage7_lco2_hem_pipeline_depressurization_spec.py \
+            --strict-markers \
+            --junitxml=artifacts/stage7-pipeline-spec-focused-junit.xml
+
+      - name: Assert specification tests were not skipped
+        run: |
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+
+          path = "artifacts/stage7-pipeline-spec-focused-junit.xml"
+          root = ET.parse(path).getroot()
+          testcases = root.findall(".//testcase")
+          skipped = root.findall(".//skipped")
+          failures = root.findall(".//failure")
+          errors = root.findall(".//error")
+          print(
+              f"testcases={len(testcases)} skipped={len(skipped)} "
+              f"failures={len(failures)} errors={len(errors)}"
+          )
+          assert len(testcases) >= 9
+          assert len(skipped) == 0
+          assert len(failures) == 0
+          assert len(errors) == 0
+          PY
+
+      - name: Validate machine-readable contract flags
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path(
+              "docs/verification/"
+              "stage7_lco2_hem_pipeline_depressurization_prototype_contract_v1.json"
+          )
+          data = json.loads(path.read_text(encoding="utf-8"))
+          assert data["status"] == "SPECIFICATION_ONLY"
+          assert data["scope"] == "verification_only"
+          assert data["claims"]["first_crossing_prototype_specified"] is True
+          assert data["claims"]["boundary_adapter_implemented"] is False
+          assert data["claims"]["pipeline_depressurization_executed"] is False
+          assert data["claims"]["interface_propagation_speed_verified"] is False
+          assert data["boundaries"]["right"]["pressure_only_inversion_forbidden"] is True
+          assert data["boundaries"]["right"]["copy_interior_quality_forbidden"] is True
+          assert [
+              case["boundary_final_pressure_pa"]
+              for case in data["fixed_case_matrix"]
+          ] == [2.0e6, 3.0e6, 4.0e6]
+          assert data["boundary_path_preflight"]["sample_count"] == 65
+          assert data["approval_boundary"]["physical_validation"] is False
+          assert data["approval_boundary"]["design_use_acceptance"] is False
+          print(json.dumps({
+              "schema_version": data["schema_version"],
+              "case_ids": [case["case_id"] for case in data["fixed_case_matrix"]],
+              "implementation_increments": data["implementation_increments"],
+          }, indent=2))
+          PY
+
+      - name: Run frozen Case A B regression tests
+        run: |
+          python -m pytest -q \
+            tests/test_stage7_lco2_hem_liquid_to_two_phase_first_crossing_case_ab.py \
+            --strict-markers \
+            --junitxml=artifacts/stage7-pipeline-spec-frozen-case-ab-junit.xml
+
+      - name: Run full repository tests
+        run: |
+          python -m pytest -q \
+            --strict-markers \
+            --junitxml=artifacts/stage7-pipeline-spec-full-junit.xml
+
+      - name: Retain specification files
+        run: |
+          mkdir -p artifacts/specification
+          cp \
+            docs/verification/stage7_lco2_hem_pipeline_depressurization_prototype_spec.md \
+            docs/verification/stage7_lco2_hem_pipeline_depressurization_boundary_contract.md \
+            docs/verification/stage7_lco2_hem_pipeline_depressurization_validation_plan.md \
+            docs/verification/stage7_lco2_hem_pipeline_depressurization_prototype_contract_v1.json \
+            artifacts/specification/
+
+      - name: Write validation summary
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          lines = ["# Stage 7 Pipeline Depressurization Specification Validation", ""]
+          for label, path in (
+              (
+                  "spec focused",
+                  Path("artifacts/stage7-pipeline-spec-focused-junit.xml"),
+              ),
+              (
+                  "frozen Case A/B",
+                  Path("artifacts/stage7-pipeline-spec-frozen-case-ab-junit.xml"),
+              ),
+              (
+                  "full repository",
+                  Path("artifacts/stage7-pipeline-spec-full-junit.xml"),
+              ),
+          ):
+              if not path.exists():
+                  lines.append(f"- {label}: artifact not produced")
+                  continue
+              root = ET.parse(path).getroot()
+              testcases = root.findall(".//testcase")
+              skipped = root.findall(".//skipped")
+              failures = root.findall(".//failure")
+              errors = root.findall(".//error")
+              lines.append(
+                  f"- {label}: tests={len(testcases)}, skipped={len(skipped)}, "
+                  f"failures={len(failures)}, errors={len(errors)}"
+              )
+
+          contract = Path(
+              "docs/verification/"
+              "stage7_lco2_hem_pipeline_depressurization_prototype_contract_v1.json"
+          )
+          if contract.exists():
+              data = json.loads(contract.read_text(encoding="utf-8"))
+              lines.extend(
+                  [
+                      "",
+                      f"- schema: {data['schema_version']}",
+                      "- boundary closure: pressure plus constant positive subcooling",
+                      f"- fixed cases: {[case['case_id'] for case in data['fixed_case_matrix']]}",
+                      "- boundary adapter implemented: false",
+                      "- pipeline run executed: false",
+                      "- physical Validation / design use: false / false",
+                  ]
+              )
+
+          summary = "\n".join(lines) + "\n"
+          Path("artifacts/validation-summary.md").write_text(summary, encoding="utf-8")
+          Path(__import__("os").environ["GITHUB_STEP_SUMMARY"]).write_text(
+              summary,
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Upload validation artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: stage7-pipeline-depressurization-spec-validation-${{ github.run_id }}
+          path: artifacts
+          if-no-files-found: warn
+          retention-days: 14
