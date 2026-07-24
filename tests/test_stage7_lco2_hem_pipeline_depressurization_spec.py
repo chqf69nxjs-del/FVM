@@ -293,4 +293,4 @@ def test_markdown_documents_reference_the_authoritative_contract() -> None:
     assert "pressure plus positive subcooling" in spec
     assert "Copying the interior transported quality" in spec
     assert "NO_CROSSING_WITHIN_HORIZON" in spec
-    assert "interface-propagation speed" in spec
+    assert "front-propagation speed" in spec
