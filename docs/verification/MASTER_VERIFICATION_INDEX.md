@@ -3,25 +3,28 @@
 Historical detail through the V-013 reference-core checkpoint is preserved in
 [`archive/MASTER_VERIFICATION_INDEX_through_v013_reference_core.md`](archive/MASTER_VERIFICATION_INDEX_through_v013_reference_core.md).
 
-## Current state — 2026-07-23
+## Current state — 2026-07-25
 
 - Stage 1–6: `COMPLETE`
 - Stage 7: `IN_PROGRESS`
-- recorded development `main`: `640b69c576501ec812cbc2919f35c62526b15974`
+- recorded development `main`: `628800530851b0cb677bc0a6bedcb85a13a303d1`
 - V-013 first-order propagation/reflection baseline: `FORMALIZED; MERGED` in PR #51
 - pure-CO2 HEM thermodynamic and phase foundation: `MERGED` in PRs #54–#57
 - dynamic equilibrium-quality synchronization: `IMPLEMENTED; MERGED` in PRs #59–#60
 - nonuniform open-two-phase activated case: `OBSERVED; MERGED` in PR #61
 - equal-pressure contact no-op comparison: `OBSERVED; MERGED` in PR #62
-- central quality-sync record synchronization: `MERGED` in PR #63
 - first liquid-to-two-phase boundary-crossing specification: `MERGED` in PR #64
 - liquid-to-two-phase boundary-region and transition classifier: `IMPLEMENTED; MERGED` in PR #65
-- crossing-groundwork central-record synchronization: `MERGED` in PR #66
 - mixed liquid/open-two-phase accepted-state verification EOS: `IMPLEMENTED; MERGED` in PR #67
 - liquid state-pair property survey: `VALIDATED; MERGED` in PR #68
+- raw first-order liquid-to-two-phase FVM crossing: `OBSERVED; MERGED` in PR #70
+- projected one-step crossing path: `OBSERVED; MERGED` in PR #71
+- first repeatable crossing Case A and matched liquid Case B: `FROZEN; MERGED` in PR #72
+- first-order liquid-to-open-two-phase software crossing: `VERIFIED`
+- frozen Case A/B retained as the first-order crossing regression control
 - MUSCL/TVD reconstruction scaffold: `OPEN; READY FOR REVIEW` in PR #52
 - scalar-advection comparison: `VALIDATED STACKED DRAFT` in PR #53
-- active physical-model gate: minimal first-order liquid-to-two-phase FVM dry run
+- active physical-model gate: narrow LCO2 pipeline-depressurization prototype specification
 - physical Validation: `NOT ESTABLISHED`
 - design-use acceptance: `NOT ESTABLISHED`
 - production HEM activation: `NOT APPROVED`
@@ -31,13 +34,13 @@ The main development objective remains a conservative one-dimensional LCO2 pipel
 transient code that can progress from liquid states through flashing and liquid-vapor
 two-phase formation. The existing first-order FVM remains the numerical control.
 
-The merged HEM path now supports guarded real-fluid state evaluation, explicit phase
-classification, an equilibrium sound-speed candidate, exact preservation of a uniform
-open-two-phase state, dynamic equilibrium-quality synchronization inside the open
-two-phase region, verification-only classification of liquid-side boundary regions and
-transition events, mixed accepted liquid/open-two-phase primitive evaluation, and
-reproducible property-level state-pair screening. An actual first-order liquid-to-two-phase
-FVM crossing and pipeline depressurization remain unverified.
+The merged HEM verification path now supports guarded real-fluid state evaluation,
+explicit phase classification, an equilibrium sound-speed candidate, quality projection,
+mixed liquid/open-two-phase accepted-state evaluation, direct raw transition detection,
+an actual first-order Rusanov/CFL liquid-to-open-two-phase crossing, synchronized
+post-crossing recovery, vapor-budget closure, and a repeatable matched Case A/B software
+verification pair. A pipeline-depressurization prototype and physical Validation remain
+unestablished.
 
 ## Stage 7 milestone index
 
@@ -64,6 +67,10 @@ FVM crossing and pipeline depressurization remain unverified.
 | PR #66 | crossing-groundwork central-record synchronization | `MERGED` | merge `7acaa005c6d32cd48042ca5a333dcc19b5006d23` |
 | PR #67 | mixed liquid/open-two-phase accepted-state EOS | `IMPLEMENTED; MERGED` | merge `74b019993823ec4c52f1be38fa8c12580f560686` |
 | PR #68 | liquid state-pair property survey | `VALIDATED; MERGED` | merge `640b69c576501ec812cbc2919f35c62526b15974` |
+| PR #69 | EOS/state-pair central-record synchronization | `MERGED` | merge `4c0960d32a03269828a8a0d3e2d2c8c9c8322f62` |
+| PR #70 | actual one-step raw FVM crossing matrix | `OBSERVED; MERGED` | merge `38e841af97ac0adbebf42dbe36a17c1edc6c5246` |
+| PR #71 | projected crossing, post-EOS recovery, and vapor budget | `OBSERVED; MERGED` | merge `ceaba980e5e7f7305424df8bd1e9e6b4f1acfe40` |
+| PR #72 | repeated first-crossing Case A/B freeze | `VERIFIED; FROZEN; MERGED` | merge `628800530851b0cb677bc0a6bedcb85a13a303d1` |
 
 ## First-order V-013 baseline
 
@@ -142,7 +149,7 @@ while preserving `rho`, `rho*u`, and `rho*E` bitwise.
 | #61 | real-CO2 nonuniform pressure-offset case | `a0e1024aa5bf9f54c205dfc8e81e614080354214` | `46 / 493` | artifact `8483939146`; SHA256 `4156346821f0c04b5d5a569fd6bb64edeb07854a4ae905c4b29f5b3e51152447` |
 | #62 | equal-pressure no-op and activated contrast | `1b4a754de4e79b0d4bb88acb22b94301d72ca142` | `67 / 514` | artifacts `8488096499`, `8491343302`; backend traceability added after review |
 
-PR #61 produced measurable projection activity while remaining open two-phase:
+PR #61 produced measurable projection activity while remaining open two phase:
 
 ```text
 projection total cell updates:          20
@@ -286,8 +293,8 @@ OPEN_TWO_PHASE pairs:         8
 endpoint/guard/backend:       0
 ```
 
-The blend proxy is not an FVM step or physical process path. It nominates candidates for
-the next dry run only.
+The blend proxy is not an FVM step or physical process path. It nominated candidates for
+the later FVM dry-run gate only.
 
 | role | left state | right state | property-screen observation |
 |---|---|---|---|
@@ -311,33 +318,158 @@ CoolProp:              8.0.0
 All four permanent CoolProp workflows passed after removal of the temporary validation
 workflow.
 
+## First liquid-to-two-phase FVM crossing verification — PRs #69–#72
+
+### PR #69 — central synchronization through the state-pair survey
+
+PR #69 synchronized the master index and execution log through PR #68. It changed only
+the two central verification documents. Merge:
+`4c0960d32a03269828a8a0d3e2d2c8c9c8322f62`.
+
+### PR #70 — raw one-step FVM crossing
+
+PR #70 exercised the actual existing `FvmSolver.step()`, first-order Rusanov flux, CFL
+path, transmissive boundaries, and an all-liquid `q=0` initial state for the three
+ledger-backed pairs.
+
+```text
+strong 5 -> 2 MPa:    OPEN_TWO_PHASE; crossing cells 3, 4
+moderate 5 -> 3 MPa:  OPEN_TWO_PHASE; crossing cell 4
+control 5 -> 4 MPa:   ALL_LIQUID; crossing cells none
+```
+
+The strong case produced maximum raw `q_eq=5.911503500507591e-4`; the moderate case
+produced `6.844477600333753e-5`; the control remained at `q_eq=0`. Transported raw
+quality remained exactly zero, which created the intended pre-projection mismatch.
+
+Authoritative validation:
+
+```text
+merge:                    38e841af97ac0adbebf42dbe36a17c1edc6c5246
+validated head:           a870d313bd821bc05ba5e3fdd2ab155edadb8de9
+workflow run:             30015273238
+artifact ID:              8566944015
+artifact SHA256:          15569960f65261d16f79d8341ab2706fb61309a5bfd044e1cc0a846bf099f34c
+focused tests:            15 passed, 0 skipped
+related Stage 7 HEM:     174 passed, 0 skipped
+full repository:         616 passed, 0 skipped
+```
+
+### PR #71 — projected crossing and accepted-state recovery
+
+PR #71 applied the existing equilibrium-quality projection to the raw crossing state,
+required projection cells to equal raw crossing cells, recovered the synchronized state
+through the mixed accepted-state EOS, confirmed a second projection was a no-op, and
+closed projection vapor accounting.
+
+```text
+strong case projection cells:   3, 4
+strong projection vapor source: 7.054022964126832e-4 kg
+moderate projection cells:      4
+moderate vapor source:          6.563798045383618e-5 kg
+control projection cells:       none
+control vapor source:           0 kg
+post q mismatch:                0 for all cases
+```
+
+Authoritative validation:
+
+```text
+merge:                    ceaba980e5e7f7305424df8bd1e9e6b4f1acfe40
+validated head:           7c04a728b1369ed41f083d68b73deb81e92ac374
+workflow run:             30018942238
+artifact ID:              8568448978
+artifact SHA256:          fc577459c65f29a95179dc5a98ef7813a82f14ba8de945a254626555a29c59da
+focused tests:            12 passed, 0 skipped
+related Stage 7 HEM:     186 passed, 0 skipped
+full repository:         628 passed, 0 skipped
+```
+
+### PR #72 — frozen repeatable Case A and matched Case B
+
+PR #72 repeated the strong crossing and matched liquid control three times each using
+fresh solver/EOS instances. Case A stopped at its first accepted crossing; Case B ran to
+the exact same physical time.
+
+Frozen conditions:
+
+```text
+cells / length / diameter: 8 / 1.0 m / 0.10 m
+CFL / flux:                0.20 / existing first-order Rusanov
+boundaries / source:       transmissive / none
+Case A:                     5 MPa / 5 K -> 2 MPa / 5 K subcooling
+Case B:                     5 MPa / 5 K -> 4 MPa / 5 K subcooling
+repeat count:               3 each
+```
+
+Every Case A execution produced:
+
+```text
+outcome:                    ACCEPTED_CROSSING
+crossing step / time:       1 / 3.356317173211922e-5 s
+crossing / projection:      cells 3, 4 / cells 3, 4
+maximum q_eq:               5.911503500507591e-4
+projection vapor source:    7.054022964126832e-4 kg
+post q mismatch:            0
+second projection:          no-op
+final-state SHA256:         78897b5c8ca57221186ccf3e0aa69e1492a942cc2e8dee0abb440a3e2e08e039
+```
+
+Every Case B execution ended at the same physical time and produced:
+
+```text
+outcome:                    MATCHED_ALL_LIQUID
+crossing / projection:      none / none
+projection vapor source:    0 kg
+all final regions:          LIQUID_CANDIDATE
+final-state SHA256:         8c09735ee9185cfb34b2186be30b32d78ec73350e211762d92c372e0b9f23a59
+```
+
+Authoritative validation:
+
+```text
+merge:                    628800530851b0cb677bc0a6bedcb85a13a303d1
+validated head:           825ebba11b7ea273c81db717c097d8f1122ae092
+workflow run:             30105917479
+artifact ID:              8601660179
+artifact SHA256:          02b13cb63704ea63d826f1e1feab209c4bd5b83b4a5fec7e3936af114e0cbc7b
+focused tests:            14 passed, 0 skipped
+related Stage 7 HEM:     200 passed, 0 skipped
+full repository:         642 passed, 0 skipped
+```
+
+The Case A/B pair is the first-order software-verification regression control. Its hashes
+are environment-specific deterministic evidence, not physical-accuracy or design-use
+acceptance criteria.
+
 ## Current technical conclusion
 
 The first-order verification path now demonstrates that:
 
 - a pure-CO2 `rho/e` state can be evaluated through explicit HEM guards;
 - open two-phase states can be advanced through Rusanov flux and CFL;
-- one uniform stationary open-two-phase state is preserved exactly;
-- nonuniform open-two-phase transport can create a measurable transported/equilibrium
-  quality mismatch;
-- projection repairs that mismatch without changing conservative mass, momentum, or
+- uniform and nonuniform open-two-phase behavior, projection activation, and projection
+  no-op behavior are covered;
+- liquid-side regions, endpoints, and transition events are classified directly from
+  `rho/e` independently of transported quality;
+- mixed liquid/open-two-phase accepted states recover finite positive pressure,
+  temperature, and sound speed;
+- an actual first-order FVM update produces raw liquid-to-open-two-phase transitions;
+- projection synchronizes only the crossed cells while preserving mass, momentum, and
   total energy;
-- an equal-pressure quality contact remains a true projection no-op;
-- mass, momentum, energy, and phase-vapor budgets close for the reviewed dynamic cases;
-- liquid-side regions, endpoints, and transition events can be classified directly from
-  `rho/e` without using transported quality;
-- mixed accepted liquid/open-two-phase arrays can be converted to primitive and acoustic
-  states cell by cell;
-- reproducible liquid state-pair screening can nominate strong, moderate, and liquid-control
-  candidates without changing algorithms or tolerances.
+- the post-crossing mixed state is accepted, the second projection is a no-op, and vapor
+  accounting closes;
+- a repeatable crossing Case A and exact matched-time all-liquid Case B are frozen;
+- the current first-order liquid-to-open-two-phase crossing path is software-verified.
 
 The current evidence does **not** demonstrate:
 
 ```text
-liquid-to-two-phase FVM boundary crossing:      not verified
-open-two-phase to vapor crossing:               not verified
-Case A / matched Case B:                        not frozen
 pipeline depressurization:                      not implemented
+longer two-phase region growth:                 not verified
+open-two-phase to vapor crossing:               not verified
+saturated-endpoint acoustic closure:            not established
+mesh-independent crossing time or vapor amount: not established
 two-phase acoustic accuracy band:               not approved
 production HEM activation:                      not approved
 physical Validation:                            false
@@ -348,28 +480,33 @@ design-use acceptance:                          false
 
 ```text
 verification_only = true
+software_verification_only = true
 property_backend_name = coolprop_co2
 property_backend_design_status = not_approved_for_design_use
-actual_first_order_fvm_crossing_verified = false
-screening_is_fvm_solution = false
-case_a_frozen = false
-case_b_frozen = false
+actual_first_order_fvm_crossing_verified = true
+case_a_frozen = true
+case_b_frozen = true
+algorithms_or_tolerances_tuned = false
 production_default_changed = false
 production_hem_activation_approved = false
 physical_validation = false
 design_use_acceptance = false
+two_phase_acoustic_accuracy_band_approved = false
 numeric_accuracy_band_approved = false
 ```
 
 ## Next gates
 
-1. perform minimal first-order FVM dry runs on the three ledger-backed candidate pairs;
-2. begin with one raw Rusanov update before projection and classify the resulting regions;
-3. retain 8–16 cells, transmissive boundaries, no source, low CFL, and fixed algorithms;
-4. after the raw path is understood, connect projection and mixed accepted-state evaluation;
-5. record every attempt and vary only one permitted case parameter at a time;
-6. freeze the first repeatable crossing Case A and matched no-crossing Case B;
-7. implement the first-crossing capture runner and close conservation and vapor budgets;
-8. only after stable crossing, build the first LCO2 pipeline-depressurization prototype;
-9. retain PRs #52/#53 as later numerical-improvement assets until the first-order dynamic
-   HEM path is stable.
+1. retain frozen Case A/B as the first-order crossing regression control;
+2. define a narrow pipeline-depressurization prototype before implementing it;
+3. start with one straight pipe, all-liquid initial state, one controlled depressurization
+   boundary, no friction, no heat transfer, and no internal interface;
+4. stop the first prototype at the first accepted crossing and capture the same transition,
+   projection, accepted-state, and budget evidence used by the frozen regression pair;
+5. keep saturated-endpoint landing fail-fast until endpoint acoustic closure is established;
+6. after the minimal prototype is stable, extend to short two-phase-region growth and
+   assess mesh/time-step sensitivity;
+7. retain PRs #52/#53 as later numerical-improvement assets and do not connect them until
+   the first-order pipeline prototype is stable;
+8. keep production activation, physical Validation, design use, and acoustic accuracy
+   approval false until separately established.
