@@ -459,33 +459,239 @@ CoolProp:                   8.0.0
 The temporary validation workflow was removed after evidence capture. All four permanent
 CoolProp workflows passed on the final permanent head.
 
-## Current technical conclusion — 2026-07-23
+### PR #69 — central record synchronization through PR #68
+
+Status: `MERGED`. Merge commit:
+`4c0960d32a03269828a8a0d3e2d2c8c9c8322f62`.
+
+Only `MASTER_VERIFICATION_INDEX.md` and `stage7_execution_log.md` changed. The active gate
+was advanced from mixed accepted-state construction to the minimal first-order FVM dry
+run. Solver and numerical behavior were unchanged.
+
+## 2026-07-23 — First actual raw and projected FVM crossing
+
+### PR #70 — actual one-step raw FVM crossing
+
+Status: `OBSERVED; VALIDATED; MERGED`. Merge commit:
+`38e841af97ac0adbebf42dbe36a17c1edc6c5246`.
+
+The fixed eight-cell matrix used one actual existing first-order FVM step:
+
+```text
+cells / length / diameter: 8 / 1.0 m / 0.10 m
+interface:                 between cells 3 and 4
+CFL / flux:                0.20 / existing Rusanov
+boundaries / source:       transmissive / none
+initial velocity / q:      0 m/s / exactly 0
+projection:                not applied in this increment
+```
+
+Observed raw outcomes:
+
+```text
+strong 5 -> 2 MPa:    OPEN_TWO_PHASE; crossing cells 3, 4
+moderate 5 -> 3 MPa:  OPEN_TWO_PHASE; crossing cell 4
+control 5 -> 4 MPa:   ALL_LIQUID; crossing cells none
+```
+
+Strong case:
+
+```text
+dt:                         3.356317173211922e-5 s
+maximum raw q_eq:           5.911503500507591e-4
+maximum raw q mismatch:     5.911503500507591e-4
+```
+
+Moderate case:
+
+```text
+dt:                         3.9278457537062076e-5 s
+maximum raw q_eq:           6.844477600333753e-5
+maximum raw q mismatch:     6.844477600333753e-5
+```
+
+Control case remained liquid with zero equilibrium quality. Only the two cells adjacent
+to the initial discontinuity changed. Boundary budgets closed to numerical precision.
+
+Authoritative validation:
+
+```text
+validated head:            a870d313bd821bc05ba5e3fdd2ab155edadb8de9
+workflow run:              30015273238
+artifact ID:               8566944015
+artifact SHA256:           15569960f65261d16f79d8341ab2706fb61309a5bfd044e1cc0a846bf099f34c
+focused tests:             15 passed, 0 skipped
+related Stage 7 HEM:      174 passed, 0 skipped
+full repository:          616 passed, 0 skipped
+failures / errors:          0 / 0
+```
+
+The raw crossed cells retained transported `q=0`; therefore this increment observed the
+required pre-projection state but did not yet complete the accepted crossing path.
+
+### PR #71 — projection, post-EOS recovery, and vapor accounting
+
+Status: `OBSERVED; VALIDATED; MERGED`. Merge commit:
+`ceaba980e5e7f7305424df8bd1e9e6b4f1acfe40`.
+
+The PR #70 matrix was regenerated without changing conditions. The existing projection
+was then applied, the synchronized state was accepted by the mixed EOS, a fresh second
+projection was required to be a no-op, and projection vapor mass was accounted.
+
+```text
+strong crossing / projection cells:   3, 4 / 3, 4
+strong projection vapor source:       7.054022964126832e-4 kg
+moderate crossing / projection cells: 4 / 4
+moderate projection vapor source:     6.563798045383618e-5 kg
+control crossing / projection cells:  none / none
+control projection vapor source:      0 kg
+post q mismatch:                      0 for all cases
+second projection cells:              none for all cases
+```
+
+Mass, momentum, and total energy remained bitwise unchanged by projection. Post pressure,
+temperature, and sound speed were finite and positive. Projection-only and combined
+boundary-plus-projection vapor budgets closed with zero retained residual.
+
+Authoritative validation:
+
+```text
+validated head:            7c04a728b1369ed41f083d68b73deb81e92ac374
+workflow run:              30018942238
+artifact ID:               8568448978
+artifact SHA256:           fc577459c65f29a95179dc5a98ef7813a82f14ba8de945a254626555a29c59da
+focused tests:             12 passed, 0 skipped
+related Stage 7 HEM:      186 passed, 0 skipped
+full repository:          628 passed, 0 skipped
+failures / errors:          0 / 0
+```
+
+This established a complete one-step projected crossing-path observation, while formal
+Case A/B freeze remained false until repeatability was checked.
+
+## 2026-07-24 to 2026-07-25 — Repeated first-crossing Case A/B freeze
+
+### PR #72 — first software-verification crossing pair
+
+Status: `VERIFIED; FROZEN; MERGED`. Merge commit:
+`628800530851b0cb677bc0a6bedcb85a13a303d1`.
+
+The strong crossing candidate and matched liquid control were executed three times each
+using fresh solver and EOS instances. No case condition, algorithm, tolerance, or
+acceptance threshold was changed after PR #71.
+
+Frozen setup:
+
+```text
+cells / length / diameter: 8 / 1.0 m / 0.10 m
+interface:                 between cells 3 and 4
+CFL / flux:                0.20 / existing first-order Rusanov
+boundaries / source:       transmissive / none
+repeat count:              3 each
+Case A safety limit:       8 steps
+
+Case A: 5 MPa / 5 K -> 2 MPa / 5 K subcooling
+Case B: 5 MPa / 5 K -> 4 MPa / 5 K subcooling
+```
+
+Every Case A repeat produced:
+
+```text
+outcome:                    ACCEPTED_CROSSING
+crossing step:              1
+crossing time:              3.356317173211922e-5 s
+crossing cells:             3, 4
+projection cells:           3, 4
+maximum crossing q_eq:      5.911503500507591e-4
+projection vapor source:    7.054022964126832e-4 kg
+post q mismatch:            0
+second projection:          no-op
+final state SHA256:         78897b5c8ca57221186ccf3e0aa69e1492a942cc2e8dee0abb440a3e2e08e039
+repeatability signature:    914ed2249c9546a1d32f6d6dbcd8b30236e1c1f2b37ecf9306100ad30622b612
+```
+
+Case A budget observations:
+
+```text
+mass residual:              0
+momentum residual:          0
+energy residual:            2.3283064365386963e-10
+energy relative residual:   1.742733258599977e-16
+phase-vapor residual:       0 kg
+```
+
+Every Case B repeat was advanced to exactly the Case A crossing time and produced:
+
+```text
+outcome:                    MATCHED_ALL_LIQUID
+final time:                 3.356317173211922e-5 s
+crossing cells:             none
+projection cells:           none
+projection vapor source:    0 kg
+all final regions:          LIQUID_CANDIDATE
+final state SHA256:         8c09735ee9185cfb34b2186be30b32d78ec73350e211762d92c372e0b9f23a59
+repeatability signature:    3bd7edc37842a00a0c27964a17029f5c66ef973b59bd7670f513c82fc7e85669
+```
+
+Case B mass, momentum, energy, vapor, and phase-vapor residuals were zero in retained
+evidence. The Case B final step used the existing `compute_dt(t_end=...)` path to reach
+the matched physical-time horizon without changing the CFL upper bound.
+
+Freeze result:
+
+```text
+case_a_repeatable = true
+case_b_repeatable = true
+case_b_matched_physical_time = true
+case_a_frozen = true
+case_b_frozen = true
+actual_first_order_fvm_crossing_verified = true
+```
+
+Authoritative validation:
+
+```text
+validated head:            825ebba11b7ea273c81db717c097d8f1122ae092
+workflow run:              30105917479
+artifact ID:               8601660179
+artifact SHA256:           02b13cb63704ea63d826f1e1feab209c4bd5b83b4a5fec7e3936af114e0cbc7b
+focused tests:             14 passed, 0 skipped
+related Stage 7 HEM:      200 passed, 0 skipped
+full repository:          642 passed, 0 skipped
+failures / errors:          0 / 0
+```
+
+This `verified` result is limited to software verification of the current first-order FVM
+and reviewed HEM chain. It does not establish experimental agreement, mesh-independent
+accuracy, physical Validation, design-use acceptance, production activation, or an
+approved two-phase acoustic band.
+
+## Current technical conclusion — 2026-07-25
 
 The HEM verification path on recorded development `main`
-`640b69c576501ec812cbc2919f35c62526b15974` now supports:
+`628800530851b0cb677bc0a6bedcb85a13a303d1` now supports:
 
 - guarded pure-CO2 `rho/e` thermodynamic evaluation;
-- explicit phase classification;
+- explicit phase classification and boundary-region transition detection;
 - an independently defined equilibrium sound-speed candidate;
-- verification-only Rusanov/CFL connection for open two-phase states;
-- exact preservation of one uniform stationary open-two-phase state;
-- dynamic synchronization of transported `rho*q` with equilibrium quality;
-- nonuniform open-two-phase transport with measurable projection activity;
-- equal-pressure contact transport as a true projection no-op;
-- budget closure and backend/design-status traceability for the reviewed dynamic cases;
-- direct liquid-side boundary-region and transition-event classification independent of
-  transported quality;
-- accepted mixed liquid/open-two-phase primitive and acoustic evaluation;
-- reproducible property-level state-pair screening with strong, moderate, and liquid-control
-  dry-run candidates.
+- first-order Rusanov/CFL operation on liquid and open-two-phase accepted states;
+- exact uniform open-two-phase preservation;
+- dynamic transported/equilibrium-quality synchronization;
+- projection activation and true no-op behavior;
+- mixed liquid/open-two-phase accepted-state recovery;
+- actual raw liquid-to-open-two-phase crossing from an all-liquid initial state;
+- post-crossing projection, EOS recovery, second-projection no-op, and vapor-budget closure;
+- a deterministic repeated Case A crossing and exact matched-time all-liquid Case B;
+- a frozen first-order software-regression pair for liquid-to-open-two-phase crossing.
 
 The current evidence does not support the following claims:
 
 ```text
-liquid-to-two-phase FVM boundary crossing:      not verified
-open-two-phase to vapor crossing:               not verified
-Case A / matched Case B:                        not frozen
 pipeline depressurization:                      not implemented
+longer two-phase region growth:                 not verified
+open-two-phase to vapor crossing:               not verified
+saturated-endpoint acoustic closure:            not established
+mesh-independent crossing time or vapor amount: not established
 two-phase acoustic accuracy band:               not approved
 production HEM activation:                      not approved
 physical Validation:                            false
@@ -496,27 +702,34 @@ design-use acceptance:                          false
 
 ```text
 verification_only = true
+software_verification_only = true
 property_backend_name = coolprop_co2
 property_backend_design_status = not_approved_for_design_use
-actual_first_order_fvm_crossing_verified = false
-screening_is_fvm_solution = false
-case_a_frozen = false
-case_b_frozen = false
+actual_first_order_fvm_crossing_verified = true
+case_a_frozen = true
+case_b_frozen = true
+algorithms_or_tolerances_tuned = false
 production_default_changed = false
 production_hem_activation_approved = false
 physical_validation = false
 design_use_acceptance = false
+two_phase_acoustic_accuracy_band_approved = false
 numeric_accuracy_band_approved = false
 ```
 
 ## Next
 
-1. perform minimal first-order FVM dry runs on the three ledger-backed candidate pairs;
-2. start with one raw Rusanov update before projection and classify the resulting regions;
-3. retain 8–16 cells, transmissive boundaries, no source, low CFL, and fixed algorithms;
-4. after the raw path is understood, connect projection and mixed accepted-state evaluation;
-5. record every attempt and vary only one permitted case parameter at a time;
-6. freeze the first repeatable crossing Case A and matched no-crossing Case B;
-7. implement and validate the first-crossing capture runner and budgets;
-8. synchronize formal crossing evidence into the central records;
-9. only after stable crossing, begin a longer pipeline-depressurization prototype.
+1. retain frozen Case A/B as the first-order crossing regression control;
+2. define a narrow LCO2 pipeline-depressurization prototype before implementation;
+3. start with one straight pipe, all-liquid initial state, one controlled depressurization
+   boundary, no friction, no heat transfer, and no internal interface;
+4. stop the first prototype at the first accepted crossing and retain raw, projection,
+   accepted-state, repeatability, and budget evidence;
+5. keep endpoint landing fail-fast until a saturated-endpoint acoustic closure is
+   separately established;
+6. only after the minimal prototype is stable, extend to short two-phase-region growth and
+   assess mesh and time-step sensitivity;
+7. retain PRs #52/#53 as later numerical-improvement assets until the first-order pipeline
+   prototype is stable;
+8. keep production activation, physical Validation, design use, and acoustic accuracy
+   approval false until separately established.
