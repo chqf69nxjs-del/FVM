@@ -36,6 +36,35 @@ run-signature SHA256:        fdd25cbf669428790d1f3d877ab3b86ec329726d7b10e3a8461
 The diagnostic findings merged in PR #79 remain a separate baseline and are not
 reclassified by this gate.
 
+## Reviewed mesh-only override
+
+The merged PR #77 configuration remains immutable and continues to reject a changed cell
+count. This gate shall not weaken or mutate that contract.
+
+A separate verification-only mesh-sensitivity configuration/harness shall be introduced.
+It may vary only the following reviewed fields:
+
+```text
+n_cells:       one of {32, 64, 128}
+dx:            derived exactly as L / n_cells
+maximum_steps: derived deterministically as 2000 * n_cells / 32
+```
+
+Thus the fixed step caps are:
+
+```text
+32 cells:   2000 steps
+64 cells:   4000 steps
+128 cells:  8000 steps
+```
+
+The linear step-cap scaling prevents a refined no-crossing run from ending before the same
+physical horizon merely because `dt` scales with `dx`. It is a predeclared computational
+capacity rule, not a result-dependent horizon extension.
+
+Every other field must match the merged PR #77 contract exactly. The generated artifact
+shall record both the immutable PR #77 base contract and the explicit mesh-only override.
+
 ## Fixed model and solver settings
 
 ```text
@@ -103,7 +132,7 @@ For each of the nine runs retain:
 
 ```text
 formal outcome and failure reason
-step count and final time
+step count, configured maximum steps, and final time
 crossing step and time, if any
 crossing cell and physical position, if any
 maximum raw crossing q_eq
@@ -205,6 +234,7 @@ The gate passes as a completed software sensitivity study when:
 
 ```text
 32-cell PR #77 baseline reproduces exactly
+only n_cells, derived dx, and deterministic maximum_steps vary
 all nine fixed runs produce explicit outcomes
 all boundary preflights complete successfully
 all mesh-specific histories and physical positions are retained
@@ -235,8 +265,9 @@ mesh_crossing_time_position.png
 mesh_sound_speed_jump.png
 ```
 
-The JSON summary must contain the complete effective configuration, exact Git provenance,
-CoolProp version, per-run state/signature hashes, and approval boundary.
+The JSON summary must contain the complete effective configuration, the mesh-only override,
+exact Git provenance, CoolProp version, per-run state/signature hashes, and approval
+boundary.
 
 ## Explicit exclusions
 
