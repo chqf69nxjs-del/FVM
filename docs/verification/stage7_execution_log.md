@@ -666,10 +666,103 @@ and reviewed HEM chain. It does not establish experimental agreement, mesh-indep
 accuracy, physical Validation, design-use acceptance, production activation, or an
 approved two-phase acoustic band.
 
+## 2026-07-25 — Pipeline-depressurization specification and boundary Increment 1
+
+### PR #73 — first-crossing central-record synchronization
+
+Status: `MERGED`. Merge commit:
+`3e55b3fae88d813437654c144d0157de5b6d398f`.
+
+Only the master verification index and execution log changed. The frozen Case A/B pair was
+recorded as the first-order crossing regression control.
+
+### PR #74 — minimal pipeline-depressurization prototype specification
+
+Status: `SPECIFIED; VALIDATED; MERGED`. Merge commit:
+`49b34bf955a5dd1f0d106f2e81f55aff3bd24add`.
+
+The fixed verification-only prototype uses one 1.0 m x 0.10 m horizontal pipe with 32 cells,
+a uniform stationary 5 MPa / 5 K-subcooled liquid initial state, reflective left boundary,
+and a prescribed right boundary closed by `T_b = T_sat(p_b) - 5 K`. The existing first-order
+Rusanov flux and CFL 0.10 are retained; friction, heat transfer, gravity, and internal
+interfaces are disabled.
+
+```text
+fixed outlet paths:          5→2, 5→3, and 5→4 MPa
+formal stop:                 first accepted crossing
+preflight samples:           65 per path
+endpoint / forbidden:        explicit fail-fast
+reverse flow:                explicit fallback diagnostic and prototype rejection
+boundary vapor transport:    separate from projection vapor source
+schedule/algorithm tuning:   forbidden
+```
+
+Authoritative validation:
+
+```text
+validated head:            8640d6f73421ec3d4b7bf64b20e09f7445d32149
+workflow run:              30135136669
+artifact ID:               8612546071
+artifact SHA256:           5b2e391e32b984eab82c6e5d316add05c54f9e2ecc411580523e1f4323b1b69b
+specification tests:       9 passed, 0 skipped
+frozen Case A/B tests:    14 passed, 0 skipped
+full repository:         651 passed, 0 skipped
+failures / errors:          0 / 0
+```
+
+### PR #75 — prescribed-subcooled outlet boundary Increment 1
+
+Status: `IMPLEMENTED; SOFTWARE-VERIFIED; MERGED`. Merge commit:
+`9982c52bc4c26fac991972f0a8156c857e4bf21f`.
+
+The increment implemented only boundary construction and preflight. No pipeline FVM time
+step was executed.
+
+```text
+state closure:               p_b(t), T_sat(p_b)-5 K, CoolProp P,T -> rho,e
+required region:             LIQUID_CANDIDATE
+right boundary policy:       outlet_only
+velocity policy:             copy adjacent interior velocity
+ghost quality:               equilibrium quality from boundary rho/e
+interior quality copy:       forbidden
+reverse flow:                reflective fallback with explicit counter
+mutation policy:             validate completely before ghost write
+```
+
+The real CoolProp 8.0.0 preflight accepted all 195 fixed samples:
+
+```text
+5→2 MPa:                    65 / 65 accepted liquid candidates
+5→3 MPa:                    65 / 65 accepted liquid candidates
+5→4 MPa:                    65 / 65 accepted liquid candidates
+endpoint samples:           0
+open-two-phase samples:     0
+guard/backend failures:     0
+q_eq / alpha:               0 / 0 for all samples
+```
+
+Authoritative validation:
+
+```text
+validated implementation head: c94458933741866812286ea1e77bd288f7c4e0a2
+workflow run:                  30137665050
+artifact ID:                   8613415710
+artifact SHA256:               27f43c28566868fd13ec69e207cba3c5ac12e6795627c6045ac9d28b496ef5e0
+dependency-free tests:         18 passed, 0 skipped
+installed-CoolProp tests:       6 passed, 0 skipped
+prototype specification:        9 passed, 0 skipped
+frozen Case A/B:                14 passed, 0 skipped
+full repository:               675 passed, 0 skipped
+failures / errors:               0 / 0
+```
+
+Post-normalization permanent CoolProp Wave, Controlled Pressure Ramp, Boundary Reflection,
+and Internal Valve regressions all passed before merge.
+
 ## Current technical conclusion — 2026-07-25
 
 The HEM verification path on recorded development `main`
-`628800530851b0cb677bc0a6bedcb85a13a303d1` now supports:
+`9982c52bc4c26fac991972f0a8156c857e4bf21f` now supports:
 
 - guarded pure-CO2 `rho/e` thermodynamic evaluation;
 - explicit phase classification and boundary-region transition detection;
@@ -682,12 +775,14 @@ The HEM verification path on recorded development `main`
 - actual raw liquid-to-open-two-phase crossing from an all-liquid initial state;
 - post-crossing projection, EOS recovery, second-projection no-op, and vapor-budget closure;
 - a deterministic repeated Case A crossing and exact matched-time all-liquid Case B;
-- a frozen first-order software-regression pair for liquid-to-open-two-phase crossing.
+- a frozen first-order software-regression pair for liquid-to-open-two-phase crossing;
+- a fixed minimal 1.0 m / 32-cell pipeline-depressurization specification;
+- a software-verified prescribed-subcooled outlet constructor and 195-sample boundary preflight.
 
 The current evidence does not support the following claims:
 
 ```text
-pipeline depressurization:                      not implemented
+pipeline depressurization:                      boundary verified; FVM transient not executed
 longer two-phase region growth:                 not verified
 open-two-phase to vapor crossing:               not verified
 saturated-endpoint acoustic closure:            not established
@@ -720,13 +815,14 @@ numeric_accuracy_band_approved = false
 ## Next
 
 1. retain frozen Case A/B as the first-order crossing regression control;
-2. define a narrow LCO2 pipeline-depressurization prototype before implementation;
-3. start with one straight pipe, all-liquid initial state, one controlled depressurization
-   boundary, no friction, no heat transfer, and no internal interface;
-4. stop the first prototype at the first accepted crossing and retain raw, projection,
-   accepted-state, repeatability, and budget evidence;
-5. keep endpoint landing fail-fast until a saturated-endpoint acoustic closure is
-   separately established;
+2. connect the verified PR #75 boundary to the fixed PR #74 1.0 m / 32-cell first-order
+   Rusanov prototype;
+3. run the fixed 5→2, 5→3, and 5→4 MPa matrix with CFL 0.10 and no friction, heat transfer,
+   gravity, or internal interface;
+4. stop on the first accepted crossing or an explicit endpoint, forbidden-transition,
+   reverse-flow, guard, backend, or no-crossing-within-horizon outcome;
+5. retain raw transition, projection, accepted-state, second-projection, boundary vapor
+   transport, internal projection source, and total budget evidence separately;
 6. only after the minimal prototype is stable, extend to short two-phase-region growth and
    assess mesh and time-step sensitivity;
 7. retain PRs #52/#53 as later numerical-improvement assets until the first-order pipeline
