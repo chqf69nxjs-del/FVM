@@ -1,0 +1,163 @@
+{
+  "schema_version": "stage7_lco2_hem_pipeline_4mpa_subthreshold_forensics_v1",
+  "status": "FIXED_PR77_BASELINE_REPRODUCED_SOFTWARE_DIAGNOSTIC_COMPLETE",
+  "scope": "verification_only",
+  "issue_number": 78,
+  "pull_request_number": 79,
+  "immutable_baseline": {
+    "case_id": "pipeline_liquid_control_p5m5_to_p4m5",
+    "formal_outcome": "GUARD_FAILURE",
+    "crossing_step": 313,
+    "crossing_time_s": 0.001996923102525957,
+    "crossing_cell_indices": [25],
+    "crossing_distances_from_outlet_m": [0.203125],
+    "maximum_crossing_quality": 9.672588429198319e-9,
+    "final_state_sha256": "7e8b6a6bc715755e0419d8a469140c02a79ec5e8bb419eb4868553c3228242e1",
+    "run_signature_sha256": "fdd25cbf669428790d1f3d877ab3b86ec329726d7b10e3a8461443ba6340b202",
+    "reproduced_exactly": true,
+    "reclassified": false
+  },
+  "fixed_diagnostic_window": {
+    "steps": [300, 301, 302, 303, 304, 305, 306, 307, 308, 309, 310, 311, 312, 313],
+    "cells": [23, 24, 25, 26, 27],
+    "local_state_stages": ["accepted_before", "raw_fvm", "post_projection"],
+    "local_state_record_count": 210,
+    "saturation_margin_record_count": 70,
+    "flux_decomposition_record_count": 70,
+    "perturbation_record_count": 81
+  },
+  "crossing_raw_state": {
+    "pressure_pa": 4273927.110515705,
+    "rho_kg_m3": 876.1793486610264,
+    "internal_energy_j_kg": 215231.8639318858,
+    "temperature_K": 281.06502329585885,
+    "equilibrium_quality": 9.672588429198319e-9,
+    "void_fraction": 6.721608823263323e-8,
+    "sound_speed_candidate_m_s": 43.22308393386989,
+    "boundary_region": "OPEN_TWO_PHASE",
+    "transition_event": "LIQUID_TO_TWO_PHASE_CROSSING"
+  },
+  "thermodynamic_saturation_evidence": {
+    "saturated_liquid_internal_energy_j_kg": 215231.8622310403,
+    "delta_u_sat_j_kg": 0.0017008455179166049,
+    "delta_v_sat_m3_kg": 6.567548805139212e-11,
+    "quality_from_internal_energy": 9.672598473952674e-9,
+    "quality_from_specific_volume": 9.672589435031626e-9,
+    "coolprop_equilibrium_quality": 9.672588429198319e-9,
+    "coordinate_support": "TWO_PHASE_SIDE_SUPPORT",
+    "thermodynamic_two_phase_supported": true
+  },
+  "isentropic_reference": {
+    "initial_entropy_j_kg_K": 1075.2689514867911,
+    "bracketed": true,
+    "bracket_low_pa": 4342166.978761356,
+    "bracket_high_pa": 4350938.085711204,
+    "flash_pressure_pa": 4343948.305362968,
+    "root_residual_j_kg_K": 2.0691004465334117e-11,
+    "raw_pressure_offset_from_reference_pa": -70021.19484726246,
+    "raw_entropy_j_kg_K": 1069.404803582071,
+    "raw_entropy_offset_from_initial_j_kg_K": -5.864147904720085,
+    "physical_validation_criterion": false
+  },
+  "rusanov_decomposition": {
+    "maximum_reconstruction_absolute_error": 2.2737367544323206e-13,
+    "maximum_reconstruction_relative_error": 1.685312437739661e-16,
+    "crossing_cell_central_only_boundary_region": "OPEN_TWO_PHASE",
+    "crossing_cell_central_only_quality": 3.690684903157135e-7,
+    "crossing_cell_central_only_delta_u_sat_j_kg": 0.06489150400739163,
+    "crossing_cell_central_only_delta_v_sat_m3_kg": 2.5053992923265017e-9,
+    "full_rusanov_quality": 9.672588429198319e-9,
+    "central_only_to_full_quality_ratio": 38.156124704078046,
+    "local_numerical_diffusion_criterion_supported": false,
+    "accumulated_numerical_diffusion_ruled_out": false
+  },
+  "direct_boundary_criterion": {
+    "crossing_cell_is_boundary_adjacent": false,
+    "left_face_rhoE_update_contribution": 72313.84219419633,
+    "right_face_rhoE_update_contribution": -78331.75429422488,
+    "absolute_right_to_left_ratio": 1.0832193659945168,
+    "direct_boundary_closure_criterion_supported": false,
+    "indirect_boundary_influence_ruled_out": false
+  },
+  "perturbation_sensitivity": {
+    "relative_levels": [-1e-6, -1e-8, -1e-10, -1e-12, 0.0, 1e-12, 1e-10, 1e-8, 1e-6],
+    "classification": "WEAKLY_RESOLVED",
+    "phase_change_observed_through_1e_minus_8": false,
+    "phase_change_observed_at_1e_minus_6": true,
+    "round_off_sensitive_under_tested_grid": false,
+    "robust_through_1e_minus_6": false
+  },
+  "acoustic_observation": {
+    "accepted_liquid_sound_speed_before_crossing_m_s": 461.25669095385655,
+    "raw_two_phase_sound_speed_candidate_m_s": 43.22308393386989,
+    "candidate_ratio_raw_to_before": 0.09370722372500795,
+    "near_saturation_continuity_approved": false,
+    "two_phase_acoustic_accuracy_band_approved": false,
+    "post_crossing_propagation_claim_allowed": false
+  },
+  "diagnostic_conclusion": {
+    "categories": [
+      "THERMODYNAMIC_TWO_PHASE_SUPPORTED",
+      "NEAR_SATURATION_PROPERTY_SENSITIVE",
+      "MULTI_FACTOR_EVIDENCE"
+    ],
+    "not_triggered_by_reviewed_criteria": [
+      "NUMERICAL_DIFFUSION_CONSISTENT",
+      "BOUNDARY_CLOSURE_INFLUENCE_CONSISTENT"
+    ],
+    "single_physical_cause_established": false,
+    "diagnostic_execution_passed": true,
+    "gate_p2_passed": false
+  },
+  "required_artifacts": [
+    "4mpa_forensic_summary.json",
+    "4mpa_local_cell_history.csv",
+    "4mpa_saturation_margin.csv",
+    "4mpa_isentropic_reference.json",
+    "4mpa_flux_decomposition.csv",
+    "4mpa_property_perturbation.csv",
+    "4mpa_property_perturbation.npz",
+    "4mpa_forensic_evidence.md",
+    "rho_e_saturation_zoom.png",
+    "saturation_margin_vs_time.png",
+    "central_vs_dissipative_update.png",
+    "perturbation_classification_map.png"
+  ],
+  "authoritative_validation": {
+    "validated_implementation_head": "719301dd64c9ee2571cf3296605466a2ee9de27f",
+    "workflow_run": 30162194409,
+    "artifact_id": 8620823392,
+    "artifact_sha256": "1b2c14790c3c66be47386f60ddb9c8b21ee5d253dcc0ab1d78e9deaa7b5184d7",
+    "coolprop_version": "8.0.0",
+    "forensic_source_git_blob": "af02452313fd942004f6b8d6ce1662e30c16ac1f",
+    "focused_test_git_blob": "9671974b63ee6d97839a53ff55cac7a5df1ecf98",
+    "contract_test_git_blob": "409f97edda208885de6eabc9d67dbf674f8a3a5f",
+    "dependency_free_tests": {"passed": 8, "skipped": 0, "failed": 0, "errors": 0},
+    "installed_coolprop_tests": {"passed": 9, "skipped": 0, "failed": 0, "errors": 0},
+    "related_stage7_tests": {"passed": 69, "skipped": 0, "failed": 0, "errors": 0},
+    "full_repository_tests": {"passed": 723, "skipped": 0, "failed": 0, "errors": 0},
+    "permanent_workflows": {
+      "coolprop_wave": 30162194483,
+      "controlled_pressure_ramp": 30162194405,
+      "boundary_reflection": 30162194415,
+      "internal_valve": 30162194406
+    }
+  },
+  "approval_boundary": {
+    "verification_only": true,
+    "software_diagnostic_only": true,
+    "PR77_observation_reclassified": false,
+    "Gate_P2_passed": false,
+    "physical_validation": false,
+    "design_use_acceptance": false,
+    "production_hem_activation_approved": false,
+    "two_phase_acoustic_accuracy_band_approved": false,
+    "mesh_independent_crossing_verified": false
+  },
+  "next_increments": [
+    "mesh_sensitivity_32_64_128_at_cfl_0p10",
+    "cfl_sensitivity_after_mesh_review",
+    "near_saturation_acoustic_continuity",
+    "boundary_closure_comparison_after_numerical_sensitivity"
+  ]
+}
