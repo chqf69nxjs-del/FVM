@@ -1,0 +1,60 @@
+name: Stage 7 Pipeline Boundary Record Sync PR
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stage7-pipeline-boundary-record-sync-pr-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  synchronize-records:
+    name: synchronize-records-pr
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout PR head branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Extract and run reviewed synchronization script
+        shell: bash
+        run: |
+          set -euo pipefail
+          awk '
+            /python - <<'"'"'PY'"'"'/{capture=1; next}
+            capture && /^          PY$/{exit}
+            capture {sub(/^          /, ""); print}
+          ' .github/workflows/stage7-pipeline-boundary-record-sync.yml > /tmp/sync_stage7_records.py
+          test -s /tmp/sync_stage7_records.py
+          python /tmp/sync_stage7_records.py
+          git diff --check
+          changed="$(git diff --name-only)"
+          printf '%s\n' "$changed"
+          test "$changed" = $'docs/verification/MASTER_VERIFICATION_INDEX.md\ndocs/verification/stage7_execution_log.md' || {
+            echo "Unexpected changed-file scope" >&2
+            exit 1
+          }
+
+      - name: Commit synchronized records
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            docs/verification/MASTER_VERIFICATION_INDEX.md \
+            docs/verification/stage7_execution_log.md
+          if git diff --cached --quiet; then
+            echo "Central records are already synchronized."
+            exit 0
+          fi
+          git commit -m "Synchronize Stage 7 pipeline boundary records"
+          git push origin HEAD:${{ github.event.pull_request.head.ref || github.ref_name }}
