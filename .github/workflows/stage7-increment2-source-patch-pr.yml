@@ -1,0 +1,119 @@
+name: Stage 7 Increment 2 Source Patch PR
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stage7-increment2-source-patch-pr-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply-source-patch:
+    name: apply-source-patch
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Retain subthreshold crossing evidence in case summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/liquid_gas_transient/hem_pipeline_depressurization_first_crossing.py")
+          text = path.read_text(encoding="utf-8")
+
+          old_summary = '''            "all_fixed_cases_completed": bool(
+                self.cases
+                and all(case.completed_without_guard_failure for case in self.cases)
+            ),
+            "two_mpa_candidate_outcome": (
+'''
+          new_summary = '''            "all_fixed_cases_completed": bool(
+                self.cases
+                and all(case.completed_without_guard_failure for case in self.cases)
+            ),
+            "fixed_matrix_explicit_outcomes_retained": bool(
+                self.cases and all(case.step_count > 0 for case in self.cases)
+            ),
+            "gate_p2_passed": bool(
+                self.cases
+                and all(case.completed_without_guard_failure for case in self.cases)
+            ),
+            "subthreshold_crossing_case_ids": [
+                case.case.case_id
+                for case in self.cases
+                if case.outcome == "GUARD_FAILURE"
+                and case.crossing_step is not None
+                and 0.0 < case.maximum_crossing_quality
+                < self.config.crossing_evidence_min_quality
+            ],
+            "two_mpa_candidate_outcome": (
+'''
+          if old_summary in text:
+              text = text.replace(old_summary, new_summary, 1)
+          elif new_summary not in text:
+              raise RuntimeError("summary anchor not found")
+
+          old_crossing = '''                if max_raw_q < cfg.crossing_evidence_min_quality:
+                    raise HEMPipelineDepressurizationError(
+                        "crossing quality evidence is below the fixed minimum"
+                    )
+                crossing_step = step_index
+                crossing_time = float(solver.t)
+                crossing_cells = current_crossing
+                crossing_distances = tuple(
+                    float(cfg.length_m - grid.cell_centers[index])
+                    for index in crossing_cells
+                )
+                maximum_crossing_quality = max_raw_q
+                outcome = "ACCEPTED_FIRST_CROSSING"
+'''
+          new_crossing = '''                crossing_step = step_index
+                crossing_time = float(solver.t)
+                crossing_cells = current_crossing
+                crossing_distances = tuple(
+                    float(cfg.length_m - grid.cell_centers[index])
+                    for index in crossing_cells
+                )
+                maximum_crossing_quality = max_raw_q
+                if max_raw_q < cfg.crossing_evidence_min_quality:
+                    raise HEMPipelineDepressurizationError(
+                        "crossing quality evidence is below the fixed minimum"
+                    )
+                outcome = "ACCEPTED_FIRST_CROSSING"
+'''
+          if old_crossing in text:
+              text = text.replace(old_crossing, new_crossing, 1)
+          elif new_crossing not in text:
+              raise RuntimeError("crossing anchor not found")
+
+          path.write_text(text, encoding="utf-8")
+          PY
+          python -m compileall -q src
+          git diff --check
+
+      - name: Commit source patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/liquid_gas_transient/hem_pipeline_depressurization_first_crossing.py
+          if git diff --cached --quiet; then
+            echo "Source patch already applied."
+            exit 0
+          fi
+          git commit -m "Retain subthreshold crossing evidence"
+          git push origin HEAD:${{ github.event.pull_request.head.ref || github.ref_name }}
