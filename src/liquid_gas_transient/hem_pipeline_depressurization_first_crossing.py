@@ -178,6 +178,27 @@ class HEMPipelineDepressurizationConfig:
             raise ValueError("Increment 2 time-scale ratios are fixed at 1 and 3")
         if self.max_steps != 2000 or self.preflight_sample_count != 65:
             raise ValueError("Increment 2 limits are fixed at 2000 steps and 65 samples")
+        fixed_scalars = (
+            ("pressure_drop_evidence_relative", self.pressure_drop_evidence_relative, 1.0e-6),
+            ("crossing_evidence_min_quality", self.crossing_evidence_min_quality, 1.0e-6),
+            ("accepted_state_quality_tolerance", self.accepted_state_quality_tolerance, 1.0e-10),
+            ("mass_budget_relative_tolerance", self.mass_budget_relative_tolerance, 1.0e-10),
+            ("mass_budget_absolute_tolerance_kg", self.mass_budget_absolute_tolerance_kg, 1.0e-12),
+            ("momentum_budget_relative_tolerance", self.momentum_budget_relative_tolerance, 1.0e-10),
+            ("momentum_budget_absolute_tolerance_kg_m_s", self.momentum_budget_absolute_tolerance_kg_m_s, 1.0e-10),
+            ("energy_budget_relative_tolerance", self.energy_budget_relative_tolerance, 1.0e-10),
+            ("energy_budget_absolute_tolerance_J", self.energy_budget_absolute_tolerance_J, 1.0e-6),
+            ("vapor_budget_absolute_tolerance_kg", self.vapor_budget_absolute_tolerance_kg, 1.0e-12),
+        )
+        for name, value, expected in fixed_scalars:
+            if value != expected:
+                raise ValueError(
+                    f"Increment 2 {name} is fixed at {expected!r}; received {value!r}"
+                )
+        if self.phase_config != HEMPhaseClassificationConfig():
+            raise ValueError("Increment 2 phase_config is fixed by the PR #74 contract")
+        if self.projection_config != HEMEquilibriumQualitySyncConfig():
+            raise ValueError("Increment 2 projection_config is fixed by the PR #74 contract")
         if (
             not np.isfinite(self.pressure_drop_evidence_relative)
             or self.pressure_drop_evidence_relative <= 0.0
@@ -387,6 +408,28 @@ class PipelineCaseResult:
         }
 
 
+def _gate_p2_passes(cases: Sequence[PipelineCaseResult]) -> bool:
+    """Return the reviewed Gate P2 decision for the fixed three-case matrix."""
+
+    by_id = {case.case.case_id: case for case in cases}
+    expected_ids = {case.case_id for case in FIXED_PIPELINE_DEPRESSURIZATION_CASES}
+    if set(by_id) != expected_ids:
+        return False
+    accepted_or_honest_no_crossing = {
+        "ACCEPTED_FIRST_CROSSING",
+        "NO_CROSSING_WITHIN_HORIZON",
+    }
+    strong = by_id["pipeline_crossing_candidate_p5m5_to_p2m5"]
+    moderate = by_id["pipeline_moderate_diagnostic_p5m5_to_p3m5"]
+    control = by_id["pipeline_liquid_control_p5m5_to_p4m5"]
+    return bool(
+        strong.outcome in accepted_or_honest_no_crossing
+        and moderate.outcome in accepted_or_honest_no_crossing
+        and control.outcome == "NO_CROSSING_WITHIN_HORIZON"
+        and all(case.reverse_flow_fallback_count == 0 for case in cases)
+    )
+
+
 @dataclass(frozen=True)
 class HEMPipelineDepressurizationResult:
     """Fixed 5 -> 2/3/4 MPa Increment 2 matrix."""
@@ -411,6 +454,7 @@ class HEMPipelineDepressurizationResult:
         crossing_candidate = by_id.get(
             "pipeline_crossing_candidate_p5m5_to_p2m5"
         )
+        liquid_control = by_id.get("pipeline_liquid_control_p5m5_to_p4m5")
         return {
             "schema_version": (
                 "stage7_lco2_hem_pipeline_depressurization_increment2_v1"
@@ -426,9 +470,14 @@ class HEMPipelineDepressurizationResult:
             "fixed_matrix_explicit_outcomes_retained": bool(
                 self.cases and all(case.step_count > 0 for case in self.cases)
             ),
-            "gate_p2_passed": bool(
-                self.cases
-                and all(case.completed_without_guard_failure for case in self.cases)
+            "gate_p2_passed": _gate_p2_passes(self.cases),
+            "gate_p2_rule": "4_mpa_control_must_finish_no_crossing_within_horizon",
+            "four_mpa_control_outcome": (
+                liquid_control.outcome if liquid_control is not None else None
+            ),
+            "four_mpa_control_remained_all_liquid": bool(
+                liquid_control is not None
+                and liquid_control.outcome == "NO_CROSSING_WITHIN_HORIZON"
             ),
             "subthreshold_crossing_case_ids": [
                 case.case.case_id
@@ -1545,8 +1594,41 @@ def write_pipeline_depressurization_artifacts(
             ),
             "max_steps": result.config.max_steps,
             "preflight_sample_count": result.config.preflight_sample_count,
+            "pressure_drop_evidence_relative": (
+                result.config.pressure_drop_evidence_relative
+            ),
+            "crossing_evidence_min_quality": (
+                result.config.crossing_evidence_min_quality
+            ),
+            "accepted_state_quality_tolerance": (
+                result.config.accepted_state_quality_tolerance
+            ),
+            "mass_budget_relative_tolerance": (
+                result.config.mass_budget_relative_tolerance
+            ),
+            "mass_budget_absolute_tolerance_kg": (
+                result.config.mass_budget_absolute_tolerance_kg
+            ),
+            "momentum_budget_relative_tolerance": (
+                result.config.momentum_budget_relative_tolerance
+            ),
+            "momentum_budget_absolute_tolerance_kg_m_s": (
+                result.config.momentum_budget_absolute_tolerance_kg_m_s
+            ),
+            "energy_budget_relative_tolerance": (
+                result.config.energy_budget_relative_tolerance
+            ),
+            "energy_budget_absolute_tolerance_J": (
+                result.config.energy_budget_absolute_tolerance_J
+            ),
+            "vapor_budget_absolute_tolerance_kg": (
+                result.config.vapor_budget_absolute_tolerance_kg
+            ),
             "phase_config": asdict(result.config.phase_config),
             "projection_config": asdict(result.config.projection_config),
+            "fixed_case_matrix": [
+                asdict(case) for case in FIXED_PIPELINE_DEPRESSURIZATION_CASES
+            ],
         },
         "cases": case_summaries,
         "steps": [

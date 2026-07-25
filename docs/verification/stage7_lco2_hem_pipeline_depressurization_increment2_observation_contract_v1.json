@@ -1,198 +1,249 @@
 {
-  "schema_version": "stage7_lco2_hem_pipeline_depressurization_increment2_observation_v1",
-  "status": "FIXED_MATRIX_EXECUTED_GATE_P2_NOT_PASSED",
-  "scope": "verification_only",
-  "pr_number": 77,
-  "validated_head": "2d09fd98af32f77969be49f5c1394c05e6314ea5",
-  "fixed_problem": {
-    "length_m": 1.0,
-    "diameter_m": 0.1,
-    "n_cells": 32,
-    "dx_m": 0.03125,
-    "initial_pressure_pa": 5000000.0,
-    "initial_subcooling_K": 5.0,
-    "initial_velocity_m_s": 0.0,
-    "initial_transported_quality": 0.0,
-    "left_boundary": "ReflectiveBoundary",
-    "right_boundary": "VerificationHEMPrescribedSubcooledOutletBoundary",
-    "right_boundary_flow_policy": "outlet_only",
-    "spatial_flux": "existing_first_order_Rusanov",
-    "cfl": 0.1,
-    "n_ghost": 2,
-    "friction_enabled": false,
-    "wall_heat_transfer_enabled": false,
-    "gravity_enabled": false,
-    "internal_interfaces_enabled": false,
-    "initial_acoustic_time_s": 0.00214291781473198,
-    "ramp_duration_s": 0.00214291781473198,
-    "maximum_horizon_s": 0.00642875344419594,
-    "maximum_steps": 2000,
-    "crossing_evidence_min_quality": 1e-6,
-    "crossing_evidence_min_quality_is_solver_switch": false
+  "approval_boundary": {
+    "algorithms_or_tolerances_tuned": false,
+    "boundary_driven_liquid_control_frozen": false,
+    "design_use_acceptance": false,
+    "interface_propagation_speed_verified": false,
+    "mesh_independent_crossing_verified": false,
+    "physical_validation": false,
+    "production_default_changed": false,
+    "production_hem_activation_approved": false,
+    "software_verification_only": true,
+    "two_phase_acoustic_accuracy_band_approved": false,
+    "verification_only": true
+  },
+  "authoritative_validation": {
+    "artifact_id": 8616354622,
+    "artifact_sha256": "3e5dce108b433ffc3caa288487fb461e461a2fb7bc5b47bd724546ae730acd6a",
+    "coolprop_version": "8.0.0",
+    "dependency_free_tests": {
+      "errors": 0,
+      "failed": 0,
+      "passed": 12,
+      "skipped": 0
+    },
+    "focused_test_git_blob": "e9823c6c66d6f664e095f986066aa9213863736b",
+    "full_repository_tests": {
+      "errors": 0,
+      "failed": 0,
+      "passed": 690,
+      "skipped": 0
+    },
+    "installed_coolprop_tests": {
+      "errors": 0,
+      "failed": 0,
+      "passed": 3,
+      "skipped": 0
+    },
+    "related_pre_existing_stage7_tests": {
+      "errors": 0,
+      "failed": 0,
+      "passed": 74,
+      "skipped": 0
+    },
+    "runner_source_git_blob": "414f6019710091cd51ed8732859f71b695783d18",
+    "workflow_run": 30146579752
   },
   "boundary_preflight": {
-    "case_count": 3,
-    "samples_per_case": 65,
-    "requested_sample_count": 195,
     "accepted_sample_count": 195,
-    "liquid_candidate_count": 195,
+    "backend_failure_count": 0,
+    "case_count": 3,
     "endpoint_count": 0,
-    "open_two_phase_boundary_count": 0,
     "guard_failure_count": 0,
-    "backend_failure_count": 0
-  },
-  "observed_outcome_counts": {
-    "ACCEPTED_FIRST_CROSSING": 2,
-    "NO_CROSSING_WITHIN_HORIZON": 0,
-    "ENDPOINT_LANDING": 0,
-    "FORBIDDEN_TRANSITION": 0,
-    "REVERSE_FLOW_GUARD": 0,
-    "GUARD_FAILURE": 1,
-    "BACKEND_FAILURE": 0
+    "liquid_candidate_count": 195,
+    "open_two_phase_boundary_count": 0,
+    "requested_sample_count": 195,
+    "samples_per_case": 65
   },
   "cases": [
     {
+      "accepted_crossing": true,
+      "boundary_vapor_transport_kg": 0.0,
       "case_id": "pipeline_crossing_candidate_p5m5_to_p2m5",
-      "role": "first_crossing_candidate",
-      "final_boundary_pressure_pa": 2000000.0,
-      "formal_outcome": "ACCEPTED_FIRST_CROSSING",
-      "failure_reason": "",
-      "step_count": 125,
-      "final_time_s": 0.0007999325695335248,
+      "combined_vapor_residual_kg": 0.0,
+      "crossing_cell_indices": [
+        29
+      ],
+      "crossing_distances_from_outlet_m": [
+        0.078125
+      ],
       "crossing_step": 125,
       "crossing_time_s": 0.0007999325695335248,
-      "crossing_cell_indices": [29],
-      "crossing_distances_from_outlet_m": [0.078125],
-      "maximum_crossing_quality": 0.000003773646403587342,
-      "accepted_crossing": true,
-      "subthreshold_crossing": false,
-      "reverse_flow_fallback_count": 0,
-      "projection_vapor_source_kg": 8.208652184713565e-7,
-      "boundary_vapor_transport_kg": 0.0,
-      "mass_residual_kg": 0.0,
-      "momentum_residual_kg_m_s": -1.5987211554602254e-14,
       "energy_residual_J": 2.3283064365386963e-10,
-      "combined_vapor_residual_kg": 0.0,
+      "failure_reason": "",
+      "final_boundary_pressure_pa": 2000000.0,
       "final_state_sha256": "170ce66c02a320d50389d0cf26fed78f21042f83dec6f64a0978e451cd91e361",
-      "run_signature_sha256": "28a5f8b1fd43f6208807bd15d96eaf09a568349007a1994273717aa264505fea"
+      "final_time_s": 0.0007999325695335248,
+      "formal_outcome": "ACCEPTED_FIRST_CROSSING",
+      "mass_residual_kg": 0.0,
+      "maximum_crossing_quality": 3.773646403587342e-06,
+      "momentum_residual_kg_m_s": -1.5987211554602254e-14,
+      "projection_vapor_source_kg": 8.208652184713565e-07,
+      "reverse_flow_fallback_count": 0,
+      "role": "first_crossing_candidate",
+      "run_signature_sha256": "28a5f8b1fd43f6208807bd15d96eaf09a568349007a1994273717aa264505fea",
+      "step_count": 125,
+      "subthreshold_crossing": false
     },
     {
+      "accepted_crossing": true,
+      "boundary_vapor_transport_kg": 0.0,
       "case_id": "pipeline_moderate_diagnostic_p5m5_to_p3m5",
-      "role": "moderate_diagnostic",
-      "final_boundary_pressure_pa": 3000000.0,
-      "formal_outcome": "ACCEPTED_FIRST_CROSSING",
-      "failure_reason": "",
-      "step_count": 174,
-      "final_time_s": 0.0011121683091093555,
+      "combined_vapor_residual_kg": 0.0,
+      "crossing_cell_indices": [
+        28
+      ],
+      "crossing_distances_from_outlet_m": [
+        0.109375
+      ],
       "crossing_step": 174,
       "crossing_time_s": 0.0011121683091093555,
-      "crossing_cell_indices": [28],
-      "crossing_distances_from_outlet_m": [0.109375],
-      "maximum_crossing_quality": 0.0000016022773573103607,
-      "accepted_crossing": true,
-      "subthreshold_crossing": false,
-      "reverse_flow_fallback_count": 0,
-      "projection_vapor_source_kg": 3.4689332286792897e-7,
-      "boundary_vapor_transport_kg": 0.0,
-      "mass_residual_kg": -1.7763568394002505e-15,
-      "momentum_residual_kg_m_s": 7.993605777301127e-15,
       "energy_residual_J": 2.3283064365386963e-10,
-      "combined_vapor_residual_kg": 0.0,
+      "failure_reason": "",
+      "final_boundary_pressure_pa": 3000000.0,
       "final_state_sha256": "9de8f0db938fd60ed27aac1009e22646b891cbafffd6c7df7001dab1baf62f46",
-      "run_signature_sha256": "bc1a655daea7457f6d750a218fc18488b16d6fd5e46ceb8735dbbe5787cbd4ba"
+      "final_time_s": 0.0011121683091093555,
+      "formal_outcome": "ACCEPTED_FIRST_CROSSING",
+      "mass_residual_kg": -1.7763568394002505e-15,
+      "maximum_crossing_quality": 1.6022773573103607e-06,
+      "momentum_residual_kg_m_s": 7.993605777301127e-15,
+      "projection_vapor_source_kg": 3.4689332286792897e-07,
+      "reverse_flow_fallback_count": 0,
+      "role": "moderate_diagnostic",
+      "run_signature_sha256": "bc1a655daea7457f6d750a218fc18488b16d6fd5e46ceb8735dbbe5787cbd4ba",
+      "step_count": 174,
+      "subthreshold_crossing": false
     },
     {
+      "accepted_crossing": false,
+      "boundary_vapor_transport_kg": 0.0,
       "case_id": "pipeline_liquid_control_p5m5_to_p4m5",
-      "role": "liquid_negative_control",
-      "final_boundary_pressure_pa": 4000000.0,
-      "formal_outcome": "GUARD_FAILURE",
-      "failure_reason": "HEMPipelineDepressurizationError: crossing quality evidence is below the fixed minimum",
-      "step_count": 313,
-      "final_time_s": 0.001996923102525957,
+      "combined_vapor_residual_kg": 0.0,
+      "crossing_cell_indices": [
+        25
+      ],
+      "crossing_distances_from_outlet_m": [
+        0.203125
+      ],
       "crossing_step": 313,
       "crossing_time_s": 0.001996923102525957,
-      "crossing_cell_indices": [25],
-      "crossing_distances_from_outlet_m": [0.203125],
-      "maximum_crossing_quality": 9.672588429198319e-9,
+      "energy_residual_J": 0.0,
+      "failure_reason": "HEMPipelineDepressurizationError: crossing quality evidence is below the fixed minimum",
+      "final_boundary_pressure_pa": 4000000.0,
+      "final_state_sha256": "7e8b6a6bc715755e0419d8a469140c02a79ec5e8bb419eb4868553c3228242e1",
+      "final_time_s": 0.001996923102525957,
+      "formal_outcome": "GUARD_FAILURE",
+      "mass_residual_kg": 8.881784197001252e-16,
+      "maximum_crossing_quality": 9.672588429198319e-09,
+      "momentum_residual_kg_m_s": 2.3092638912203256e-14,
+      "projection_vapor_source_kg": 2.0800588606845708e-09,
       "raw_liquid_to_two_phase_crossing_observed": true,
-      "accepted_crossing": false,
-      "subthreshold_crossing": true,
       "remained_all_liquid": false,
       "reverse_flow_fallback_count": 0,
-      "projection_vapor_source_kg": 2.0800588606845708e-9,
-      "boundary_vapor_transport_kg": 0.0,
-      "mass_residual_kg": 8.881784197001252e-16,
-      "momentum_residual_kg_m_s": 2.3092638912203256e-14,
-      "energy_residual_J": 0.0,
-      "combined_vapor_residual_kg": 0.0,
-      "final_state_sha256": "7e8b6a6bc715755e0419d8a469140c02a79ec5e8bb419eb4868553c3228242e1",
-      "run_signature_sha256": "fdd25cbf669428790d1f3d877ab3b86ec329726d7b10e3a8461443ba6340b202"
+      "role": "liquid_negative_control",
+      "run_signature_sha256": "fdd25cbf669428790d1f3d877ab3b86ec329726d7b10e3a8461443ba6340b202",
+      "step_count": 313,
+      "subthreshold_crossing": true
     }
   ],
-  "gate_decision": {
-    "fixed_matrix_explicit_outcomes_retained": true,
-    "pipeline_depressurization_executed": true,
-    "first_crossing_stop_implemented": true,
-    "boundary_and_projection_vapor_separated": true,
-    "two_mpa_accepted_crossing": true,
-    "three_mpa_diagnostic_crossing_retained": true,
-    "four_mpa_all_liquid_control_observed": false,
-    "four_mpa_subthreshold_crossing_retained": true,
-    "gate_p2_passed": false,
-    "reason": "The fixed 4 MPa intended liquid control entered OPEN_TWO_PHASE with q_eq below the fixed 1e-6 evidence threshold. The raw crossing is retained as a guard outcome without tuning the case or threshold."
+  "fixed_problem": {
+    "accepted_state_quality_tolerance": 1e-10,
+    "cfl": 0.1,
+    "crossing_evidence_min_quality": 1e-06,
+    "crossing_evidence_min_quality_is_solver_switch": false,
+    "diameter_m": 0.1,
+    "dx_m": 0.03125,
+    "energy_budget_absolute_tolerance_J": 1e-06,
+    "energy_budget_relative_tolerance": 1e-10,
+    "friction_enabled": false,
+    "gravity_enabled": false,
+    "initial_acoustic_time_s": 0.00214291781473198,
+    "initial_pressure_pa": 5000000.0,
+    "initial_subcooling_K": 5.0,
+    "initial_transported_quality": 0.0,
+    "initial_velocity_m_s": 0.0,
+    "internal_interfaces_enabled": false,
+    "left_boundary": "ReflectiveBoundary",
+    "length_m": 1.0,
+    "mass_budget_absolute_tolerance_kg": 1e-12,
+    "mass_budget_relative_tolerance": 1e-10,
+    "maximum_horizon_s": 0.00642875344419594,
+    "maximum_steps": 2000,
+    "momentum_budget_absolute_tolerance_kg_m_s": 1e-10,
+    "momentum_budget_relative_tolerance": 1e-10,
+    "n_cells": 32,
+    "n_ghost": 2,
+    "phase_config": {
+      "critical_pressure_margin_Pa": 50000.0,
+      "critical_temperature_margin_K": 0.5,
+      "endpoint_tolerance": 1e-10
+    },
+    "pressure_drop_evidence_relative": 1e-06,
+    "projection_config": {
+      "activation_tolerance": 1e-12,
+      "supported_phase_classes": [
+        "compressed_or_subcooled_liquid",
+        "liquid_vapor_two_phase",
+        "single_phase_vapor"
+      ]
+    },
+    "ramp_duration_s": 0.00214291781473198,
+    "right_boundary": "VerificationHEMPrescribedSubcooledOutletBoundary",
+    "right_boundary_flow_policy": "outlet_only",
+    "spatial_flux": "existing_first_order_Rusanov",
+    "vapor_budget_absolute_tolerance_kg": 1e-12,
+    "wall_heat_transfer_enabled": false
   },
   "frozen_regression_controls": {
     "case_a_final_state_sha256": "78897b5c8ca57221186ccf3e0aa69e1492a942cc2e8dee0abb440a3e2e08e039",
     "case_a_signature_sha256": "914ed2249c9546a1d32f6d6dbcd8b30236e1c1f2b37ecf9306100ad30622b612",
     "case_b_final_state_sha256": "8c09735ee9185cfb34b2186be30b32d78ec73350e211762d92c372e0b9f23a59",
     "case_b_signature_sha256": "3bd7edc37842a00a0c27964a17029f5c66ef973b59bd7670f513c82fc7e85669",
-    "regression_test_passed": true,
-    "rebaselined": false
+    "rebaselined": false,
+    "regression_test_passed": true
   },
-  "authoritative_validation": {
-    "workflow_run": 30146579752,
-    "artifact_id": 8616354622,
-    "artifact_sha256": "3e5dce108b433ffc3caa288487fb461e461a2fb7bc5b47bd724546ae730acd6a",
-    "coolprop_version": "8.0.0",
-    "runner_source_git_blob": "414f6019710091cd51ed8732859f71b695783d18",
-    "focused_test_git_blob": "e9823c6c66d6f664e095f986066aa9213863736b",
-    "dependency_free_tests": {
-      "passed": 12,
-      "skipped": 0,
-      "failed": 0,
-      "errors": 0
-    },
-    "installed_coolprop_tests": {
-      "passed": 3,
-      "skipped": 0,
-      "failed": 0,
-      "errors": 0
-    },
-    "related_pre_existing_stage7_tests": {
-      "passed": 74,
-      "skipped": 0,
-      "failed": 0,
-      "errors": 0
-    },
-    "full_repository_tests": {
-      "passed": 690,
-      "skipped": 0,
-      "failed": 0,
-      "errors": 0
-    }
+  "gate_decision": {
+    "boundary_and_projection_vapor_separated": true,
+    "first_crossing_stop_implemented": true,
+    "fixed_matrix_explicit_outcomes_retained": true,
+    "four_mpa_all_liquid_control_observed": false,
+    "four_mpa_raw_crossing_allowed": false,
+    "four_mpa_required_outcome": "NO_CROSSING_WITHIN_HORIZON",
+    "four_mpa_subthreshold_crossing_retained": true,
+    "gate_p2_passed": false,
+    "gate_rule": "4_mpa_control_must_finish_no_crossing_within_horizon",
+    "pipeline_depressurization_executed": true,
+    "reason": "The fixed 4 MPa intended liquid control entered OPEN_TWO_PHASE with q_eq below the fixed 1e-6 evidence threshold. The raw crossing is retained as a guard outcome without tuning the case or threshold.",
+    "three_mpa_allowed_outcomes": [
+      "ACCEPTED_FIRST_CROSSING",
+      "NO_CROSSING_WITHIN_HORIZON"
+    ],
+    "three_mpa_diagnostic_crossing_retained": true,
+    "two_mpa_accepted_crossing": true,
+    "two_mpa_allowed_outcomes": [
+      "ACCEPTED_FIRST_CROSSING",
+      "NO_CROSSING_WITHIN_HORIZON"
+    ]
   },
-  "approval_boundary": {
-    "verification_only": true,
-    "software_verification_only": true,
-    "algorithms_or_tolerances_tuned": false,
-    "production_default_changed": false,
-    "production_hem_activation_approved": false,
-    "physical_validation": false,
-    "design_use_acceptance": false,
-    "two_phase_acoustic_accuracy_band_approved": false,
-    "interface_propagation_speed_verified": false,
-    "mesh_independent_crossing_verified": false,
-    "boundary_driven_liquid_control_frozen": false
+  "next_gate": "Diagnose the fixed 4 MPa subthreshold crossing without redefining the PR #74 fixed matrix or the accepted-crossing threshold.",
+  "observed_outcome_counts": {
+    "ACCEPTED_FIRST_CROSSING": 2,
+    "BACKEND_FAILURE": 0,
+    "ENDPOINT_LANDING": 0,
+    "FORBIDDEN_TRANSITION": 0,
+    "GUARD_FAILURE": 1,
+    "NO_CROSSING_WITHIN_HORIZON": 0,
+    "REVERSE_FLOW_GUARD": 0
   },
-  "next_gate": "Diagnose the fixed 4 MPa subthreshold crossing without redefining the PR #74 fixed matrix or the accepted-crossing threshold."
+  "pr_number": 77,
+  "review_resolution": {
+    "exact_repeatability_required": true,
+    "fixed_configuration_enforced": true,
+    "gate_p2_rule_made_explicit": true,
+    "observation_contract_regression_required": true
+  },
+  "schema_version": "stage7_lco2_hem_pipeline_depressurization_increment2_observation_v1",
+  "scope": "verification_only",
+  "status": "FIXED_MATRIX_EXECUTED_GATE_P2_NOT_PASSED",
+  "validated_head": "2d09fd98af32f77969be49f5c1394c05e6314ea5"
 }

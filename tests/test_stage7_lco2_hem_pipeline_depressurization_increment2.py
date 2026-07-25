@@ -2,24 +2,43 @@ from __future__ import annotations
 
 import inspect
 import json
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
+from liquid_gas_transient.hem_equilibrium_quality_sync import (
+    HEMEquilibriumQualitySyncConfig,
+)
 from liquid_gas_transient.hem_liquid_to_two_phase_first_crossing_case_ab import (
     run_first_crossing_case_ab_freeze,
+)
+from liquid_gas_transient.hem_phase_classification import (
+    HEMPhaseClassificationConfig,
 )
 from liquid_gas_transient.hem_pipeline_depressurization_first_crossing import (
     FIXED_PIPELINE_DEPRESSURIZATION_CASES,
     HEMPipelineDepressurizationConfig,
     _budget_limit,
+    _gate_p2_passes,
     _raw_event_stop,
     _raw_outcome,
     run_fixed_pipeline_depressurization_matrix,
     write_pipeline_depressurization_artifacts,
 )
+
+
+OBSERVATION_CONTRACT_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "docs/verification/"
+    "stage7_lco2_hem_pipeline_depressurization_increment2_observation_contract_v1.json"
+)
+
+
+def _load_observation_contract() -> dict[str, object]:
+    return json.loads(OBSERVATION_CONTRACT_PATH.read_text(encoding="utf-8"))
 
 
 def test_increment2_fixed_configuration_matches_reviewed_contract() -> None:
@@ -51,6 +70,30 @@ def test_increment2_fixed_configuration_matches_reviewed_contract() -> None:
         ("subcooling_K", 4.0),
         ("max_steps", 1999),
         ("preflight_sample_count", 33),
+        ("pressure_drop_evidence_relative", 2.0e-6),
+        ("crossing_evidence_min_quality", 1.0e-9),
+        ("accepted_state_quality_tolerance", 2.0e-10),
+        ("mass_budget_relative_tolerance", 2.0e-10),
+        ("mass_budget_absolute_tolerance_kg", 2.0e-12),
+        ("momentum_budget_relative_tolerance", 2.0e-10),
+        ("momentum_budget_absolute_tolerance_kg_m_s", 2.0e-10),
+        ("energy_budget_relative_tolerance", 2.0e-10),
+        ("energy_budget_absolute_tolerance_J", 2.0e-6),
+        ("vapor_budget_absolute_tolerance_kg", 2.0e-12),
+        (
+            "phase_config",
+            replace(
+                HEMPhaseClassificationConfig(),
+                endpoint_tolerance=2.0e-10,
+            ),
+        ),
+        (
+            "projection_config",
+            replace(
+                HEMEquilibriumQualitySyncConfig(),
+                activation_tolerance=2.0e-12,
+            ),
+        ),
     ],
 )
 def test_increment2_rejects_case_or_numerical_tuning(
@@ -169,6 +212,77 @@ def test_increment2_module_is_orchestration_only() -> None:
     assert "wall heat transfer" not in source.lower()
 
 
+def test_observation_contract_matches_the_fixed_configuration() -> None:
+    contract = _load_observation_contract()
+    fixed = contract["fixed_problem"]
+    config = HEMPipelineDepressurizationConfig()
+
+    assert fixed["pressure_drop_evidence_relative"] == config.pressure_drop_evidence_relative
+    assert fixed["crossing_evidence_min_quality"] == config.crossing_evidence_min_quality
+    assert fixed["accepted_state_quality_tolerance"] == config.accepted_state_quality_tolerance
+    assert fixed["mass_budget_relative_tolerance"] == config.mass_budget_relative_tolerance
+    assert fixed["mass_budget_absolute_tolerance_kg"] == config.mass_budget_absolute_tolerance_kg
+    assert fixed["momentum_budget_relative_tolerance"] == config.momentum_budget_relative_tolerance
+    assert fixed["momentum_budget_absolute_tolerance_kg_m_s"] == config.momentum_budget_absolute_tolerance_kg_m_s
+    assert fixed["energy_budget_relative_tolerance"] == config.energy_budget_relative_tolerance
+    assert fixed["energy_budget_absolute_tolerance_J"] == config.energy_budget_absolute_tolerance_J
+    assert fixed["vapor_budget_absolute_tolerance_kg"] == config.vapor_budget_absolute_tolerance_kg
+    assert fixed["phase_config"] == {
+        "critical_temperature_margin_K": config.phase_config.critical_temperature_margin_K,
+        "critical_pressure_margin_Pa": config.phase_config.critical_pressure_margin_Pa,
+        "endpoint_tolerance": config.phase_config.endpoint_tolerance,
+    }
+    assert fixed["projection_config"] == {
+        "activation_tolerance": config.projection_config.activation_tolerance,
+        "supported_phase_classes": list(config.projection_config.supported_phase_classes),
+    }
+    decision = contract["gate_decision"]
+    assert decision["gate_rule"] == "4_mpa_control_must_finish_no_crossing_within_horizon"
+    assert decision["four_mpa_all_liquid_control_observed"] is False
+    assert decision["four_mpa_subthreshold_crossing_retained"] is True
+    assert decision["gate_p2_passed"] is False
+
+
+def test_gate_p2_requires_the_four_mpa_control_to_remain_liquid() -> None:
+    def case(case_id: str, outcome: str, reverse_count: int = 0):
+        return SimpleNamespace(
+            case=SimpleNamespace(case_id=case_id),
+            outcome=outcome,
+            reverse_flow_fallback_count=reverse_count,
+        )
+
+    strong = case(
+        "pipeline_crossing_candidate_p5m5_to_p2m5",
+        "ACCEPTED_FIRST_CROSSING",
+    )
+    moderate = case(
+        "pipeline_moderate_diagnostic_p5m5_to_p3m5",
+        "ACCEPTED_FIRST_CROSSING",
+    )
+    liquid = case(
+        "pipeline_liquid_control_p5m5_to_p4m5",
+        "NO_CROSSING_WITHIN_HORIZON",
+    )
+    accepted_control = case(
+        "pipeline_liquid_control_p5m5_to_p4m5",
+        "ACCEPTED_FIRST_CROSSING",
+    )
+    guarded_control = case(
+        "pipeline_liquid_control_p5m5_to_p4m5",
+        "GUARD_FAILURE",
+    )
+
+    assert _gate_p2_passes((strong, moderate, liquid)) is True
+    assert _gate_p2_passes((strong, moderate, accepted_control)) is False
+    assert _gate_p2_passes((strong, moderate, guarded_control)) is False
+    reverse_control = case(
+        "pipeline_liquid_control_p5m5_to_p4m5",
+        "NO_CROSSING_WITHIN_HORIZON",
+        reverse_count=1,
+    )
+    assert _gate_p2_passes((strong, moderate, reverse_control)) is False
+
+
 @pytest.fixture(scope="module")
 def installed_pipeline_result():
     pytest.importorskip("CoolProp")
@@ -274,6 +388,51 @@ def test_installed_coolprop_fixed_pipeline_matrix_completes_honestly(
 
 
 @pytest.mark.coolprop_installed
+def test_installed_pipeline_result_matches_observation_contract_exactly(
+    installed_pipeline_result,
+) -> None:
+    contract = _load_observation_contract()
+    by_id = {case.case.case_id: case for case in installed_pipeline_result.cases}
+    assert set(by_id) == {case["case_id"] for case in contract["cases"]}
+
+    for expected in contract["cases"]:
+        actual = by_id[expected["case_id"]]
+        assert actual.outcome == expected["formal_outcome"]
+        assert actual.failure_reason == expected["failure_reason"]
+        assert actual.step_count == expected["step_count"]
+        assert actual.final_time_s == expected["final_time_s"]
+        assert actual.crossing_step == expected["crossing_step"]
+        assert actual.crossing_time_s == expected["crossing_time_s"]
+        assert list(actual.crossing_cell_indices) == expected["crossing_cell_indices"]
+        assert list(actual.crossing_distances_from_outlet_m) == expected[
+            "crossing_distances_from_outlet_m"
+        ]
+        assert actual.maximum_crossing_quality == expected["maximum_crossing_quality"]
+        assert actual.final_state_sha256 == expected["final_state_sha256"]
+        assert actual.run_signature_sha256 == expected["run_signature_sha256"]
+
+
+@pytest.mark.coolprop_installed
+def test_installed_pipeline_matrix_repeats_exactly(
+    installed_pipeline_result,
+) -> None:
+    repeated = run_fixed_pipeline_depressurization_matrix()
+    assert repeated.summary() == installed_pipeline_result.summary()
+    for first, second in zip(installed_pipeline_result.cases, repeated.cases, strict=True):
+        assert second.outcome == first.outcome
+        assert second.failure_reason == first.failure_reason
+        assert second.step_count == first.step_count
+        assert second.final_time_s == first.final_time_s
+        assert second.crossing_step == first.crossing_step
+        assert second.crossing_time_s == first.crossing_time_s
+        assert second.crossing_cell_indices == first.crossing_cell_indices
+        assert second.crossing_distances_from_outlet_m == first.crossing_distances_from_outlet_m
+        assert second.maximum_crossing_quality == first.maximum_crossing_quality
+        assert second.final_state_sha256 == first.final_state_sha256
+        assert second.run_signature_sha256 == first.run_signature_sha256
+
+
+@pytest.mark.coolprop_installed
 def test_installed_pipeline_artifact_bundle_is_complete(
     installed_pipeline_result,
     tmp_path: Path,
@@ -299,9 +458,30 @@ def test_installed_pipeline_artifact_bundle_is_complete(
     assert payload["all_fixed_cases_completed"] is False
     assert payload["fixed_matrix_explicit_outcomes_retained"] is True
     assert payload["gate_p2_passed"] is False
+    assert payload["gate_p2_rule"] == "4_mpa_control_must_finish_no_crossing_within_horizon"
+    assert payload["four_mpa_control_outcome"] == "GUARD_FAILURE"
+    assert payload["four_mpa_control_remained_all_liquid"] is False
     assert payload["outcome_counts"]["ACCEPTED_FIRST_CROSSING"] == 2
     assert payload["outcome_counts"]["GUARD_FAILURE"] == 1
     assert payload["algorithms_or_tolerances_tuned"] is False
+    contract = _load_observation_contract()
+    fixed = contract["fixed_problem"]
+    artifact_config = payload["config"]
+    for key in (
+        "pressure_drop_evidence_relative",
+        "crossing_evidence_min_quality",
+        "accepted_state_quality_tolerance",
+        "mass_budget_relative_tolerance",
+        "mass_budget_absolute_tolerance_kg",
+        "momentum_budget_relative_tolerance",
+        "momentum_budget_absolute_tolerance_kg_m_s",
+        "energy_budget_relative_tolerance",
+        "energy_budget_absolute_tolerance_J",
+        "vapor_budget_absolute_tolerance_kg",
+    ):
+        assert artifact_config[key] == fixed[key]
+    assert artifact_config["phase_config"] == fixed["phase_config"]
+    assert artifact_config["projection_config"] == fixed["projection_config"]
     assert len(payload["boundary_path"]) == 195
     assert len(paths["cases_csv"].read_text(encoding="utf-8").splitlines()) == 4
     assert len(

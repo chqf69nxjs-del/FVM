@@ -122,9 +122,16 @@ pipeline_depressurization_executed = true
 gate_p2_passed = false
 ```
 
-Gate P2 remains false because the intended 4 MPa liquid-control observation did not remain
-all liquid and instead reached a subthreshold two-phase state. This is an outcome of the
-fixed matrix, not an implementation result to be hidden or tuned away.
+Gate P2 remains false because the reviewed rule requires the fixed 4 MPa control to
+complete as `NO_CROSSING_WITHIN_HORIZON` with no raw liquid-to-two-phase crossing.
+The observed subthreshold crossing therefore fails the all-liquid-control requirement.
+This is an outcome of the fixed matrix, not an implementation result to be hidden or tuned away.
+
+The runner now enforces every fixed phase, projection, crossing-evidence, and budget
+tolerance from the PR #74 contract. The focused regression reads the machine-readable
+observation contract and fixes each case outcome, step, time, crossing cell, maximum
+quality, final-state SHA256, and run signature. A second full matrix execution is also
+required to reproduce those values exactly.
 
 The existing frozen PR #72 Case A/B pair remains the authoritative first-order crossing and
 matched all-liquid regression control. PR #77 does not replace or rebaseline those hashes.

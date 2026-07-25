@@ -446,13 +446,19 @@ no FVM time step is needed
 Pass when:
 
 ```text
-fixed runner completes
+fixed runner completes without changing a fixed case, algorithm, or tolerance
 2 MPa case produces accepted crossing or an honest no-crossing result
-3 MPa result is retained diagnostically
-4 MPa result is retained as a control observation
+3 MPa result is retained diagnostically as accepted crossing or honest no-crossing
+4 MPa control completes as NO_CROSSING_WITHIN_HORIZON
+4 MPa control contains no raw liquid-to-two-phase crossing, including subthreshold crossing
+reverse-flow fallback remains zero
 budgets close
 frozen Case A/B regressions remain exact
 ```
+
+A raw 4 MPa crossing below the `1e-6` accepted-crossing evidence threshold must be
+retained as a guarded observation. It is neither an accepted crossing nor an all-liquid
+control, and Gate P2 remains false.
 
 Only a later gate may freeze a boundary-driven prototype pair or evaluate front propagation.
 

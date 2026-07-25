@@ -98,10 +98,22 @@ must not be silently relabeled as all liquid or accepted crossing.
 
 ## Gate decision rule
 
-Gate P2 may pass only when the fixed matrix is executed honestly, the 2 MPa candidate
-produces an accepted crossing or an honest no-crossing result, the 3 MPa result is retained
-diagnostically, the 4 MPa control observation is retained without tuning, budgets close,
-and the frozen PR #72 Case A/B regressions remain exact.
+Gate P2 may pass only when all of the following are true:
+
+```text
+the fixed matrix is executed without changing a case, algorithm, or tolerance
+the 2 MPa candidate is ACCEPTED_FIRST_CROSSING or NO_CROSSING_WITHIN_HORIZON
+the 3 MPa diagnostic is ACCEPTED_FIRST_CROSSING or NO_CROSSING_WITHIN_HORIZON
+the 4 MPa control is exactly NO_CROSSING_WITHIN_HORIZON
+the 4 MPa control has no raw liquid-to-two-phase crossing, including a subthreshold one
+reverse-flow fallback remains zero
+budgets close
+frozen PR #72 Case A/B regressions remain exact
+```
+
+A 4 MPa raw crossing with `0 < q_eq < 1e-6` is retained as an explicit
+`GUARD_FAILURE`, but it does not satisfy the all-liquid control and therefore keeps
+Gate P2 false.
 
 The authoritative outcome and Gate decision are recorded in:
 
