@@ -140,7 +140,6 @@ matched all-liquid regression control. PR #77 does not replace or rebaseline tho
 
 ```text
 validated implementation head:     2bbe2ad210d45c6403aa0b9a6a097dff56b44685
-final documentation/cleanup head:   b10c5e40777e55edf1d0868268216bf9df3af6c7
 workflow run:                       30154880687
 artifact ID:                        8618870653
 artifact SHA256:                    7d254126a741e7d92e5ed1a2b6da94c703bbc2da91f1769d58c11deaa22b89b9
@@ -164,8 +163,9 @@ contract exactly.
 
 The validated implementation head also passed the permanent CoolProp Wave, Controlled
 Pressure Ramp, Boundary Reflection, and Internal Valve regressions in runs `30154880697`,
-`30154880677`, `30154880664`, and `30154880684`. The source and focused-test Git blobs are
-unchanged on the final documentation/cleanup head.
+`30154880677`, `30154880664`, and `30154880684`. Subsequent commits only finalize records
+and remove temporary validation machinery; the reviewed source and focused-test Git blobs
+remain the authoritative implementation identity.
 
 ## Approval boundary
 
