@@ -68,12 +68,8 @@
       "boundary_vapor_transport_kg": 0.0,
       "case_id": "pipeline_crossing_candidate_p5m5_to_p2m5",
       "combined_vapor_residual_kg": 0.0,
-      "crossing_cell_indices": [
-        29
-      ],
-      "crossing_distances_from_outlet_m": [
-        0.078125
-      ],
+      "crossing_cell_indices": [29],
+      "crossing_distances_from_outlet_m": [0.078125],
       "crossing_step": 125,
       "crossing_time_s": 0.0007999325695335248,
       "energy_residual_J": 2.3283064365386963e-10,
@@ -97,12 +93,8 @@
       "boundary_vapor_transport_kg": 0.0,
       "case_id": "pipeline_moderate_diagnostic_p5m5_to_p3m5",
       "combined_vapor_residual_kg": 0.0,
-      "crossing_cell_indices": [
-        28
-      ],
-      "crossing_distances_from_outlet_m": [
-        0.109375
-      ],
+      "crossing_cell_indices": [28],
+      "crossing_distances_from_outlet_m": [0.109375],
       "crossing_step": 174,
       "crossing_time_s": 0.0011121683091093555,
       "energy_residual_J": 2.3283064365386963e-10,
@@ -126,12 +118,8 @@
       "boundary_vapor_transport_kg": 0.0,
       "case_id": "pipeline_liquid_control_p5m5_to_p4m5",
       "combined_vapor_residual_kg": 0.0,
-      "crossing_cell_indices": [
-        25
-      ],
-      "crossing_distances_from_outlet_m": [
-        0.203125
-      ],
+      "crossing_cell_indices": [25],
+      "crossing_distances_from_outlet_m": [0.203125],
       "crossing_step": 313,
       "crossing_time_s": 0.001996923102525957,
       "energy_residual_J": 0.0,
