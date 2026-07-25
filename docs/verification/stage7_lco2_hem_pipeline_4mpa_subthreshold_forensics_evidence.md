@@ -56,7 +56,7 @@ At the same recovered pressure, the saturated-liquid internal energy was
 `215231.8622310403 J/kg`. Therefore:
 
 ```text
-Delta_u_sat = u - u_f:         +1.7008455179166e-3 J/kg
+Delta_u_sat = u - u_f:         +1.7008455179166049e-3 J/kg
 Delta_v_sat = v - v_f:         +6.567548805139212e-11 m3/kg
 q from internal energy:        9.672598473952674e-9
 q from specific volume:        9.672589435031626e-9
@@ -109,8 +109,8 @@ At step 313 / cell 25, the offline central-only counterfactual was also accepted
 
 ```text
 central-only q_eq:             3.690684903157135e-7
-central-only Delta_u_sat:      +6.48915040073916e-2 J/kg
-central-only Delta_v_sat:      +2.5053992923265013e-9 m3/kg
+central-only Delta_u_sat:      +6.489150400739163e-2 J/kg
+central-only Delta_v_sat:      +2.5053992923265017e-9 m3/kg
 full Rusanov q_eq:             9.672588429198319e-9
 ```
 
@@ -197,29 +197,34 @@ NUMERICAL_DIFFUSION_CONSISTENT
 BOUNDARY_CLOSURE_INFLUENCE_CONSISTENT
 ```
 
-## Authoritative validation
+## Final authoritative validation
 
 ```text
-validated head:                 3040fdcdf51771bc0d03075e9aae0eb3b49a46d4
-workflow run:                   30160740321
-artifact ID:                    8620327622
-artifact SHA256:                50b8841dcfc0bc8f853c2356f99b755f8aed9c78eee962a9e58744f166788915
-CoolProp:                       8.0.0
-forensic source Git blob:       af02452313fd942004f6b8d6ce1662e30c16ac1f
-focused test Git blob:          9671974b63ee6d97839a53ff55cac7a5df1ecf98
+validated implementation head:      719301dd64c9ee2571cf3296605466a2ee9de27f
+workflow run:                       30162194409
+artifact ID:                        8620823392
+artifact SHA256:                    1b2c14790c3c66be47386f60ddb9c8b21ee5d253dcc0ab1d78e9deaa7b5184d7
+CoolProp:                           8.0.0
+forensic source Git blob:           af02452313fd942004f6b8d6ce1662e30c16ac1f
+focused test Git blob:              9671974b63ee6d97839a53ff55cac7a5df1ecf98
+contract test Git blob:             409f97edda208885de6eabc9d67dbf674f8a3a5f
 ```
 
 ```text
-dependency-free forensic tests:  7 passed, 0 skipped
-installed-CoolProp forensics:     8 passed, 0 skipped
-related Stage 7 regressions:     69 passed, 0 skipped
-full repository:                721 passed, 0 skipped
-failures / errors:                0 / 0
+dependency-free forensic tests:    8 passed, 0 skipped
+installed-CoolProp forensics:      9 passed, 0 skipped
+related Stage 7 regressions:      69 passed, 0 skipped
+full repository:                 723 passed, 0 skipped
+failures / errors:                 0 / 0
 ```
+
+The final workflow completed compile/diff checks, pure tests, CoolProp tests, artifact
+generation, machine-readable contract checks, related Stage 7 regressions, full-repository
+tests, and the explicit no-skip/no-failure assertion.
 
 The validated head also passed the permanent CoolProp Wave, Controlled Pressure Ramp,
-Boundary Reflection, and Internal Valve workflows in runs `30160740335`, `30160740323`,
-`30160740342`, and `30160740328`.
+Boundary Reflection, and Internal Valve workflows in runs `30162194483`, `30162194405`,
+`30162194415`, and `30162194406`.
 
 ## Approval boundary
 
