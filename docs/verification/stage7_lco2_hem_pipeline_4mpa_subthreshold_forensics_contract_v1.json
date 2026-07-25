@@ -124,22 +124,23 @@
     "perturbation_classification_map.png"
   ],
   "authoritative_validation": {
-    "validated_head": "3040fdcdf51771bc0d03075e9aae0eb3b49a46d4",
-    "workflow_run": 30160740321,
-    "artifact_id": 8620327622,
-    "artifact_sha256": "50b8841dcfc0bc8f853c2356f99b755f8aed9c78eee962a9e58744f166788915",
+    "validated_implementation_head": "719301dd64c9ee2571cf3296605466a2ee9de27f",
+    "workflow_run": 30162194409,
+    "artifact_id": 8620823392,
+    "artifact_sha256": "1b2c14790c3c66be47386f60ddb9c8b21ee5d253dcc0ab1d78e9deaa7b5184d7",
     "coolprop_version": "8.0.0",
     "forensic_source_git_blob": "af02452313fd942004f6b8d6ce1662e30c16ac1f",
     "focused_test_git_blob": "9671974b63ee6d97839a53ff55cac7a5df1ecf98",
-    "dependency_free_tests": {"passed": 7, "skipped": 0, "failed": 0, "errors": 0},
-    "installed_coolprop_tests": {"passed": 8, "skipped": 0, "failed": 0, "errors": 0},
+    "contract_test_git_blob": "409f97edda208885de6eabc9d67dbf674f8a3a5f",
+    "dependency_free_tests": {"passed": 8, "skipped": 0, "failed": 0, "errors": 0},
+    "installed_coolprop_tests": {"passed": 9, "skipped": 0, "failed": 0, "errors": 0},
     "related_stage7_tests": {"passed": 69, "skipped": 0, "failed": 0, "errors": 0},
-    "full_repository_tests": {"passed": 721, "skipped": 0, "failed": 0, "errors": 0},
+    "full_repository_tests": {"passed": 723, "skipped": 0, "failed": 0, "errors": 0},
     "permanent_workflows": {
-      "coolprop_wave": 30160740335,
-      "controlled_pressure_ramp": 30160740323,
-      "boundary_reflection": 30160740342,
-      "internal_valve": 30160740328
+      "coolprop_wave": 30162194483,
+      "controlled_pressure_ramp": 30162194405,
+      "boundary_reflection": 30162194415,
+      "internal_valve": 30162194406
     }
   },
   "approval_boundary": {
