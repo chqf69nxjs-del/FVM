@@ -70,6 +70,37 @@ jobs:
             --strict-markers \
             --junitxml=artifacts/junit/increment2-pure.xml
 
+      - name: Generate Increment 2 diagnostic artifacts before acceptance assertions
+        run: |
+          mkdir -p artifacts/stage7-pipeline-increment2
+          python -m liquid_gas_transient.hem_pipeline_depressurization_first_crossing \
+            --output-dir artifacts/stage7-pipeline-increment2 \
+            | tee artifacts/stage7-pipeline-increment2/runner_stdout.txt
+
+      - name: Print observed fixed-matrix outcomes
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path("artifacts/stage7-pipeline-increment2")
+          payload = json.loads(
+              (root / "stage7_lco2_hem_pipeline_depressurization_increment2.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          print(json.dumps(payload["outcome_counts"], indent=2, sort_keys=True))
+          for case in payload["cases"]:
+              print(
+                  case["case_id"],
+                  "outcome=", case["outcome"],
+                  "steps=", case["step_count"],
+                  "time=", case["final_time_s"],
+                  "crossing_cells=", case["crossing_cell_indices"],
+                  "failure=", case["failure_reason"],
+              )
+          PY
+
       - name: Run installed-CoolProp Increment 2 tests
         run: |
           python -m pytest -q \
@@ -77,13 +108,6 @@ jobs:
             -m coolprop_installed \
             --strict-markers \
             --junitxml=artifacts/junit/increment2-coolprop.xml
-
-      - name: Generate authoritative Increment 2 artifacts
-        run: |
-          mkdir -p artifacts/stage7-pipeline-increment2
-          python -m liquid_gas_transient.hem_pipeline_depressurization_first_crossing \
-            --output-dir artifacts/stage7-pipeline-increment2 \
-            | tee artifacts/stage7-pipeline-increment2/runner_stdout.txt
 
       - name: Validate generated artifact contract
         run: |
@@ -117,7 +141,6 @@ jobs:
               }
               assert case["preflight_accepted_sample_count"] == 65
               assert case["reverse_flow_fallback_count"] == 0
-          print(json.dumps(payload["outcome_counts"], indent=2, sort_keys=True))
           PY
 
       - name: Run related Stage 7 HEM tests
