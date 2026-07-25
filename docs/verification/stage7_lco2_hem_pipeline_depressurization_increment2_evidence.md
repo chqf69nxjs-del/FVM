@@ -139,13 +139,14 @@ matched all-liquid regression control. PR #77 does not replace or rebaseline tho
 ## Authoritative validation
 
 ```text
-validated head:                    2bbe2ad210d45c6403aa0b9a6a097dff56b44685
-workflow run:                      30154880687
-artifact ID:                       8618870653
-artifact SHA256:                   7d254126a741e7d92e5ed1a2b6da94c703bbc2da91f1769d58c11deaa22b89b9
-CoolProp:                          8.0.0
-runner source Git blob:            87df463996ea68789764e11f4ce9799ec214440e
-focused test Git blob:             817cb1c8c42658481ab0babcdddc34ab7966c4a2
+validated implementation head:     2bbe2ad210d45c6403aa0b9a6a097dff56b44685
+final documentation/cleanup head:   b10c5e40777e55edf1d0868268216bf9df3af6c7
+workflow run:                       30154880687
+artifact ID:                        8618870653
+artifact SHA256:                    7d254126a741e7d92e5ed1a2b6da94c703bbc2da91f1769d58c11deaa22b89b9
+CoolProp:                           8.0.0
+runner source Git blob:             87df463996ea68789764e11f4ce9799ec214440e
+focused test Git blob:              817cb1c8c42658481ab0babcdddc34ab7966c4a2
 ```
 
 ```text
@@ -161,9 +162,10 @@ exact equality of outcomes, failure reasons, step counts, crossing times and cel
 qualities, final-state SHA256 values, and run signatures. Both executions reproduced the
 contract exactly.
 
-The validated head also passed the permanent CoolProp Wave, Controlled Pressure Ramp,
-Boundary Reflection, and Internal Valve regressions in runs `30154880697`, `30154880677`,
-`30154880664`, and `30154880684`.
+The validated implementation head also passed the permanent CoolProp Wave, Controlled
+Pressure Ramp, Boundary Reflection, and Internal Valve regressions in runs `30154880697`,
+`30154880677`, `30154880664`, and `30154880684`. The source and focused-test Git blobs are
+unchanged on the final documentation/cleanup head.
 
 ## Approval boundary
 
