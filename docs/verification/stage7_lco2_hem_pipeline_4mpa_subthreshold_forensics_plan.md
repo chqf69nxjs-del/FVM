@@ -2,7 +2,7 @@
 
 ## Status
 
-`IMPLEMENTED; SOFTWARE-DIAGNOSED; DRAFT REVIEW; GATE P2 REMAINS FALSE`
+`IMPLEMENTED; SOFTWARE-DIAGNOSED; FINAL VALIDATION COMPLETE; GATE P2 REMAINS FALSE`
 
 This increment implements Issue #78 after merged PR #77. It diagnoses the reproducible
 4 MPa subthreshold raw crossing without changing the solver, fixed case, mesh, CFL,
@@ -75,6 +75,24 @@ or indirect boundary influence in later sensitivity studies.
 
 The equilibrium sound-speed candidate changes sharply at the micro-quality transition. Its
 near-saturation continuity and physical accuracy remain unapproved.
+
+## Final validation identity
+
+```text
+validated implementation head:   719301dd64c9ee2571cf3296605466a2ee9de27f
+workflow run:                     30162194409
+artifact ID:                      8620823392
+artifact SHA256:                  1b2c14790c3c66be47386f60ddb9c8b21ee5d253dcc0ab1d78e9deaa7b5184d7
+CoolProp:                         8.0.0
+```
+
+```text
+dependency-free forensic tests:   8 passed, 0 skipped
+installed-CoolProp forensics:     9 passed, 0 skipped
+related Stage 7 regressions:     69 passed, 0 skipped
+full repository:                723 passed, 0 skipped
+failures / errors:                0 / 0
+```
 
 ## Required outputs
 
