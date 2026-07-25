@@ -1,6 +1,9 @@
 name: Stage 7 Apply Forensic Module
 
 on:
+  push:
+    branches:
+      - agent/stage7-pipeline-4mpa-subthreshold-forensics
   workflow_dispatch:
 
 permissions:
@@ -8,6 +11,7 @@ permissions:
 
 jobs:
   apply-module:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
