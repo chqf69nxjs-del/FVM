@@ -29,7 +29,7 @@ python -m pytest -q \
 Authoritative result:
 
 ```text
-12 passed, 0 skipped, 0 failed, 0 errors
+26 passed, 0 skipped, 0 failed, 0 errors
 ```
 
 ## Generate the fixed-matrix evidence bundle
@@ -63,7 +63,7 @@ python -m pytest -q \
 Authoritative result:
 
 ```text
-3 passed, 0 skipped, 0 failed, 0 errors
+5 passed, 0 skipped, 0 failed, 0 errors
 ```
 
 These tests fix the observed outcome matrix:
@@ -74,8 +74,10 @@ These tests fix the observed outcome matrix:
 5→4 MPa: GUARD_FAILURE with retained subthreshold raw crossing
 ```
 
-They also verify all 195 boundary-path samples, zero reverse-flow fallback, artifact bundle
-completeness, and exact frozen PR #72 Case A/B regression signatures.
+They also verify all 195 boundary-path samples, zero reverse-flow fallback, exact
+machine-readable observation-contract fields, complete effective configuration output,
+artifact bundle completeness, exact frozen PR #72 Case A/B signatures, and a second full
+fixed-matrix execution with exact repeatability.
 
 ## Related pre-existing Stage 7 HEM tests
 
@@ -104,27 +106,27 @@ python -m pytest -q --strict-markers
 Authoritative result:
 
 ```text
-690 passed, 0 skipped, 0 failed, 0 errors
+706 passed, 0 skipped, 0 failed, 0 errors
 ```
 
 ## Authoritative GitHub Actions evidence
 
 ```text
-validated head:                  2d09fd98af32f77969be49f5c1394c05e6314ea5
-workflow run:                    30146579752
-artifact ID:                     8616354622
-artifact SHA256:                 3e5dce108b433ffc3caa288487fb461e461a2fb7bc5b47bd724546ae730acd6a
-runner source Git blob:          414f6019710091cd51ed8732859f71b695783d18
-focused test Git blob:           e9823c6c66d6f664e095f986066aa9213863736b
+validated head:                  2bbe2ad210d45c6403aa0b9a6a097dff56b44685
+workflow run:                    30154880687
+artifact ID:                     8618870653
+artifact SHA256:                 7d254126a741e7d92e5ed1a2b6da94c703bbc2da91f1769d58c11deaa22b89b9
+runner source Git blob:          87df463996ea68789764e11f4ce9799ec214440e
+focused test Git blob:           817cb1c8c42658481ab0babcdddc34ab7966c4a2
 ```
 
 Permanent workflow results on the validated head:
 
 ```text
-CoolProp Wave Regression:                 success, run 501 / 30146579780
-CoolProp Controlled Pressure Ramp:        success, run 445 / 30146579751
-CoolProp Boundary Reflection Regression:  success, run 466 / 30146579786
-CoolProp Internal Valve Regression:       success, run 321 / 30146579741
+CoolProp Wave Regression:                 success, run 513 / 30154880697
+CoolProp Controlled Pressure Ramp:        success, run 457 / 30154880677
+CoolProp Boundary Reflection Regression:  success, run 478 / 30154880664
+CoolProp Internal Valve Regression:       success, run 333 / 30154880684
 ```
 
 ## Required interpretation

@@ -139,25 +139,31 @@ matched all-liquid regression control. PR #77 does not replace or rebaseline tho
 ## Authoritative validation
 
 ```text
-validated head:                    2d09fd98af32f77969be49f5c1394c05e6314ea5
-workflow run:                      30146579752
-artifact ID:                       8616354622
-artifact SHA256:                   3e5dce108b433ffc3caa288487fb461e461a2fb7bc5b47bd724546ae730acd6a
+validated head:                    2bbe2ad210d45c6403aa0b9a6a097dff56b44685
+workflow run:                      30154880687
+artifact ID:                       8618870653
+artifact SHA256:                   7d254126a741e7d92e5ed1a2b6da94c703bbc2da91f1769d58c11deaa22b89b9
 CoolProp:                          8.0.0
-runner source Git blob:            414f6019710091cd51ed8732859f71b695783d18
-focused test Git blob:             e9823c6c66d6f664e095f986066aa9213863736b
+runner source Git blob:            87df463996ea68789764e11f4ce9799ec214440e
+focused test Git blob:             817cb1c8c42658481ab0babcdddc34ab7966c4a2
 ```
 
 ```text
-dependency-free Increment 2:       12 passed, 0 skipped
-installed-CoolProp Increment 2:     3 passed, 0 skipped
+dependency-free Increment 2:       26 passed, 0 skipped
+installed-CoolProp Increment 2:     5 passed, 0 skipped
 related pre-existing Stage 7 HEM:  74 passed, 0 skipped
-full repository:                  690 passed, 0 skipped
+full repository:                  706 passed, 0 skipped
 failures / errors:                  0 / 0
 ```
 
+The installed-CoolProp focused set executed the fixed three-case matrix twice and required
+exact equality of outcomes, failure reasons, step counts, crossing times and cells, maximum
+qualities, final-state SHA256 values, and run signatures. Both executions reproduced the
+contract exactly.
+
 The validated head also passed the permanent CoolProp Wave, Controlled Pressure Ramp,
-Boundary Reflection, and Internal Valve regressions.
+Boundary Reflection, and Internal Valve regressions in runs `30154880697`, `30154880677`,
+`30154880664`, and `30154880684`.
 
 ## Approval boundary
 

@@ -13,27 +13,33 @@
     "verification_only": true
   },
   "authoritative_validation": {
-    "artifact_id": 8616354622,
-    "artifact_sha256": "3e5dce108b433ffc3caa288487fb461e461a2fb7bc5b47bd724546ae730acd6a",
+    "artifact_id": 8618870653,
+    "artifact_sha256": "7d254126a741e7d92e5ed1a2b6da94c703bbc2da91f1769d58c11deaa22b89b9",
     "coolprop_version": "8.0.0",
     "dependency_free_tests": {
       "errors": 0,
       "failed": 0,
-      "passed": 12,
+      "passed": 26,
       "skipped": 0
     },
-    "focused_test_git_blob": "e9823c6c66d6f664e095f986066aa9213863736b",
+    "focused_test_git_blob": "817cb1c8c42658481ab0babcdddc34ab7966c4a2",
     "full_repository_tests": {
       "errors": 0,
       "failed": 0,
-      "passed": 690,
+      "passed": 706,
       "skipped": 0
     },
     "installed_coolprop_tests": {
       "errors": 0,
       "failed": 0,
-      "passed": 3,
+      "passed": 5,
       "skipped": 0
+    },
+    "permanent_workflows": {
+      "boundary_reflection": 30154880664,
+      "controlled_pressure_ramp": 30154880677,
+      "coolprop_wave": 30154880697,
+      "internal_valve": 30154880684
     },
     "related_pre_existing_stage7_tests": {
       "errors": 0,
@@ -41,8 +47,9 @@
       "passed": 74,
       "skipped": 0
     },
-    "runner_source_git_blob": "414f6019710091cd51ed8732859f71b695783d18",
-    "workflow_run": 30146579752
+    "runner_source_git_blob": "87df463996ea68789764e11f4ce9799ec214440e",
+    "validated_head": "2bbe2ad210d45c6403aa0b9a6a097dff56b44685",
+    "workflow_run": 30154880687
   },
   "boundary_preflight": {
     "accepted_sample_count": 195,
@@ -236,6 +243,24 @@
     "REVERSE_FLOW_GUARD": 0
   },
   "pr_number": 77,
+  "repeatability": {
+    "compared_fields": [
+      "summary",
+      "outcome",
+      "failure_reason",
+      "step_count",
+      "final_time_s",
+      "crossing_step",
+      "crossing_time_s",
+      "crossing_cell_indices",
+      "crossing_distances_from_outlet_m",
+      "maximum_crossing_quality",
+      "final_state_sha256",
+      "run_signature_sha256"
+    ],
+    "exact_match": true,
+    "matrix_execution_count_in_focused_validation": 2
+  },
   "review_resolution": {
     "exact_repeatability_required": true,
     "fixed_configuration_enforced": true,
@@ -245,5 +270,5 @@
   "schema_version": "stage7_lco2_hem_pipeline_depressurization_increment2_observation_v1",
   "scope": "verification_only",
   "status": "FIXED_MATRIX_EXECUTED_GATE_P2_NOT_PASSED",
-  "validated_head": "2d09fd98af32f77969be49f5c1394c05e6314ea5"
+  "validated_head": "2bbe2ad210d45c6403aa0b9a6a097dff56b44685"
 }
