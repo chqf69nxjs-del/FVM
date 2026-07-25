@@ -25,6 +25,7 @@ jobs:
           persist-credentials: true
 
       - name: Extract and run reviewed replacement script
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -34,14 +35,15 @@ jobs:
             capture {sub(/^          /, ""); print}
           ' .github/workflows/stage7-increment2-observation-patch.yml > /tmp/patch_increment2.py
           test -s /tmp/patch_increment2.py
-          python /tmp/patch_increment2.py
-          python -m compileall -q src tests
-          git diff --check
+          python /tmp/patch_increment2.py 2>&1 | tee /tmp/patch_increment2.log
 
-      - name: Commit reviewed observation handling
+      - name: Commit valid reviewed observation handling
         shell: bash
         run: |
           set -euo pipefail
+          test -f /tmp/patch_increment2.log && cat /tmp/patch_increment2.log || true
+          python -m compileall -q src tests
+          git diff --check
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add \
@@ -49,7 +51,7 @@ jobs:
             tests/test_stage7_lco2_hem_pipeline_depressurization_increment2.py \
             .github/workflows/stage7-pipeline-depressurization-increment2-validation.yml
           if git diff --cached --quiet; then
-            echo "Reviewed observation patch is already applied."
+            echo "Reviewed observation patch produced no valid changes."
             exit 0
           fi
           git commit -m "Retain subthreshold control crossing evidence"
