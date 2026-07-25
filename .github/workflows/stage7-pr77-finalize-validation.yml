@@ -1,0 +1,46 @@
+name: Stage 7 PR 77 Finalize Validation Records
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stage7-pr77-finalize-validation-${{ github.event.pull_request.head.ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  finalize-validation-records:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout PR head branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Update validation records
+        run: |
+          set -euo pipefail
+          python .github/scripts/pr77_finalize_validation.py
+          git diff --check
+
+      - name: Commit validation records
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            docs/verification/stage7_lco2_hem_pipeline_depressurization_increment2_evidence.md \
+            docs/verification/stage7_lco2_hem_pipeline_depressurization_increment2_validation_commands.md \
+            docs/verification/stage7_lco2_hem_pipeline_depressurization_increment2_observation_contract_v1.json
+          if git diff --cached --quiet; then
+            echo "Validation records are already finalized."
+            exit 0
+          fi
+          git commit -m "Finalize PR 77 validation and repeatability evidence"
+          git push origin HEAD:${{ github.event.pull_request.head.ref || github.ref_name }}
