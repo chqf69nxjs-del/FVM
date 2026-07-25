@@ -2,7 +2,7 @@
 
 ## Status
 
-`IMPLEMENTATION IN PROGRESS; VERIFICATION ONLY; GATE P2 REMAINS FALSE`
+`IMPLEMENTED; SOFTWARE-DIAGNOSED; DRAFT REVIEW; GATE P2 REMAINS FALSE`
 
 This increment implements Issue #78 after merged PR #77. It diagnoses the reproducible
 4 MPa subthreshold raw crossing without changing the solver, fixed case, mesh, CFL,
@@ -52,14 +52,60 @@ INCONCLUSIVE
 
 Multiple categories may be retained. No diagnostic result changes the PR #77 observation.
 
+## Observed diagnostic result
+
+The authoritative execution retained:
+
+```text
+THERMODYNAMIC_TWO_PHASE_SUPPORTED
+NEAR_SATURATION_PROPERTY_SENSITIVE
+MULTI_FACTOR_EVIDENCE
+```
+
+The crossing point is independently on the two-phase side in both internal-energy and
+specific-volume coordinates. Its 9×9 rho/e perturbation map is `WEAKLY_RESOLVED`: no phase
+change occurs through relative perturbations of `1e-8`, while some `1e-6` perturbations
+return to the liquid side.
+
+The local one-step central-only update is also open two phase and has a larger quality than
+the full Rusanov update. Therefore the narrow `NUMERICAL_DIFFUSION_CONSISTENT` criterion is
+not triggered. The crossing cell is not boundary-adjacent and the narrow direct outlet-face
+criterion is also not triggered. Neither result rules out accumulated numerical diffusion
+or indirect boundary influence in later sensitivity studies.
+
+The equilibrium sound-speed candidate changes sharply at the micro-quality transition. Its
+near-saturation continuity and physical accuracy remain unapproved.
+
 ## Required outputs
 
-The runner writes JSON, CSV, NPZ, Markdown, and four PNG diagnostic figures covering the
-local history, saturation margins, isentropic reference, flux decomposition, and rho/e
-perturbation map.
+The runner writes:
+
+```text
+4mpa_forensic_summary.json
+4mpa_local_cell_history.csv
+4mpa_saturation_margin.csv
+4mpa_isentropic_reference.json
+4mpa_flux_decomposition.csv
+4mpa_property_perturbation.csv
+4mpa_property_perturbation.npz
+4mpa_forensic_evidence.md
+rho_e_saturation_zoom.png
+saturation_margin_vs_time.png
+central_vs_dissipative_update.png
+perturbation_classification_map.png
+```
+
+Permanent review records:
+
+- [`stage7_lco2_hem_pipeline_4mpa_subthreshold_forensics_evidence.md`](stage7_lco2_hem_pipeline_4mpa_subthreshold_forensics_evidence.md)
+- [`stage7_lco2_hem_pipeline_4mpa_subthreshold_forensics_contract_v1.json`](stage7_lco2_hem_pipeline_4mpa_subthreshold_forensics_contract_v1.json)
+- [`stage7_lco2_hem_pipeline_4mpa_subthreshold_forensics_validation_commands.md`](stage7_lco2_hem_pipeline_4mpa_subthreshold_forensics_validation_commands.md)
 
 ## Exclusions
 
 No mesh/CFL variation, higher-order reconstruction, boundary replacement, fixed-schedule or
 threshold change, added physical source terms, physical Validation, design use, or
 production activation is included.
+
+Passing this diagnostic execution does not pass Gate P2 or freeze a boundary-driven liquid
+control.
