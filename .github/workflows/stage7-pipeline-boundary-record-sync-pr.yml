@@ -34,6 +34,20 @@ jobs:
             capture {sub(/^          /, ""); print}
           ' .github/workflows/stage7-pipeline-boundary-record-sync.yml > /tmp/sync_stage7_records.py
           test -s /tmp/sync_stage7_records.py
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("/tmp/sync_stage7_records.py")
+          source = path.read_text(encoding="utf-8")
+          old = 'if master.count(marker) != 1 or log.count(marker) != 1:'
+          new = (
+              'if master.count(marker) != 1 or '
+              'log.count("## 2026-07-25 — Pipeline-depressurization specification and boundary Increment 1") != 1:'
+          )
+          if source.count(old) != 1:
+              raise RuntimeError("expected one shared-marker integrity check")
+          path.write_text(source.replace(old, new, 1), encoding="utf-8")
+          PY
           python /tmp/sync_stage7_records.py
           git diff --check
           changed="$(git diff --name-only)"
