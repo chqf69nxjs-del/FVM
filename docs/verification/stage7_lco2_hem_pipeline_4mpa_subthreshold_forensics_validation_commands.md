@@ -22,32 +22,35 @@ git diff --check
 ```bash
 python -m pytest -q \
   tests/test_stage7_lco2_hem_pipeline_4mpa_subthreshold_forensics.py \
+  tests/test_stage7_lco2_hem_pipeline_4mpa_subthreshold_forensics_contract.py \
   -m 'not coolprop_installed' \
   --strict-markers
 ```
 
-Authoritative result:
+Final authoritative result:
 
 ```text
-7 passed, 0 skipped, 0 failed, 0 errors
+8 passed, 0 skipped, 0 failed, 0 errors
 ```
 
-These tests fix the observation window, perturbation grid, PR #77 baseline guard, and
-sensitivity-classification control flow without substituting for CoolProp evidence.
+These tests fix the observation window, perturbation grid, PR #77 baseline guard,
+sensitivity-classification control flow, machine-readable contract scope, and approval
+boundary without substituting for CoolProp evidence.
 
 ## Installed-CoolProp forensic tests
 
 ```bash
 python -m pytest -q \
   tests/test_stage7_lco2_hem_pipeline_4mpa_subthreshold_forensics.py \
+  tests/test_stage7_lco2_hem_pipeline_4mpa_subthreshold_forensics_contract.py \
   -m coolprop_installed \
   --strict-markers
 ```
 
-Authoritative result:
+Final authoritative result:
 
 ```text
-8 passed, 0 skipped, 0 failed, 0 errors
+9 passed, 0 skipped, 0 failed, 0 errors
 ```
 
 The installed set requires:
@@ -60,6 +63,7 @@ explicit isentropic reference
 exact Rusanov central+dissipative reconstruction
 complete 9x9 rho/e perturbation grid
 exact repeated forensic execution
+exact machine-readable contract agreement
 complete JSON/CSV/NPZ/Markdown/PNG artifact bundle
 frozen PR #72 Case A/B signatures
 ```
@@ -88,6 +92,19 @@ central_vs_dissipative_update.png
 perturbation_classification_map.png
 ```
 
+The authoritative summary must retain:
+
+```text
+baseline_reproduced_exactly = true
+perturbation_sensitivity = WEAKLY_RESOLVED
+diagnostic_categories = [
+  THERMODYNAMIC_TWO_PHASE_SUPPORTED,
+  NEAR_SATURATION_PROPERTY_SENSITIVE,
+  MULTI_FACTOR_EVIDENCE
+]
+Gate_P2_passed = false
+```
+
 ## Related Stage 7 regressions
 
 ```bash
@@ -98,7 +115,7 @@ python -m pytest -q \
   --strict-markers
 ```
 
-Authoritative result:
+Final authoritative result:
 
 ```text
 69 passed, 0 skipped, 0 failed, 0 errors
@@ -110,37 +127,41 @@ Authoritative result:
 python -m pytest -q --strict-markers
 ```
 
-Authoritative result:
+Final authoritative result:
 
 ```text
-721 passed, 0 skipped, 0 failed, 0 errors
+723 passed, 0 skipped, 0 failed, 0 errors
 ```
 
-## Authoritative GitHub Actions evidence
+## Final authoritative GitHub Actions evidence
 
 ```text
-validated head:                 3040fdcdf51771bc0d03075e9aae0eb3b49a46d4
-workflow run:                   30160740321
-artifact ID:                    8620327622
-artifact SHA256:                50b8841dcfc0bc8f853c2356f99b755f8aed9c78eee962a9e58744f166788915
-CoolProp:                       8.0.0
-forensic source Git blob:       af02452313fd942004f6b8d6ce1662e30c16ac1f
-focused test Git blob:          9671974b63ee6d97839a53ff55cac7a5df1ecf98
+validated implementation head:   719301dd64c9ee2571cf3296605466a2ee9de27f
+workflow run:                     30162194409
+artifact ID:                      8620823392
+artifact SHA256:                  1b2c14790c3c66be47386f60ddb9c8b21ee5d253dcc0ab1d78e9deaa7b5184d7
+CoolProp:                         8.0.0
+forensic source Git blob:         af02452313fd942004f6b8d6ce1662e30c16ac1f
+focused test Git blob:            9671974b63ee6d97839a53ff55cac7a5df1ecf98
+contract test Git blob:           409f97edda208885de6eabc9d67dbf674f8a3a5f
 ```
 
-Permanent workflows on the validated head:
+Permanent workflows on the validated implementation head:
 
 ```text
-CoolProp Wave Regression:                 success, run 548 / 30160740335
-CoolProp Controlled Pressure Ramp:        success, run 492 / 30160740323
-CoolProp Boundary Reflection Regression:  success, run 513 / 30160740342
-CoolProp Internal Valve Regression:       success, run 368 / 30160740328
+CoolProp Wave Regression:                 success, run 556 / 30162194483
+CoolProp Controlled Pressure Ramp:        success, run 500 / 30162194405
+CoolProp Boundary Reflection Regression:  success, run 521 / 30162194415
+CoolProp Internal Valve Regression:       success, run 376 / 30162194406
 ```
+
+The final workflow also parsed all four JUnit reports and explicitly required zero skipped,
+failed, or errored tests.
 
 ## Required interpretation
 
 Successful execution means the fixed forensic diagnostic is internally reproducible and
-its artifacts are consistent. It does not mean:
+its artifacts agree with the machine-readable contract. It does not mean:
 
 ```text
 Gate P2 passed
