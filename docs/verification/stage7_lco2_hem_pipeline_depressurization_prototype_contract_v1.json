@@ -1,0 +1,282 @@
+{
+  "schema_version": "stage7_lco2_hem_pipeline_depressurization_prototype_v1",
+  "status": "SPECIFICATION_ONLY",
+  "scope": "verification_only",
+  "recorded_base_main": "3e55b3fae88d813437654c144d0157de5b6d398f",
+  "objective": "Observe the first accepted liquid-to-open-two-phase crossing caused by a controlled right-end depressurization wave in a uniform one-dimensional LCO2 pipe.",
+  "claims": {
+    "first_crossing_prototype_specified": true,
+    "boundary_adapter_implemented": false,
+    "pipeline_depressurization_executed": false,
+    "interface_propagation_speed_verified": false,
+    "physical_validation": false,
+    "design_use_acceptance": false,
+    "production_hem_activation_approved": false,
+    "two_phase_acoustic_accuracy_band_approved": false
+  },
+  "geometry": {
+    "pipe_type": "single_horizontal_straight_pipe",
+    "length_m": 1.0,
+    "diameter_m": 0.1,
+    "n_cells": 32,
+    "dx_m": 0.03125,
+    "orientation": "horizontal",
+    "gravity_enabled": false,
+    "friction_enabled": false,
+    "wall_heat_transfer_enabled": false,
+    "internal_interfaces_enabled": false
+  },
+  "numerics": {
+    "spatial_order": 1,
+    "numerical_flux": "existing_rusanov",
+    "cfl_limit": 0.1,
+    "n_ghost": 2,
+    "physical_source": "none",
+    "phase_change_operator": "existing_HEMEquilibriumQualityProjection",
+    "raw_transition_detector": "existing_detect_raw_transition_events",
+    "accepted_state_eos": "existing_VerificationHEMLiquidOpenTwoPhaseEOS",
+    "core_solver_changes_allowed": false,
+    "algorithms_or_tolerances_tuned": false
+  },
+  "initial_state": {
+    "fluid": "CO2",
+    "pressure_pa": 5000000.0,
+    "subcooling_K": 5.0,
+    "temperature_definition": "T_sat(P)-subcooling_K",
+    "velocity_m_s": 0.0,
+    "transported_quality": 0.0,
+    "required_boundary_region": "LIQUID_CANDIDATE",
+    "required_equilibrium_quality": 0.0,
+    "all_cells_identical": true
+  },
+  "boundaries": {
+    "left": {
+      "type": "existing_ReflectiveBoundary",
+      "purpose": "closed upstream end"
+    },
+    "right": {
+      "planned_type": "VerificationHEMPrescribedSubcooledOutletBoundary",
+      "side": "right",
+      "flow_direction": "outlet_only",
+      "velocity_policy": "copy_adjacent_interior_velocity",
+      "reverse_flow_policy": "reflective_fallback_and_record",
+      "thermodynamic_closure": "prescribed_pressure_plus_constant_subcooling",
+      "pressure_schedule": "linear",
+      "initial_pressure_pa": 5000000.0,
+      "boundary_subcooling_K": 5.0,
+      "temperature_definition": "T_boundary(t)=T_sat(P_boundary(t))-boundary_subcooling_K",
+      "density_definition": "CoolProp Dmass(P_boundary,T_boundary)",
+      "internal_energy_definition": "CoolProp Umass(P_boundary,T_boundary)",
+      "quality_policy": "use_equilibrium_quality_of_prescribed_rho_e_state",
+      "required_boundary_region": "LIQUID_CANDIDATE",
+      "required_equilibrium_quality": 0.0,
+      "copy_interior_quality_forbidden": true,
+      "pressure_only_inversion_forbidden": true,
+      "initial_state_matches_pipe": true,
+      "initial_hold_s": 0.0
+    }
+  },
+  "time_scales": {
+    "initial_acoustic_time_definition": "t_acoustic=L/c_initial",
+    "ramp_duration_acoustic_time_ratio": 1.0,
+    "post_ramp_observation_acoustic_time_ratio": 2.0,
+    "maximum_horizon_acoustic_time_ratio": 3.0,
+    "maximum_steps": 2000,
+    "crossing_stop": "stop_immediately_after_first_accepted_crossing"
+  },
+  "fixed_case_matrix": [
+    {
+      "case_id": "pipeline_crossing_candidate_p5m5_to_p2m5",
+      "role": "first_crossing_candidate",
+      "boundary_final_pressure_pa": 2000000.0,
+      "boundary_subcooling_K": 5.0,
+      "ramp_duration_acoustic_time_ratio": 1.0
+    },
+    {
+      "case_id": "pipeline_moderate_diagnostic_p5m5_to_p3m5",
+      "role": "moderate_diagnostic",
+      "boundary_final_pressure_pa": 3000000.0,
+      "boundary_subcooling_K": 5.0,
+      "ramp_duration_acoustic_time_ratio": 1.0
+    },
+    {
+      "case_id": "pipeline_liquid_control_p5m5_to_p4m5",
+      "role": "liquid_negative_control",
+      "boundary_final_pressure_pa": 4000000.0,
+      "boundary_subcooling_K": 5.0,
+      "ramp_duration_acoustic_time_ratio": 1.0
+    }
+  ],
+  "boundary_path_preflight": {
+    "required": true,
+    "sample_count": 65,
+    "include_schedule_endpoints": true,
+    "canonical_round_trip": "P_and_subcooling_to_rho_e_to_reviewed_phase_and_acoustic_paths",
+    "required_region_at_every_sample": "LIQUID_CANDIDATE",
+    "required_quality_at_every_sample": 0.0,
+    "require_nonnegative_internal_energy": true,
+    "require_finite_positive_density_pressure_temperature_sound_speed": true,
+    "require_mixed_accepted_state_eos_acceptance": true,
+    "pressure_recovery_relative_tolerance": 1e-6,
+    "pressure_recovery_absolute_tolerance_pa": 1.0,
+    "temperature_recovery_relative_tolerance": 1e-8,
+    "temperature_recovery_absolute_tolerance_K": 1e-6
+  },
+  "phase_and_projection_tolerances": {
+    "endpoint_tolerance": 1e-10,
+    "projection_activation_tolerance": 1e-12,
+    "accepted_state_quality_tolerance": 1e-10,
+    "crossing_evidence_min_quality": 1e-6,
+    "crossing_evidence_min_quality_is_solver_switch": false
+  },
+  "event_outcomes": [
+    "ACCEPTED_FIRST_CROSSING",
+    "NO_CROSSING_WITHIN_HORIZON",
+    "ENDPOINT_LANDING",
+    "FORBIDDEN_TRANSITION",
+    "REVERSE_FLOW_GUARD",
+    "GUARD_FAILURE",
+    "BACKEND_FAILURE"
+  ],
+  "stop_priority": [
+    "BACKEND_FAILURE",
+    "GUARD_FAILURE",
+    "REVERSE_FLOW_GUARD",
+    "FORBIDDEN_TRANSITION",
+    "ENDPOINT_LANDING",
+    "ACCEPTED_FIRST_CROSSING",
+    "NO_CROSSING_WITHIN_HORIZON"
+  ],
+  "accepted_first_crossing_contract": {
+    "initial_all_cells_liquid": true,
+    "boundary_preflight_passed": true,
+    "reverse_flow_fallback_count": 0,
+    "minimum_crossing_cell_count": 1,
+    "endpoint_count": 0,
+    "forbidden_transition_count": 0,
+    "crossing_cells_equal_projection_cells": true,
+    "maximum_post_quality_mismatch": 1e-12,
+    "minimum_crossing_equilibrium_quality": 1e-6,
+    "post_mixed_eos_accepts_all_cells": true,
+    "post_pressure_temperature_sound_speed_finite_positive": true,
+    "second_projection_cell_count": 0,
+    "phase_vapor_source_counted_once": true,
+    "stop_after_accepted_crossing": true,
+    "boundary_adjacent_crossing_allowed_for_this_first_gate": true,
+    "interface_speed_claim_allowed": false
+  },
+  "pressure_wave_evidence": {
+    "record_required": true,
+    "relative_pressure_drop_threshold": 1e-6,
+    "threshold_is_solver_switch": false,
+    "record_first_threshold_time_per_cell": true,
+    "record_pressure_profiles": true,
+    "propagation_speed_acceptance_band_approved": false
+  },
+  "budget_contract": {
+    "mass_boundary_relative_tolerance": 1e-10,
+    "mass_boundary_absolute_tolerance_kg": 1e-12,
+    "momentum_boundary_relative_tolerance": 1e-10,
+    "momentum_boundary_absolute_tolerance_kg_m_s": 1e-10,
+    "energy_boundary_relative_tolerance": 1e-10,
+    "energy_boundary_absolute_tolerance_J": 1e-6,
+    "vapor_boundary_absolute_tolerance_kg": 1e-12,
+    "phase_vapor_absolute_tolerance_kg": 1e-12,
+    "combined_boundary_plus_phase_vapor_absolute_tolerance_kg": 1e-12,
+    "left_reflective_mass_flux_must_be_zero": true,
+    "left_reflective_energy_flux_must_be_zero": true,
+    "boundary_and_phase_vapor_terms_must_be_separate": true
+  },
+  "artifacts": {
+    "formats": [
+      "json",
+      "case_csv",
+      "step_csv",
+      "cell_csv",
+      "boundary_path_csv",
+      "markdown",
+      "npz"
+    ],
+    "required_fields": [
+      "resolved_initial_acoustic_time_s",
+      "resolved_ramp_duration_s",
+      "boundary_pressure_temperature_rho_e_quality_by_step",
+      "reverse_flow_fallback_count",
+      "pressure_wave_first_threshold_time_by_cell",
+      "raw_region_by_cell_and_step",
+      "transition_event_by_cell_and_step",
+      "projection_cells_by_step",
+      "crossing_step_time_cells",
+      "post_quality_mismatch",
+      "second_projection_count",
+      "boundary_budget",
+      "phase_vapor_budget",
+      "combined_vapor_budget",
+      "failure_reason"
+    ]
+  },
+  "frozen_regression_controls": {
+    "case_a_final_state_sha256": "78897b5c8ca57221186ccf3e0aa69e1492a942cc2e8dee0abb440a3e2e08e039",
+    "case_a_signature_sha256": "914ed2249c9546a1d32f6d6dbcd8b30236e1c1f2b37ecf9306100ad30622b612",
+    "case_b_final_state_sha256": "8c09735ee9185cfb34b2186be30b32d78ec73350e211762d92c372e0b9f23a59",
+    "case_b_signature_sha256": "3bd7edc37842a00a0c27964a17029f5c66ef973b59bd7670f513c82fc7e85669",
+    "must_pass_before_and_after_prototype_changes": true
+  },
+  "implementation_increments": [
+    {
+      "increment": 1,
+      "name": "boundary_adapter_and_path_preflight",
+      "fvm_time_step_exercised": false,
+      "required_outputs": [
+        "prescribed_subcooled_boundary_state_provider",
+        "outlet_only_boundary_adapter",
+        "65_point_path_preflight",
+        "ghost_state_mixed_eos_acceptance",
+        "dependency_free_contract_tests",
+        "installed_CoolProp_boundary_tests"
+      ]
+    },
+    {
+      "increment": 2,
+      "name": "short_pipeline_first_crossing_runner",
+      "fvm_time_step_exercised": true,
+      "required_outputs": [
+        "fixed_three_case_matrix",
+        "first_crossing_stop",
+        "pressure_wave_evidence",
+        "projection_and_post_eos_chain",
+        "boundary_and_phase_budgets",
+        "frozen_Case_A_B_regressions"
+      ]
+    }
+  ],
+  "explicit_exclusions": [
+    "friction",
+    "wall_heat_transfer",
+    "gravity",
+    "valve_or_orifice_flow_law",
+    "choked_flow",
+    "tank_mass_energy_coupling",
+    "slip_or_drift_flux",
+    "nucleation_delay",
+    "metastable_liquid",
+    "HNE",
+    "open_two_phase_to_vapor_crossing",
+    "saturation_endpoint_acoustic_closure",
+    "reverse_transition",
+    "MUSCL_TVD",
+    "mesh_convergence",
+    "long_pipeline_scale",
+    "physical_validation",
+    "design_use"
+  ],
+  "approval_boundary": {
+    "verification_only": true,
+    "software_verification_only": true,
+    "production_default_changed": false,
+    "production_hem_activation_approved": false,
+    "physical_validation": false,
+    "design_use_acceptance": false,
+    "two_phase_acoustic_accuracy_band_approved": false
+  }
+}
