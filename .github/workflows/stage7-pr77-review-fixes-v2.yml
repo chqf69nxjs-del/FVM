@@ -1,0 +1,50 @@
+name: Stage 7 PR 77 Review Fixes V2
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stage7-pr77-review-fixes-v2-${{ github.event.pull_request.head.ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply-review-fixes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout PR head branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Apply reviewed fixes
+        run: |
+          set -euo pipefail
+          python .github/scripts/pr77_review_fix.py
+          python -m compileall -q src tests
+          git diff --check
+
+      - name: Commit reviewed fixes
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/liquid_gas_transient/hem_pipeline_depressurization_first_crossing.py \
+            tests/test_stage7_lco2_hem_pipeline_depressurization_increment2.py \
+            docs/verification/stage7_lco2_hem_pipeline_depressurization_increment2_plan.md \
+            docs/verification/stage7_lco2_hem_pipeline_depressurization_validation_plan.md \
+            docs/verification/stage7_lco2_hem_pipeline_depressurization_increment2_evidence.md \
+            docs/verification/stage7_lco2_hem_pipeline_depressurization_increment2_observation_contract_v1.json
+          if git diff --cached --quiet; then
+            echo "PR #77 review fixes are already applied."
+            exit 0
+          fi
+          git commit -m "Address PR 77 technical review findings"
+          git push origin HEAD:${{ github.event.pull_request.head.ref || github.ref_name }}
