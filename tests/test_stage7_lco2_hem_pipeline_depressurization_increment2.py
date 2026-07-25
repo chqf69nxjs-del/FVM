@@ -184,17 +184,41 @@ def test_installed_coolprop_fixed_pipeline_matrix_completes_honestly(
 
     assert len(result.cases) == 3
     assert summary["pipeline_depressurization_executed"] is True
-    assert summary["all_fixed_cases_completed"] is True
+    assert summary["all_fixed_cases_completed"] is False
+    assert summary["fixed_matrix_explicit_outcomes_retained"] is True
+    assert summary["gate_p2_passed"] is False
+    assert summary["outcome_counts"]["ACCEPTED_FIRST_CROSSING"] == 2
+    assert summary["outcome_counts"]["GUARD_FAILURE"] == 1
+    assert summary["subthreshold_crossing_case_ids"] == [
+        "pipeline_liquid_control_p5m5_to_p4m5"
+    ]
     assert summary["algorithms_or_tolerances_tuned"] is False
     assert summary["production_hem_activation_approved"] is False
     assert summary["physical_validation"] is False
     assert summary["design_use_acceptance"] is False
 
+    by_id = {case.case.case_id: case for case in result.cases}
+    assert by_id[
+        "pipeline_crossing_candidate_p5m5_to_p2m5"
+    ].outcome == "ACCEPTED_FIRST_CROSSING"
+    assert by_id[
+        "pipeline_moderate_diagnostic_p5m5_to_p3m5"
+    ].outcome == "ACCEPTED_FIRST_CROSSING"
+    control = by_id["pipeline_liquid_control_p5m5_to_p4m5"]
+    assert control.outcome == "GUARD_FAILURE"
+    assert "below the fixed minimum" in control.failure_reason
+    assert control.crossing_step == control.step_count
+    assert control.crossing_cell_indices
+    assert 0.0 < control.maximum_crossing_quality < (
+        control.config.crossing_evidence_min_quality
+    )
+    control_step = control.steps[-1]
+    assert control_step.crossing_cell_indices == (
+        control_step.first_projection_cell_indices
+    )
+    assert control_step.second_projection_cell_indices == ()
+
     for case in result.cases:
-        assert case.outcome in {
-            "ACCEPTED_FIRST_CROSSING",
-            "NO_CROSSING_WITHIN_HORIZON",
-        }
         assert len(case.preflight.records) == 65
         assert all(record.accepted for record in case.preflight.records)
         assert all(
@@ -272,6 +296,11 @@ def test_installed_pipeline_artifact_bundle_is_complete(
     payload = json.loads(paths["json"].read_text(encoding="utf-8"))
     assert payload["case_count"] == 3
     assert payload["pipeline_depressurization_executed"] is True
+    assert payload["all_fixed_cases_completed"] is False
+    assert payload["fixed_matrix_explicit_outcomes_retained"] is True
+    assert payload["gate_p2_passed"] is False
+    assert payload["outcome_counts"]["ACCEPTED_FIRST_CROSSING"] == 2
+    assert payload["outcome_counts"]["GUARD_FAILURE"] == 1
     assert payload["algorithms_or_tolerances_tuned"] is False
     assert len(payload["boundary_path"]) == 195
     assert len(paths["cases_csv"].read_text(encoding="utf-8").splitlines()) == 4

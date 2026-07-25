@@ -423,6 +423,21 @@ class HEMPipelineDepressurizationResult:
                 self.cases
                 and all(case.completed_without_guard_failure for case in self.cases)
             ),
+            "fixed_matrix_explicit_outcomes_retained": bool(
+                self.cases and all(case.step_count > 0 for case in self.cases)
+            ),
+            "gate_p2_passed": bool(
+                self.cases
+                and all(case.completed_without_guard_failure for case in self.cases)
+            ),
+            "subthreshold_crossing_case_ids": [
+                case.case.case_id
+                for case in self.cases
+                if case.outcome == "GUARD_FAILURE"
+                and case.crossing_step is not None
+                and 0.0 < case.maximum_crossing_quality
+                < self.config.crossing_evidence_min_quality
+            ],
             "two_mpa_candidate_outcome": (
                 crossing_candidate.outcome if crossing_candidate is not None else None
             ),
@@ -1377,10 +1392,6 @@ def run_pipeline_depressurization_case(
                     raise HEMPipelineDepressurizationError(
                         "second projection must be a no-op"
                     )
-                if max_raw_q < cfg.crossing_evidence_min_quality:
-                    raise HEMPipelineDepressurizationError(
-                        "crossing quality evidence is below the fixed minimum"
-                    )
                 crossing_step = step_index
                 crossing_time = float(solver.t)
                 crossing_cells = current_crossing
@@ -1389,6 +1400,10 @@ def run_pipeline_depressurization_case(
                     for index in crossing_cells
                 )
                 maximum_crossing_quality = max_raw_q
+                if max_raw_q < cfg.crossing_evidence_min_quality:
+                    raise HEMPipelineDepressurizationError(
+                        "crossing quality evidence is below the fixed minimum"
+                    )
                 outcome = "ACCEPTED_FIRST_CROSSING"
                 break
             if projected.outcome != "ACCEPTED_ALL_LIQUID_NOOP":
