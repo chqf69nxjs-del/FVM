@@ -1,0 +1,55 @@
+name: Stage 7 Increment 2 Line Patch Source Test PR
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stage7-increment2-line-patch-source-test-pr-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply-source-test-patch:
+    name: apply-source-test-patch
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Extract and run robust line patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          awk '
+            /python - <<'"'"'PY'"'"'/{capture=1; next}
+            capture && /^          PY$/{exit}
+            capture {sub(/^          /, ""); print}
+          ' .github/workflows/stage7-increment2-line-patch-pr.yml > /tmp/line_patch.py
+          test -s /tmp/line_patch.py
+          python /tmp/line_patch.py
+          python -m compileall -q src tests
+          git diff --check
+
+      - name: Commit source and test changes only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/liquid_gas_transient/hem_pipeline_depressurization_first_crossing.py \
+            tests/test_stage7_lco2_hem_pipeline_depressurization_increment2.py
+          if git diff --cached --quiet; then
+            echo "Source and test line patch already applied."
+            exit 0
+          fi
+          git commit -m "Retain fixed subthreshold control crossing"
+          git push origin HEAD:${{ github.event.pull_request.head.ref || github.ref_name }}
