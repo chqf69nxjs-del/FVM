@@ -32,6 +32,11 @@ Authoritative result:
 26 passed, 0 skipped, 0 failed, 0 errors
 ```
 
+These tests enforce the complete fixed configuration, including the phase and projection
+configs, crossing-evidence threshold, accepted-state tolerance, and every mass, momentum,
+energy, and vapor-budget tolerance. They also require the reviewed Gate P2 rule that the
+4 MPa control must finish as `NO_CROSSING_WITHIN_HORIZON` with no raw crossing.
+
 ## Generate the fixed-matrix evidence bundle
 
 ```bash
@@ -50,6 +55,9 @@ stage7_lco2_hem_pipeline_depressurization_increment2_boundary_path.csv
 stage7_lco2_hem_pipeline_depressurization_increment2.md
 stage7_lco2_hem_pipeline_depressurization_increment2.npz
 ```
+
+The JSON artifact records the entire effective fixed configuration, fixed case matrix,
+reviewed Gate P2 rule, and the explicit 4 MPa control outcome.
 
 ## Installed-CoolProp Increment 2 tests
 
@@ -74,10 +82,22 @@ These tests fix the observed outcome matrix:
 5→4 MPa: GUARD_FAILURE with retained subthreshold raw crossing
 ```
 
-They also verify all 195 boundary-path samples, zero reverse-flow fallback, exact
+They verify all 195 boundary-path samples, zero reverse-flow fallback, exact
 machine-readable observation-contract fields, complete effective configuration output,
 artifact bundle completeness, exact frozen PR #72 Case A/B signatures, and a second full
 fixed-matrix execution with exact repeatability.
+
+The repeatability comparison requires exact equality of:
+
+```text
+matrix summary
+outcome and failure reason
+step count and final time
+crossing step, time, cells, and distance
+maximum crossing quality
+final-state SHA256
+run signature SHA256
+```
 
 ## Related pre-existing Stage 7 HEM tests
 
@@ -112,7 +132,7 @@ Authoritative result:
 ## Authoritative GitHub Actions evidence
 
 ```text
-validated head:                  2bbe2ad210d45c6403aa0b9a6a097dff56b44685
+validated implementation head:   2bbe2ad210d45c6403aa0b9a6a097dff56b44685
 workflow run:                    30154880687
 artifact ID:                     8618870653
 artifact SHA256:                 7d254126a741e7d92e5ed1a2b6da94c703bbc2da91f1769d58c11deaa22b89b9
@@ -120,7 +140,7 @@ runner source Git blob:          87df463996ea68789764e11f4ce9799ec214440e
 focused test Git blob:           817cb1c8c42658481ab0babcdddc34ab7966c4a2
 ```
 
-Permanent workflow results on the validated head:
+Permanent workflow results on the validated implementation head:
 
 ```text
 CoolProp Wave Regression:                 success, run 513 / 30154880697
@@ -128,6 +148,9 @@ CoolProp Controlled Pressure Ramp:        success, run 457 / 30154880677
 CoolProp Boundary Reflection Regression:  success, run 478 / 30154880664
 CoolProp Internal Valve Regression:       success, run 333 / 30154880684
 ```
+
+Subsequent commits only update documentation and remove temporary validation machinery.
+The source and focused-test Git blobs above remain unchanged.
 
 ## Required interpretation
 
