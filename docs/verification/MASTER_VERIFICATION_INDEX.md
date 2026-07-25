@@ -7,7 +7,7 @@ Historical detail through the V-013 reference-core checkpoint is preserved in
 
 - Stage 1–6: `COMPLETE`
 - Stage 7: `IN_PROGRESS`
-- recorded development `main`: `628800530851b0cb677bc0a6bedcb85a13a303d1`
+- recorded development `main`: `9982c52bc4c26fac991972f0a8156c857e4bf21f`
 - V-013 first-order propagation/reflection baseline: `FORMALIZED; MERGED` in PR #51
 - pure-CO2 HEM thermodynamic and phase foundation: `MERGED` in PRs #54–#57
 - dynamic equilibrium-quality synchronization: `IMPLEMENTED; MERGED` in PRs #59–#60
@@ -20,11 +20,14 @@ Historical detail through the V-013 reference-core checkpoint is preserved in
 - raw first-order liquid-to-two-phase FVM crossing: `OBSERVED; MERGED` in PR #70
 - projected one-step crossing path: `OBSERVED; MERGED` in PR #71
 - first repeatable crossing Case A and matched liquid Case B: `FROZEN; MERGED` in PR #72
+- minimal LCO2 pipeline-depressurization prototype specification: `SPECIFIED; MERGED` in PR #74
+- prescribed-subcooled outlet boundary Increment 1: `IMPLEMENTED; SOFTWARE-VERIFIED; MERGED` in PR #75
+- boundary-path preflight: `195 / 195 ACCEPTED LIQUID_CANDIDATE`
 - first-order liquid-to-open-two-phase software crossing: `VERIFIED`
 - frozen Case A/B retained as the first-order crossing regression control
 - MUSCL/TVD reconstruction scaffold: `OPEN; READY FOR REVIEW` in PR #52
 - scalar-advection comparison: `VALIDATED STACKED DRAFT` in PR #53
-- active physical-model gate: narrow LCO2 pipeline-depressurization prototype specification
+- active physical-model gate: Increment 2 fixed 5→2/3/4 MPa pipeline short-run matrix
 - physical Validation: `NOT ESTABLISHED`
 - design-use acceptance: `NOT ESTABLISHED`
 - production HEM activation: `NOT APPROVED`
@@ -38,9 +41,10 @@ The merged HEM verification path now supports guarded real-fluid state evaluatio
 explicit phase classification, an equilibrium sound-speed candidate, quality projection,
 mixed liquid/open-two-phase accepted-state evaluation, direct raw transition detection,
 an actual first-order Rusanov/CFL liquid-to-open-two-phase crossing, synchronized
-post-crossing recovery, vapor-budget closure, and a repeatable matched Case A/B software
-verification pair. A pipeline-depressurization prototype and physical Validation remain
-unestablished.
+post-crossing recovery, vapor-budget closure, a repeatable matched Case A/B software
+verification pair, a fixed minimal pipeline-depressurization specification, and a verified
+prescribed-subcooled outlet boundary constructor. The pipeline FVM transient and physical
+Validation remain unestablished.
 
 ## Stage 7 milestone index
 
@@ -71,6 +75,9 @@ unestablished.
 | PR #70 | actual one-step raw FVM crossing matrix | `OBSERVED; MERGED` | merge `38e841af97ac0adbebf42dbe36a17c1edc6c5246` |
 | PR #71 | projected crossing, post-EOS recovery, and vapor budget | `OBSERVED; MERGED` | merge `ceaba980e5e7f7305424df8bd1e9e6b4f1acfe40` |
 | PR #72 | repeated first-crossing Case A/B freeze | `VERIFIED; FROZEN; MERGED` | merge `628800530851b0cb677bc0a6bedcb85a13a303d1` |
+| PR #73 | first-crossing central-record synchronization | `MERGED` | merge `3e55b3fae88d813437654c144d0157de5b6d398f` |
+| PR #74 | minimal LCO2 pipeline-depressurization prototype specification | `SPECIFIED; MERGED` | merge `49b34bf955a5dd1f0d106f2e81f55aff3bd24add` |
+| PR #75 | prescribed-subcooled outlet boundary Increment 1 | `IMPLEMENTED; SOFTWARE-VERIFIED; MERGED` | merge `9982c52bc4c26fac991972f0a8156c857e4bf21f` |
 
 ## First-order V-013 baseline
 
@@ -442,6 +449,87 @@ The Case A/B pair is the first-order software-verification regression control. I
 are environment-specific deterministic evidence, not physical-accuracy or design-use
 acceptance criteria.
 
+## Pipeline-depressurization prototype and boundary — PRs #73–#75
+
+### PR #73 — central synchronization through frozen Case A/B
+
+PR #73 synchronized the master index and execution log through PR #72. It changed only the
+two central verification documents. Merge:
+`3e55b3fae88d813437654c144d0157de5b6d398f`.
+
+### PR #74 — minimal pipeline-depressurization prototype specification
+
+PR #74 fixed the first controlled pipeline-depressurization problem:
+
+```text
+pipe length / diameter / cells: 1.0 m / 0.10 m / 32
+initial state:                  5 MPa / 5 K subcooling, u=0, q=0
+left boundary:                 reflective
+right boundary:                prescribed pressure + 5 K subcooling
+flux / CFL:                    existing first-order Rusanov / 0.10
+friction / heat / gravity:     none / none / none
+fixed outlet paths:            5→2, 5→3, and 5→4 MPa
+```
+
+The specification requires direct raw `rho/e` transition detection before projection,
+first-accepted-crossing stop, explicit endpoint/forbidden/reverse-flow/backend outcomes,
+crossing/projection cell agreement, second-projection no-op, and separate boundary and
+projection vapor accounting. It forbids tuning schedules, algorithms, or tolerances to
+manufacture a crossing.
+
+```text
+merge:                       49b34bf955a5dd1f0d106f2e81f55aff3bd24add
+validated head:              8640d6f73421ec3d4b7bf64b20e09f7445d32149
+workflow run:                30135136669
+artifact ID:                 8612546071
+artifact SHA256:             5b2e391e32b984eab82c6e5d316add05c54f9e2ecc411580523e1f4323b1b69b
+specification tests:         9 passed, 0 skipped
+frozen Case A/B tests:      14 passed, 0 skipped
+full repository:           651 passed, 0 skipped
+```
+
+### PR #75 — prescribed-subcooled outlet boundary Increment 1
+
+PR #75 implemented the boundary-construction layer without executing an FVM time step:
+
+- pressure-plus-positive-subcooling state provider using CoolProp `P,T -> rho,e`;
+- strict phase, equilibrium-quality, void-fraction, acoustic, round-trip, and mixed-EOS
+  acceptance checks;
+- right-side `outlet_only` adapter with copied adjacent interior velocity;
+- conservative ghost construction using boundary equilibrium quality, never interior quality;
+- explicit reflective fallback diagnostics for reverse flow;
+- atomic fail-fast behavior before ghost-cell mutation;
+- fixed 65-point preflight for every 5→2/3/4 MPa boundary path.
+
+Real CoolProp 8.0.0 preflight result:
+
+```text
+requested / accepted samples:       195 / 195
+LIQUID_CANDIDATE samples:           195
+q_eq = 0 / alpha = 0 samples:       195 / 195
+endpoint / open-two-phase samples:  0 / 0
+guard or backend failures:          0
+pipeline FVM time step:             not executed
+```
+
+Authoritative validation:
+
+```text
+merge:                             9982c52bc4c26fac991972f0a8156c857e4bf21f
+validated implementation head:    c94458933741866812286ea1e77bd288f7c4e0a2
+workflow run:                      30137665050
+artifact ID:                       8613415710
+artifact SHA256:                   27f43c28566868fd13ec69e207cba3c5ac12e6795627c6045ac9d28b496ef5e0
+dependency-free boundary tests:    18 passed, 0 skipped
+installed-CoolProp boundary tests:  6 passed, 0 skipped
+prototype specification tests:      9 passed, 0 skipped
+frozen Case A/B tests:              14 passed, 0 skipped
+full repository:                   675 passed, 0 skipped
+```
+
+The boundary remains a prescribed numerical boundary. It is not a finite tank, valve,
+orifice, release-rate, or external flashing model.
+
 ## Current technical conclusion
 
 The first-order verification path now demonstrates that:
@@ -460,12 +548,14 @@ The first-order verification path now demonstrates that:
 - the post-crossing mixed state is accepted, the second projection is a no-op, and vapor
   accounting closes;
 - a repeatable crossing Case A and exact matched-time all-liquid Case B are frozen;
-- the current first-order liquid-to-open-two-phase crossing path is software-verified.
+- the current first-order liquid-to-open-two-phase crossing path is software-verified;
+- the minimal 1.0 m / 32-cell pipeline-depressurization prototype is specified;
+- the right prescribed-subcooled outlet constructor and 195-sample path preflight are software-verified.
 
 The current evidence does **not** demonstrate:
 
 ```text
-pipeline depressurization:                      not implemented
+pipeline depressurization:                      boundary verified; FVM transient not executed
 longer two-phase region growth:                 not verified
 open-two-phase to vapor crossing:               not verified
 saturated-endpoint acoustic closure:            not established
@@ -498,15 +588,18 @@ numeric_accuracy_band_approved = false
 ## Next gates
 
 1. retain frozen Case A/B as the first-order crossing regression control;
-2. define a narrow pipeline-depressurization prototype before implementing it;
-3. start with one straight pipe, all-liquid initial state, one controlled depressurization
-   boundary, no friction, no heat transfer, and no internal interface;
-4. stop the first prototype at the first accepted crossing and capture the same transition,
-   projection, accepted-state, and budget evidence used by the frozen regression pair;
-5. keep saturated-endpoint landing fail-fast until endpoint acoustic closure is established;
-6. after the minimal prototype is stable, extend to short two-phase-region growth and
-   assess mesh/time-step sensitivity;
-7. retain PRs #52/#53 as later numerical-improvement assets and do not connect them until
-   the first-order pipeline prototype is stable;
-8. keep production activation, physical Validation, design use, and acoustic accuracy
+2. connect the verified PR #75 boundary constructor to the fixed PR #74 1.0 m / 32-cell
+   first-order Rusanov prototype;
+3. execute the fixed 5→2, 5→3, and 5→4 MPa short-run matrix with CFL 0.10 and no friction,
+   heat transfer, gravity, or internal interface;
+4. stop each formal run at the first accepted crossing or an explicit fail-fast outcome;
+5. retain raw transition, projection, accepted-state, second-projection, boundary transport,
+   internal projection source, and total vapor-budget evidence separately;
+6. keep saturated-endpoint landing and reverse-flow fallback fail-fast for prototype
+   acceptance;
+7. after the minimal prototype is stable, extend to short two-phase-region growth and assess
+   mesh/time-step sensitivity;
+8. retain PRs #52/#53 as later numerical-improvement assets until the first-order pipeline
+   prototype is stable;
+9. keep production activation, physical Validation, design use, and acoustic accuracy
    approval false until separately established.
