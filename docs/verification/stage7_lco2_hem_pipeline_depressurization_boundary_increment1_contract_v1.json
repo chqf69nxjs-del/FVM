@@ -1,0 +1,138 @@
+{
+  "schema_version": "stage7_lco2_hem_pipeline_boundary_increment1_contract_v1",
+  "status": "IMPLEMENTED_AND_SOFTWARE_VERIFIED",
+  "scope": "verification_only",
+  "prototype_specification": {
+    "pull_request": 74,
+    "boundary_contract": "docs/verification/stage7_lco2_hem_pipeline_depressurization_boundary_contract.md"
+  },
+  "implementation": {
+    "source": "src/liquid_gas_transient/hem_pipeline_depressurization_boundary.py",
+    "tests": "tests/test_stage7_lco2_hem_pipeline_depressurization_boundary_increment1.py",
+    "pressure_plus_subcooling_state_provider": true,
+    "right_outlet_only_adapter": true,
+    "equilibrium_quality_ghost_construction": true,
+    "fixed_65_point_path_preflight": true,
+    "fvm_time_step_exercised": false,
+    "pipeline_depressurization_executed": false
+  },
+  "thermodynamic_closure": {
+    "fluid": "CO2",
+    "property_backend": "coolprop_co2",
+    "property_backend_version": "8.0.0",
+    "property_backend_design_status": "not_approved_for_design_use",
+    "input_pair": "P,T",
+    "temperature_rule": "T_b = T_sat(P_b) - 5 K",
+    "pressure_only_real_fluid_inversion_used": false,
+    "interior_quality_copied": false,
+    "ghost_quality_source": "equilibrium_quality_from_boundary_rho_e"
+  },
+  "fixed_case_matrix": [
+    {
+      "case_id": "pipeline_crossing_candidate_p5m5_to_p2m5",
+      "initial_pressure_pa": 5000000.0,
+      "final_pressure_pa": 2000000.0,
+      "subcooling_K": 5.0,
+      "sample_count": 65,
+      "accepted_sample_count": 65,
+      "liquid_candidate_count": 65
+    },
+    {
+      "case_id": "pipeline_moderate_diagnostic_p5m5_to_p3m5",
+      "initial_pressure_pa": 5000000.0,
+      "final_pressure_pa": 3000000.0,
+      "subcooling_K": 5.0,
+      "sample_count": 65,
+      "accepted_sample_count": 65,
+      "liquid_candidate_count": 65
+    },
+    {
+      "case_id": "pipeline_liquid_control_p5m5_to_p4m5",
+      "initial_pressure_pa": 5000000.0,
+      "final_pressure_pa": 4000000.0,
+      "subcooling_K": 5.0,
+      "sample_count": 65,
+      "accepted_sample_count": 65,
+      "liquid_candidate_count": 65
+    }
+  ],
+  "preflight_result": {
+    "accepted_samples": 195,
+    "requested_samples": 195,
+    "liquid_candidate_samples": 195,
+    "compressed_or_subcooled_liquid_samples": 195,
+    "raw_liquid_samples": 195,
+    "zero_equilibrium_quality_samples": 195,
+    "zero_void_fraction_samples": 195,
+    "endpoint_samples": 0,
+    "open_two_phase_samples": 0,
+    "guard_or_backend_failures": 0,
+    "maximum_absolute_pressure_recovery_error_pa": 0.00003711879253387451,
+    "maximum_relative_pressure_recovery_error": 7.423758506774902e-12,
+    "maximum_absolute_temperature_recovery_error_K": 6.053824108676054e-11,
+    "maximum_relative_temperature_recovery_error": 2.143447935360268e-13
+  },
+  "failure_categories": [
+    "INVALID_SCHEDULE",
+    "PROPERTY_BACKEND_FAILURE",
+    "NONFINITE_OR_NONPOSITIVE_STATE",
+    "NEGATIVE_INTERNAL_ENERGY",
+    "UNSUPPORTED_PHASE_REGION",
+    "QUALITY_CONTRACT_FAILURE",
+    "ACOUSTIC_EVALUATION_FAILURE",
+    "ROUND_TRIP_MISMATCH",
+    "MIXED_EOS_REJECTION",
+    "REVERSE_FLOW_FALLBACK",
+    "INVALID_BOUNDARY_APPLICATION"
+  ],
+  "validation": {
+    "validated_implementation_head": "c94458933741866812286ea1e77bd288f7c4e0a2",
+    "workflow_run_id": 30137665050,
+    "artifact_id": 8613415710,
+    "artifact_sha256": "27f43c28566868fd13ec69e207cba3c5ac12e6795627c6045ac9d28b496ef5e0",
+    "source_git_blob": "800be5cac38a87eff513a436dd30173e73a3b664",
+    "test_git_blob": "290da95d0667c779644e69095196b52da748898b",
+    "test_suites": {
+      "dependency_free": {
+        "passed": 18,
+        "skipped": 0,
+        "failures": 0,
+        "errors": 0
+      },
+      "installed_coolprop": {
+        "passed": 6,
+        "skipped": 0,
+        "failures": 0,
+        "errors": 0
+      },
+      "prototype_specification": {
+        "passed": 9,
+        "skipped": 0,
+        "failures": 0,
+        "errors": 0
+      },
+      "frozen_case_ab": {
+        "passed": 14,
+        "skipped": 0,
+        "failures": 0,
+        "errors": 0
+      },
+      "full_repository": {
+        "passed": 675,
+        "skipped": 0,
+        "failures": 0,
+        "errors": 0
+      }
+    }
+  },
+  "approval_boundary": {
+    "verification_only": true,
+    "boundary_is_physical_tank_model": false,
+    "boundary_is_release_rate_model": false,
+    "production_default_changed": false,
+    "production_hem_activation_approved": false,
+    "physical_validation": false,
+    "design_use_acceptance": false,
+    "two_phase_acoustic_accuracy_band_approved": false
+  }
+}
