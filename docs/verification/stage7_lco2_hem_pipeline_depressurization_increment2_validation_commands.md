@@ -132,7 +132,7 @@ Authoritative result:
 ## Authoritative GitHub Actions evidence
 
 ```text
-validated implementation head:   2bbe2ad210d45c6403aa0b9a6a097dff56b44685
+validated implementation head:  2bbe2ad210d45c6403aa0b9a6a097dff56b44685
 workflow run:                    30154880687
 artifact ID:                     8618870653
 artifact SHA256:                 7d254126a741e7d92e5ed1a2b6da94c703bbc2da91f1769d58c11deaa22b89b9
