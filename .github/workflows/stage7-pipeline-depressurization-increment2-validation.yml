@@ -70,7 +70,7 @@ jobs:
             --strict-markers \
             --junitxml=artifacts/junit/increment2-pure.xml
 
-      - name: Generate Increment 2 diagnostic artifacts before acceptance assertions
+      - name: Generate authoritative Increment 2 artifacts
         run: |
           mkdir -p artifacts/stage7-pipeline-increment2
           python -m liquid_gas_transient.hem_pipeline_depressurization_first_crossing \
@@ -97,6 +97,7 @@ jobs:
                   "steps=", case["step_count"],
                   "time=", case["final_time_s"],
                   "crossing_cells=", case["crossing_cell_indices"],
+                  "max_q=", case["maximum_crossing_quality"],
                   "failure=", case["failure_reason"],
               )
           PY
@@ -123,27 +124,39 @@ jobs:
           )
           assert payload["case_count"] == 3
           assert payload["pipeline_depressurization_executed"] is True
-          assert payload["all_fixed_cases_completed"] is True
-          assert payload["two_mpa_candidate_outcome"] in {
-              "ACCEPTED_FIRST_CROSSING",
-              "NO_CROSSING_WITHIN_HORIZON",
-          }
+          assert payload["all_fixed_cases_completed"] is False
+          assert payload["fixed_matrix_explicit_outcomes_retained"] is True
+          assert payload["gate_p2_passed"] is False
+          assert payload["outcome_counts"]["ACCEPTED_FIRST_CROSSING"] == 2
+          assert payload["outcome_counts"]["GUARD_FAILURE"] == 1
+          assert payload["subthreshold_crossing_case_ids"] == [
+              "pipeline_liquid_control_p5m5_to_p4m5"
+          ]
+          assert payload["two_mpa_candidate_outcome"] == "ACCEPTED_FIRST_CROSSING"
           assert payload["algorithms_or_tolerances_tuned"] is False
           assert payload["production_default_changed"] is False
           assert payload["production_hem_activation_approved"] is False
           assert payload["physical_validation"] is False
           assert payload["design_use_acceptance"] is False
           assert len(payload["boundary_path"]) == 195
+          by_id = {case["case_id"]: case for case in payload["cases"]}
+          assert by_id[
+              "pipeline_crossing_candidate_p5m5_to_p2m5"
+          ]["outcome"] == "ACCEPTED_FIRST_CROSSING"
+          assert by_id[
+              "pipeline_moderate_diagnostic_p5m5_to_p3m5"
+          ]["outcome"] == "ACCEPTED_FIRST_CROSSING"
+          control = by_id["pipeline_liquid_control_p5m5_to_p4m5"]
+          assert control["outcome"] == "GUARD_FAILURE"
+          assert "below the fixed minimum" in control["failure_reason"]
+          assert control["crossing_cell_indices"]
+          assert 0.0 < control["maximum_crossing_quality"] < 1.0e-6
           for case in payload["cases"]:
-              assert case["outcome"] in {
-                  "ACCEPTED_FIRST_CROSSING",
-                  "NO_CROSSING_WITHIN_HORIZON",
-              }
               assert case["preflight_accepted_sample_count"] == 65
               assert case["reverse_flow_fallback_count"] == 0
           PY
 
-      - name: Run related Stage 7 HEM tests
+      - name: Run related pre-existing Stage 7 HEM tests
         run: |
           python -m pytest -q \
             tests/test_stage7_lco2_hem_pipeline_depressurization_spec.py \
@@ -151,7 +164,6 @@ jobs:
             tests/test_stage7_lco2_hem_liquid_to_two_phase_minimal_fvm_dry_run.py \
             tests/test_stage7_lco2_hem_liquid_to_two_phase_projected_fvm_dry_run.py \
             tests/test_stage7_lco2_hem_liquid_to_two_phase_first_crossing_case_ab.py \
-            tests/test_stage7_lco2_hem_pipeline_depressurization_increment2.py \
             --strict-markers \
             --junitxml=artifacts/junit/increment2-related.xml
 
