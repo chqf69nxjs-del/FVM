@@ -4,9 +4,23 @@ from types import SimpleNamespace
 
 from liquid_gas_transient.hem_pipeline_4mpa_mesh_sensitivity import MeshCaseMetrics
 from liquid_gas_transient.hem_pipeline_cfl_0p10_baseline import (
+    BASELINE_ANALYSIS_ID,
     BASELINE_CFL,
+    baseline_case_csv_rows,
     run_cfl_0p10_baseline,
 )
+
+
+TEST_PROVENANCE = {
+    "analysis_id": "stage7_pipeline_cfl_sensitivity_matrix",
+    "analysis_model": "HEM",
+    "property_backend_name": "coolprop_co2",
+    "property_backend_version": "8.0.0-test",
+    "source_git_sha": "test-source-sha",
+    "verification_only": True,
+    "design_use_acceptance": False,
+    "production_hem_activation_approved": False,
+}
 
 
 def _metric(case_id: str) -> MeshCaseMetrics:
@@ -64,9 +78,7 @@ def _metric(case_id: str) -> MeshCaseMetrics:
     )
 
 
-def test_baseline_replay_uses_only_128_cells_cfl_0p10_and_8000_steps(
-    monkeypatch,
-) -> None:
+def _fake_result(monkeypatch):
     calls: list[tuple[str, int, float, int]] = []
 
     def fake_runner(case, config):
@@ -86,19 +98,43 @@ def test_baseline_replay_uses_only_128_cells_cfl_0p10_and_8000_steps(
     )
     result = run_cfl_0p10_baseline(
         case_runner=fake_runner,
-        provenance={
-            "analysis_model": "HEM",
-            "property_backend_name": "coolprop_co2",
-            "property_backend_version": "8.0.0",
-            "source_git_sha": "test",
-        },
+        provenance=TEST_PROVENANCE,
     )
+    return result, calls
 
+
+def test_baseline_replay_uses_only_128_cells_cfl_0p10_and_8000_steps(
+    monkeypatch,
+) -> None:
+    result, calls = _fake_result(monkeypatch)
     assert BASELINE_CFL == 0.10
     assert len(result.cases) == 3
     assert [item[1:] for item in calls] == [(128, 0.10, 8000)] * 3
     summary = result.summary()
     assert summary["all_pr82_rows_reproduced_exactly"] is True
     assert summary["low_cfl_matrix_executed"] is False
-    assert summary["CFL_independent_crossing_verified"] is False
-    assert summary["Gate_P2_passed"] is False
+    assert summary["analysis_identity"] == {
+        "analysis_id": BASELINE_ANALYSIS_ID,
+        "model": "HEM",
+        "backend": "coolprop_co2",
+        "version": "8.0.0-test",
+    }
+    assert summary["design_use_acceptance"] is False
+
+
+def test_baseline_case_csv_rows_are_standalone_and_traceable(monkeypatch) -> None:
+    result, _ = _fake_result(monkeypatch)
+    rows = baseline_case_csv_rows(result)
+    assert len(rows) == 3
+    for row in rows:
+        assert row["analysis_id"] == BASELINE_ANALYSIS_ID
+        assert row["analysis_model"] == "HEM"
+        assert row["property_backend_name"] == "coolprop_co2"
+        assert row["property_backend_version"] == "8.0.0-test"
+        assert row["source_git_sha"] == "test-source-sha"
+        assert row["verification_only"] is True
+        assert row["design_use_acceptance"] is False
+        assert row["production_hem_activation_approved"] is False
+        assert row["CFL_independent_crossing_verified"] is False
+        assert row["Gate_P2_passed"] is False
+        assert row["case_id"]
