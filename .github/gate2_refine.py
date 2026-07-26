@@ -54,14 +54,19 @@ pattern = r'The HEM verification path on recorded substantive development `main`
 log, count = re.subn(pattern, expanded_support, log, count=1, flags=re.DOTALL)
 if count != 1:
     raise RuntimeError(f'expected one current-support replacement, observed {count}')
+
+current_marker = '## Current technical conclusion — 2026-07-26'
+if current_marker not in log:
+    raise RuntimeError('current technical conclusion marker not found')
+prefix, current = log.split(current_marker, 1)
 needle = 'actual_first_order_fvm_crossing_verified = true\n'
 replacement = (
     needle
     + 'case_a_frozen = true\n'
     + 'case_b_frozen = true\n'
 )
-if 'case_a_frozen = true' not in log:
-    if needle not in log:
-        raise RuntimeError('approval boundary insertion point not found')
-    log = log.replace(needle, replacement, 1)
-log_path.write_text(log, encoding='utf-8')
+if 'case_a_frozen = true' not in current:
+    if needle not in current:
+        raise RuntimeError('current approval boundary insertion point not found')
+    current = current.replace(needle, replacement, 1)
+log_path.write_text(prefix + current_marker + current, encoding='utf-8')
