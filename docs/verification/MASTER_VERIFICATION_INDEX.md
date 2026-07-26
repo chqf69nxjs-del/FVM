@@ -629,76 +629,20 @@ full repository:                   675 passed, 0 skipped
 The boundary remains a prescribed numerical boundary. It is not a finite tank, valve,
 orifice, release-rate, or external flashing model.
 
-## Current technical conclusion
+## Historical checkpoint after PR #75 — superseded
 
-The first-order verification path now demonstrates that:
+At the PR #75 checkpoint, the prescribed-subcooled outlet boundary and its 195-sample
+preflight had been software-verified, but that boundary had not yet been connected to a
+pipeline FVM time step. The former "Current technical conclusion" and "Next gates" text
+below this point described that then-current state.
 
-- a pure-CO2 `rho/e` state can be evaluated through explicit HEM guards;
-- open two-phase states can be advanced through Rusanov flux and CFL;
-- uniform and nonuniform open-two-phase behavior, projection activation, and projection
-  no-op behavior are covered;
-- liquid-side regions, endpoints, and transition events are classified directly from
-  `rho/e` independently of transported quality;
-- mixed liquid/open-two-phase accepted states recover finite positive pressure,
-  temperature, and sound speed;
-- an actual first-order FVM update produces raw liquid-to-open-two-phase transitions;
-- projection synchronizes only the crossed cells while preserving mass, momentum, and
-  total energy;
-- the post-crossing mixed state is accepted, the second projection is a no-op, and vapor
-  accounting closes;
-- a repeatable crossing Case A and exact matched-time all-liquid Case B are frozen;
-- the current first-order liquid-to-open-two-phase crossing path is software-verified;
-- the minimal 1.0 m / 32-cell pipeline-depressurization prototype is specified;
-- the right prescribed-subcooled outlet constructor and 195-sample path preflight are software-verified.
+That checkpoint is retained here only as historical context and is superseded by the
+2026-07-26 current-state block and the PR #77/#79/#82/#84 continuation record above.
+Subsequent merged work executed the fixed boundary-driven pipeline matrix, diagnosed the
+4 MPa subthreshold crossing, completed the 32/64/128-cell mesh matrix, and fixed the
+128-cell CFL contract with exact CFL 0.10 replay.
 
-The current evidence does **not** demonstrate:
-
-```text
-pipeline depressurization:                      boundary verified; FVM transient not executed
-longer two-phase region growth:                 not verified
-open-two-phase to vapor crossing:               not verified
-saturated-endpoint acoustic closure:            not established
-mesh-independent crossing time or vapor amount: not established
-two-phase acoustic accuracy band:               not approved
-production HEM activation:                      not approved
-physical Validation:                            false
-design-use acceptance:                          false
-```
-
-## Approval boundary
-
-```text
-verification_only = true
-software_verification_only = true
-property_backend_name = coolprop_co2
-property_backend_design_status = not_approved_for_design_use
-actual_first_order_fvm_crossing_verified = true
-case_a_frozen = true
-case_b_frozen = true
-algorithms_or_tolerances_tuned = false
-production_default_changed = false
-production_hem_activation_approved = false
-physical_validation = false
-design_use_acceptance = false
-two_phase_acoustic_accuracy_band_approved = false
-numeric_accuracy_band_approved = false
-```
-
-## Next gates
-
-1. retain frozen Case A/B as the first-order crossing regression control;
-2. connect the verified PR #75 boundary constructor to the fixed PR #74 1.0 m / 32-cell
-   first-order Rusanov prototype;
-3. execute the fixed 5→2, 5→3, and 5→4 MPa short-run matrix with CFL 0.10 and no friction,
-   heat transfer, gravity, or internal interface;
-4. stop each formal run at the first accepted crossing or an explicit fail-fast outcome;
-5. retain raw transition, projection, accepted-state, second-projection, boundary transport,
-   internal projection source, and total vapor-budget evidence separately;
-6. keep saturated-endpoint landing and reverse-flow fallback fail-fast for prototype
-   acceptance;
-7. after the minimal prototype is stable, extend to short two-phase-region growth and assess
-   mesh/time-step sensitivity;
-8. retain PRs #52/#53 as later numerical-improvement assets until the first-order pipeline
-   prototype is stable;
-9. keep production activation, physical Validation, design use, and acoustic accuracy
-   approval false until separately established.
+The current active operational gate is Issue #85, followed by the fixed low-CFL execution
+in Issue #86. Gate P2, mesh-independent accuracy, CFL-independent crossing, near-saturation
+acoustic continuity, post-crossing propagation, physical Validation, design use, and
+production HEM activation remain unapproved.
