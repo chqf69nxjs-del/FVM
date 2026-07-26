@@ -47,6 +47,9 @@
   },
   "windows_full_suite_rule": {
     "run_entire_repository": true,
+    "expected_main_test_count": 796,
+    "expected_pr91_test_count": 804,
+    "reference_pr91_initial_test_count": 799,
     "skips_allowed": 0,
     "unexpected_failures_or_errors_allowed": 0,
     "reviewed_exact_mismatch_count": 11,
