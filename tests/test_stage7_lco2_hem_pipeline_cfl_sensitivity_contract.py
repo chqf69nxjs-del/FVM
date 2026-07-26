@@ -27,6 +27,7 @@ from liquid_gas_transient.hem_pipeline_cfl_sensitivity import (
     HEMPipelineCflSensitivityConfig,
     HEMPipelineCflSensitivityError,
     PROPERTY_BACKEND_NAME,
+    THRESHOLD_GUARD_FAILURE_REASON,
     _assert_128_cell_cfl_0p10_baseline,
     classify_four_mpa_cfl_sequence,
     normalize_cfl_provenance,
@@ -46,6 +47,8 @@ TEST_PROVENANCE = {
     "property_backend_name": PROPERTY_BACKEND_NAME,
     "property_backend_version": "8.0.0-test",
     "source_git_sha": "test-source-sha",
+    "checkout_git_sha": "test-checkout-sha",
+    "git_status_porcelain": "",
     "verification_only": True,
     "design_use_acceptance": False,
     "production_hem_activation_approved": False,
@@ -287,6 +290,36 @@ def test_severe_outcome_returns_only_inconclusive_even_if_crossing_recorded() ->
     assert set(rationale) == {"CFL_SENSITIVITY_INCONCLUSIVE"}
 
 
+def test_non_threshold_guard_failure_returns_only_inconclusive() -> None:
+    cases = (
+        _metric(0.10),
+        _metric(
+            0.05,
+            outcome="GUARD_FAILURE",
+            failure_reason="HEMPipelineDepressurizationError: budget residual exceeded",
+        ),
+        _metric(
+            0.025,
+            crossed=False,
+            outcome="GUARD_FAILURE",
+            failure_reason="max steps",
+        ),
+    )
+    categories, _ = classify_four_mpa_cfl_sequence(cases)
+    assert categories == ("CFL_SENSITIVITY_INCONCLUSIVE",)
+
+
+def test_threshold_guard_remains_usable_crossing_evidence() -> None:
+    cases = (
+        _metric(0.10, failure_reason=THRESHOLD_GUARD_FAILURE_REASON),
+        _metric(0.05, failure_reason=THRESHOLD_GUARD_FAILURE_REASON),
+        _metric(0.025, failure_reason=THRESHOLD_GUARD_FAILURE_REASON),
+    )
+    categories, _ = classify_four_mpa_cfl_sequence(cases)
+    assert "FINITE_CROSSING_PERSISTS_ACROSS_CFL" in categories
+    assert "CFL_SENSITIVITY_INCONCLUSIVE" not in categories
+
+
 def test_matrix_orchestration_uses_exact_order_and_explicit_provenance(
     monkeypatch,
 ) -> None:
@@ -335,6 +368,14 @@ def test_injected_runner_requires_explicit_provenance() -> None:
         match="explicit backend provenance",
     ):
         run_fixed_pipeline_cfl_sensitivity_matrix(case_runner=fake_runner)
+
+
+def test_default_runner_rejects_caller_supplied_provenance() -> None:
+    with pytest.raises(
+        HEMPipelineCflSensitivityError,
+        match="actual runtime",
+    ):
+        run_fixed_pipeline_cfl_sensitivity_matrix(provenance=TEST_PROVENANCE)
 
 
 @pytest.mark.parametrize(
