@@ -1,0 +1,65 @@
+name: Gate 2 Central Record Sync Temp
+
+on:
+  push:
+    branches:
+      - agent/stage7-central-record-sync-pr77-pr84
+    paths:
+      - .github/gate2_sync.py
+
+permissions:
+  contents: write
+
+jobs:
+  synchronize:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v7
+        with:
+          ref: agent/stage7-central-record-sync-pr77-pr84
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Synchronize central records
+        run: python .github/gate2_sync.py
+      - name: Validate synchronized records
+        run: |
+          git diff --check
+          python - <<'PY'
+          from pathlib import Path
+
+          paths = [
+              Path('docs/verification/MASTER_VERIFICATION_INDEX.md'),
+              Path('docs/verification/stage7_current_gate_snapshot.md'),
+              Path('docs/verification/stage7_execution_log.md'),
+          ]
+          text = '\n'.join(path.read_text(encoding='utf-8') for path in paths)
+          for sha in (
+              '5657d26b3f37443ef63971245dce66ddd72c681e',
+              'e40562e03657dec526f84b3911cbf181973462fa',
+              '08d34069b45083537e1d5c4035993d3fc5c01de5',
+              '827d99bce97cea2785aa3334b3f5e950389c9aad',
+          ):
+              assert sha in text, sha
+          assert 'Issue #85' in text
+          assert 'Issue #86' in text
+          assert 'Gate P2' in text
+          assert 'CFL 0.05 / 0.025' in text
+          assert 'physical Validation: `NOT ESTABLISHED`' in text
+          assert 'production HEM activation: `NOT APPROVED`' in text
+          assert 'active physical-model gate: Increment 2 fixed' not in text
+          assert 'boundary verified; FVM transient not executed' not in text
+          PY
+      - name: Commit synchronized documents
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            docs/verification/MASTER_VERIFICATION_INDEX.md \
+            docs/verification/stage7_current_gate_snapshot.md \
+            docs/verification/stage7_execution_log.md
+          git commit -m 'Synchronize Stage 7 central records through PR #84'
+          git push origin HEAD:agent/stage7-central-record-sync-pr77-pr84
