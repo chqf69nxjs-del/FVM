@@ -3,31 +3,32 @@
 Historical detail through the V-013 reference-core checkpoint is preserved in
 [`archive/MASTER_VERIFICATION_INDEX_through_v013_reference_core.md`](archive/MASTER_VERIFICATION_INDEX_through_v013_reference_core.md).
 
-## Current state — 2026-07-25
+## Current state — 2026-07-26
 
 - Stage 1–6: `COMPLETE`
 - Stage 7: `IN_PROGRESS`
-- recorded development `main`: `9982c52bc4c26fac991972f0a8156c857e4bf21f`
+- recorded substantive development `main`: `827d99bce97cea2785aa3334b3f5e950389c9aad`
 - V-013 first-order propagation/reflection baseline: `FORMALIZED; MERGED` in PR #51
 - pure-CO2 HEM thermodynamic and phase foundation: `MERGED` in PRs #54–#57
 - dynamic equilibrium-quality synchronization: `IMPLEMENTED; MERGED` in PRs #59–#60
-- nonuniform open-two-phase activated case: `OBSERVED; MERGED` in PR #61
-- equal-pressure contact no-op comparison: `OBSERVED; MERGED` in PR #62
-- first liquid-to-two-phase boundary-crossing specification: `MERGED` in PR #64
-- liquid-to-two-phase boundary-region and transition classifier: `IMPLEMENTED; MERGED` in PR #65
-- mixed liquid/open-two-phase accepted-state verification EOS: `IMPLEMENTED; MERGED` in PR #67
-- liquid state-pair property survey: `VALIDATED; MERGED` in PR #68
-- raw first-order liquid-to-two-phase FVM crossing: `OBSERVED; MERGED` in PR #70
-- projected one-step crossing path: `OBSERVED; MERGED` in PR #71
-- first repeatable crossing Case A and matched liquid Case B: `FROZEN; MERGED` in PR #72
-- minimal LCO2 pipeline-depressurization prototype specification: `SPECIFIED; MERGED` in PR #74
-- prescribed-subcooled outlet boundary Increment 1: `IMPLEMENTED; SOFTWARE-VERIFIED; MERGED` in PR #75
-- boundary-path preflight: `195 / 195 ACCEPTED LIQUID_CANDIDATE`
-- first-order liquid-to-open-two-phase software crossing: `VERIFIED`
-- frozen Case A/B retained as the first-order crossing regression control
+- first repeatable liquid-to-open-two-phase crossing Case A and matched liquid Case B:
+  `FROZEN; MERGED` in PR #72
+- prescribed-subcooled outlet boundary Increment 1: `IMPLEMENTED; SOFTWARE-VERIFIED;
+  MERGED` in PR #75
+- fixed boundary-driven 5→2/3/4 MPa pipeline matrix: `OBSERVED; MERGED` in PR #77
+- fixed 4 MPa subthreshold forensic diagnosis: `OBSERVED; MERGED` in PR #79
+- fixed 32/64/128-cell mesh-sensitivity matrix at CFL 0.10: `OBSERVED; MERGED` in PR #82
+- fixed 128-cell CFL-sensitivity contract and exact CFL 0.10 replay: `IMPLEMENTED;
+  SOFTWARE-VERIFIED; MERGED` in PR #84
+- 4 MPa raw crossing: present at 32, 64, and 128 cells; accepted-crossing threshold
+  remains unchanged at `1e-6`
+- Gate P2: `FALSE`
+- mesh-independent crossing accuracy: `NOT ESTABLISHED`
+- CFL-independent crossing: `NOT VERIFIED`
+- active operational gate: local-PC reproduction checkpoint in Issue #85
+- next numerical execution gate: fixed low-CFL matrix in Issue #86 after the local checkpoint
 - MUSCL/TVD reconstruction scaffold: `OPEN; READY FOR REVIEW` in PR #52
 - scalar-advection comparison: `VALIDATED STACKED DRAFT` in PR #53
-- active physical-model gate: Increment 2 fixed 5→2/3/4 MPa pipeline short-run matrix
 - physical Validation: `NOT ESTABLISHED`
 - design-use acceptance: `NOT ESTABLISHED`
 - production HEM activation: `NOT APPROVED`
@@ -42,9 +43,12 @@ explicit phase classification, an equilibrium sound-speed candidate, quality pro
 mixed liquid/open-two-phase accepted-state evaluation, direct raw transition detection,
 an actual first-order Rusanov/CFL liquid-to-open-two-phase crossing, synchronized
 post-crossing recovery, vapor-budget closure, a repeatable matched Case A/B software
-verification pair, a fixed minimal pipeline-depressurization specification, and a verified
-prescribed-subcooled outlet boundary constructor. The pipeline FVM transient and physical
-Validation remain unestablished.
+verification pair, a fixed minimal pipeline-depressurization specification, a verified
+prescribed-subcooled outlet boundary, a boundary-driven first-crossing pipeline runner,
+a fixed 4 MPa forensic diagnosis, and a 32/64/128-cell software mesh-sensitivity matrix.
+The next CFL comparison is contract-locked and its 128-cell/CFL 0.10 baseline has been
+reproduced exactly. Physical Validation, a two-phase acoustic accuracy band, post-crossing
+propagation approval, design use, and production HEM activation remain unestablished.
 
 ## Stage 7 milestone index
 
@@ -78,6 +82,100 @@ Validation remain unestablished.
 | PR #73 | first-crossing central-record synchronization | `MERGED` | merge `3e55b3fae88d813437654c144d0157de5b6d398f` |
 | PR #74 | minimal LCO2 pipeline-depressurization prototype specification | `SPECIFIED; MERGED` | merge `49b34bf955a5dd1f0d106f2e81f55aff3bd24add` |
 | PR #75 | prescribed-subcooled outlet boundary Increment 1 | `IMPLEMENTED; SOFTWARE-VERIFIED; MERGED` | merge `9982c52bc4c26fac991972f0a8156c857e4bf21f` |
+| PR #77 | fixed boundary-driven 2/3/4 MPa pipeline matrix | `OBSERVED; MERGED` | merge `5657d26b3f37443ef63971245dce66ddd72c681e` |
+| PR #79 | fixed 4 MPa subthreshold forensic diagnosis | `OBSERVED; MERGED` | merge `e40562e03657dec526f84b3911cbf181973462fa` |
+| PR #82 | fixed 32/64/128-cell mesh sensitivity at CFL 0.10 | `OBSERVED; MERGED` | merge `08d34069b45083537e1d5c4035993d3fc5c01de5` |
+| PR #84 | fixed CFL contract and exact 128-cell/CFL 0.10 replay | `IMPLEMENTED; SOFTWARE-VERIFIED; MERGED` | merge `827d99bce97cea2785aa3334b3f5e950389c9aad` |
+
+## Boundary-driven pipeline continuation — PRs #77, #79, #82, and #84
+
+### PR #77 — fixed first-crossing pipeline matrix
+
+The fixed 1.0 m / 0.10 m / 32-cell first-order Rusanov prototype executed the unchanged
+5→2, 5→3, and 5→4 MPa schedules at CFL 0.10.
+
+| case | formal result | step | crossing time [s] | cell | outlet distance [m] | maximum q_eq |
+|---|---|---:|---:|---:|---:|---:|
+| 5→2 MPa | `ACCEPTED_FIRST_CROSSING` | 125 | `7.999325695335248e-4` | 29 | `0.078125` | `3.773646403587342e-6` |
+| 5→3 MPa | `ACCEPTED_FIRST_CROSSING` | 174 | `1.1121683091093555e-3` | 28 | `0.109375` | `1.6022773573103607e-6` |
+| 5→4 MPa | `GUARD_FAILURE` | 313 | `1.996923102525957e-3` | 25 | `0.203125` | `9.672588429198319e-9` |
+
+The 4 MPa row is a reproducible subthreshold raw crossing, not an accepted crossing and
+not an all-liquid control. Gate P2 remains false; no algorithm, schedule, or threshold was
+tuned after observing the result.
+
+### PR #79 — fixed 4 MPa forensic diagnosis
+
+The exact PR #77 baseline was reproduced before diagnosis. Retained categories:
+
+```text
+THERMODYNAMIC_TWO_PHASE_SUPPORTED
+NEAR_SATURATION_PROPERTY_SENSITIVE
+MULTI_FACTOR_EVIDENCE
+```
+
+The crossing point lies on the equilibrium two-phase side in both internal-energy and
+specific-volume coordinates. The perturbation result is `WEAKLY_RESOLVED`: the phase
+classification is stable through relative `rho/e` perturbations of `1e-8` but changes for
+some `1e-6` perturbations. The narrow last-step tests did not support direct assignment to
+Rusanov dissipation or one-sided boundary closure. Near-saturation acoustic continuity
+remains unapproved.
+
+### PR #82 — fixed mesh sensitivity at CFL 0.10
+
+The 4 MPa raw crossing persisted on all three reviewed meshes:
+
+| cells | formal result | maximum q_eq | normalized crossing time | outlet distance [m] |
+|---:|---|---:|---:|---:|
+| 32 | `GUARD_FAILURE` | `9.672588429198319e-9` | `0.9318710632753395` | `0.203125` |
+| 64 | `GUARD_FAILURE` | `5.977506779042054e-7` | `0.8590001798084317` | `0.1484375` |
+| 128 | `GUARD_FAILURE` | `3.8580990283897163e-7` | `0.8060444782479008` | `0.11328125` |
+
+Retained labels:
+
+```text
+FINITE_CROSSING_PERSISTS_ACROSS_MESHES
+CROSSING_TIME_POSITION_TREND_STABLE
+MESH_SEQUENCE_NON_MONOTONE
+```
+
+The observations do not establish a formal convergence order, a mesh-independent quality
+value, physical nucleation, or design accuracy.
+
+### PR #84 — CFL contract and exact baseline replay
+
+The next comparison is fixed at 128 cells with final pressures 2/3/4 MPa and CFL values
+0.10/0.05/0.025. Only CFL and the predeclared 8000/16000/32000 step caps may vary. The
+three CFL 0.10 rows reproduced PR #82 exactly before lower-CFL execution is allowed.
+
+```text
+validated head:               8564b97493686e06902e5fed0aeb2e117cbd662c
+contract workflow:            30191706675
+contract artifact:            8628766608
+contract artifact SHA256:     dc62c44b9844fd07ac15b564140ae1ba2cedeb1684ccaa5539d9eab77cdca8a5
+baseline workflow:            30191706654
+baseline artifact:            8629224828
+baseline artifact SHA256:     00260475d3b7630b3e77cdd3778db970e026bcfc8aab91104d283a6936d53318
+contract + baseline tests:    45 passed
+related Stage 7 regressions:  119 passed
+full repository:              796 passed
+skips / failures / errors:    0 / 0 / 0
+```
+
+The low-CFL 0.05/0.025 matrix has not been executed or accepted. Its final acceptance is
+blocked on the independent local-PC reproduction checkpoint in Issue #85; execution is
+tracked in Issue #86.
+
+```text
+Gate_P2_passed = false
+mesh_independent_crossing_verified = false
+CFL_independent_crossing_verified = false
+near_saturation_acoustic_continuity_approved = false
+post_crossing_propagation_approved = false
+physical_validation = false
+design_use_acceptance = false
+production_hem_activation_approved = false
+```
 
 ## First-order V-013 baseline
 

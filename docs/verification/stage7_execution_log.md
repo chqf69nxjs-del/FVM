@@ -759,38 +759,143 @@ failures / errors:               0 / 0
 Post-normalization permanent CoolProp Wave, Controlled Pressure Ramp, Boundary Reflection,
 and Internal Valve regressions all passed before merge.
 
-## Current technical conclusion — 2026-07-25
+## 2026-07-25 to 2026-07-26 — Boundary-driven pipeline continuation
 
-The HEM verification path on recorded development `main`
-`9982c52bc4c26fac991972f0a8156c857e4bf21f` now supports:
+### PR #77 — fixed first-crossing pipeline matrix
+
+Status: `OBSERVED; MERGED`. Merge commit:
+`5657d26b3f37443ef63971245dce66ddd72c681e`.
+
+The unchanged 1.0 m / 0.10 m / 32-cell first-order Rusanov prototype executed the fixed
+5→2, 5→3, and 5→4 MPa schedules at CFL 0.10.
+
+| case | formal result | step | crossing time [s] | cell | outlet distance [m] | maximum q_eq |
+|---|---|---:|---:|---:|---:|---:|
+| 5→2 MPa | `ACCEPTED_FIRST_CROSSING` | 125 | `7.999325695335248e-4` | 29 | `0.078125` | `3.773646403587342e-6` |
+| 5→3 MPa | `ACCEPTED_FIRST_CROSSING` | 174 | `1.1121683091093555e-3` | 28 | `0.109375` | `1.6022773573103607e-6` |
+| 5→4 MPa | `GUARD_FAILURE` | 313 | `1.996923102525957e-3` | 25 | `0.203125` | `9.672588429198319e-9` |
+
+The 4 MPa row retained the raw crossing before the fixed `1e-6` evidence check. It is not
+an accepted crossing and not an all-liquid control. Gate P2 remained false.
+
+### PR #79 — fixed 4 MPa subthreshold forensic diagnosis
+
+Status: `OBSERVED; MERGED`. Merge commit:
+`e40562e03657dec526f84b3911cbf181973462fa`.
+
+The exact PR #77 4 MPa row was reproduced before diagnosis. Retained categories:
+
+```text
+THERMODYNAMIC_TWO_PHASE_SUPPORTED
+NEAR_SATURATION_PROPERTY_SENSITIVE
+MULTI_FACTOR_EVIDENCE
+```
+
+The raw state was on the equilibrium two-phase side in both internal-energy and
+specific-volume coordinates. Perturbation classification was `WEAKLY_RESOLVED`. The narrow
+last-step tests did not retain `NUMERICAL_DIFFUSION_CONSISTENT` or
+`BOUNDARY_CLOSURE_INFLUENCE_CONSISTENT`; accumulated first-order diffusion and indirect
+boundary influence remained open questions.
+
+The equilibrium sound-speed candidate changed from approximately `461.2567 m/s` in the
+accepted liquid state to `43.2231 m/s` in the raw micro-quality two-phase state. No acoustic
+accuracy or post-crossing propagation approval was granted.
+
+### PR #82 — fixed 32/64/128-cell mesh sensitivity
+
+Status: `OBSERVED; MERGED`. Merge commit:
+`08d34069b45083537e1d5c4035993d3fc5c01de5`.
+
+The fixed 2/3/4 MPa matrix was executed at 32, 64, and 128 cells with CFL 0.10. Only cell
+count, derived `dx`, and the predeclared 2000/4000/8000 step caps varied. The 32-cell/4 MPa
+row reproduced PR #77 exactly before refined-mesh evidence was retained.
+
+4 MPa observations:
+
+| cells | formal result | maximum q_eq | normalized crossing time | outlet distance [m] |
+|---:|---|---:|---:|---:|
+| 32 | `GUARD_FAILURE` | `9.672588429198319e-9` | `0.9318710632753395` | `0.203125` |
+| 64 | `GUARD_FAILURE` | `5.977506779042054e-7` | `0.8590001798084317` | `0.1484375` |
+| 128 | `GUARD_FAILURE` | `3.8580990283897163e-7` | `0.8060444782479008` | `0.11328125` |
+
+```text
+FINITE_CROSSING_PERSISTS_ACROSS_MESHES
+CROSSING_TIME_POSITION_TREND_STABLE
+MESH_SEQUENCE_NON_MONOTONE
+```
+
+Authoritative evidence:
+
+```text
+validated implementation head: 0abb04ed052b3684ee33f1a8fad1927153701512
+workflow run:                  30182329139
+artifact ID:                   8626539673
+artifact SHA256:               70b5abb9e54f677241ac513a8c0b7dbef4e8f1edaedda91e190f7c96ab9991f2
+mesh contract tests:           28 passed
+PR #77/#79 regressions:        48 passed
+full repository:               751 passed
+skips / failures / errors:     0 / 0 / 0
+```
+
+The result did not establish formal convergence order or mesh-independent physical
+accuracy.
+
+### PR #84 — fixed CFL contract and exact CFL 0.10 replay
+
+Status: `IMPLEMENTED; SOFTWARE-VERIFIED; MERGED`. Merge commit:
+`827d99bce97cea2785aa3334b3f5e950389c9aad`.
+
+The reviewed next matrix is fixed to 128 cells, final pressures 2/3/4 MPa, CFL values
+0.10/0.05/0.025, and 8000/16000/32000 step caps. Every other PR #77/PR #82 setting is
+immutable. Severe or non-threshold guard outcomes return only
+`CFL_SENSITIVITY_INCONCLUSIVE`.
+
+The three CFL 0.10 rows reproduced PR #82 exactly. CFL 0.05 and 0.025 were not executed.
+
+```text
+validated head:               8564b97493686e06902e5fed0aeb2e117cbd662c
+contract workflow:            30191706675
+contract artifact:            8628766608
+contract artifact SHA256:     dc62c44b9844fd07ac15b564140ae1ba2cedeb1684ccaa5539d9eab77cdca8a5
+baseline workflow:            30191706654
+baseline artifact:            8629224828
+baseline artifact SHA256:     00260475d3b7630b3e77cdd3778db970e026bcfc8aab91104d283a6936d53318
+contract + baseline tests:    45 passed
+related Stage 7 regressions:  119 passed
+full repository:              796 passed
+skips / failures / errors:    0 / 0 / 0
+pre-execution checkout state: clean
+```
+
+## Current technical conclusion — 2026-07-26
+
+The HEM verification path on recorded substantive development `main`
+`827d99bce97cea2785aa3334b3f5e950389c9aad` now supports:
 
 - guarded pure-CO2 `rho/e` thermodynamic evaluation;
-- explicit phase classification and boundary-region transition detection;
-- an independently defined equilibrium sound-speed candidate;
-- first-order Rusanov/CFL operation on liquid and open-two-phase accepted states;
-- exact uniform open-two-phase preservation;
-- dynamic transported/equilibrium-quality synchronization;
-- projection activation and true no-op behavior;
-- mixed liquid/open-two-phase accepted-state recovery;
-- actual raw liquid-to-open-two-phase crossing from an all-liquid initial state;
-- post-crossing projection, EOS recovery, second-projection no-op, and vapor-budget closure;
-- a deterministic repeated Case A crossing and exact matched-time all-liquid Case B;
-- a frozen first-order software-regression pair for liquid-to-open-two-phase crossing;
-- a fixed minimal 1.0 m / 32-cell pipeline-depressurization specification;
-- a software-verified prescribed-subcooled outlet constructor and 195-sample boundary preflight.
+- explicit phase classification and raw boundary-region transition detection;
+- dynamic transported/equilibrium-quality synchronization and mixed-phase EOS recovery;
+- actual first-order liquid-to-open-two-phase crossing and frozen Case A/B regressions;
+- a prescribed-subcooled outlet with 195/195 accepted boundary preflight samples;
+- a fixed boundary-driven 2/3/4 MPa pipeline first-crossing matrix;
+- a fixed 4 MPa forensic diagnosis retaining the raw observation without threshold tuning;
+- a fixed 32/64/128-cell mesh-sensitivity matrix at CFL 0.10;
+- a fixed 128-cell CFL contract with exact CFL 0.10 baseline replay and traceable artifacts.
 
 The current evidence does not support the following claims:
 
 ```text
-pipeline depressurization:                      boundary verified; FVM transient not executed
-longer two-phase region growth:                 not verified
-open-two-phase to vapor crossing:               not verified
-saturated-endpoint acoustic closure:            not established
-mesh-independent crossing time or vapor amount: not established
-two-phase acoustic accuracy band:               not approved
-production HEM activation:                      not approved
-physical Validation:                            false
-design-use acceptance:                          false
+Gate P2:                                      false
+all-liquid 4 MPa control:                     false
+formal mesh-independent accuracy:             not established
+CFL-independent crossing:                     not verified
+CFL 0.05 / 0.025 matrix:                      not executed / not accepted
+near-saturation acoustic continuity:          not approved
+post-crossing propagation:                    not approved
+open-two-phase to vapor crossing:             not verified
+physical Validation:                          false
+design-use acceptance:                        false
+production HEM activation:                    false
 ```
 
 ## Approval boundary
@@ -801,31 +906,34 @@ software_verification_only = true
 property_backend_name = coolprop_co2
 property_backend_design_status = not_approved_for_design_use
 actual_first_order_fvm_crossing_verified = true
-case_a_frozen = true
-case_b_frozen = true
+boundary_driven_pipeline_first_crossing_observed = true
+four_mpa_subthreshold_crossing_observed = true
+mesh_sensitivity_executed = true
+mesh_independent_crossing_verified = false
+cfl_contract_implemented = true
+cfl_0p10_baseline_reproduced_exactly = true
+low_cfl_matrix_executed = false
+CFL_independent_crossing_verified = false
+local_pc_reproduction_checkpoint_completed = false
 algorithms_or_tolerances_tuned = false
 production_default_changed = false
 production_hem_activation_approved = false
 physical_validation = false
 design_use_acceptance = false
 two_phase_acoustic_accuracy_band_approved = false
+post_crossing_propagation_approved = false
 numeric_accuracy_band_approved = false
 ```
 
 ## Next
 
-1. retain frozen Case A/B as the first-order crossing regression control;
-2. connect the verified PR #75 boundary to the fixed PR #74 1.0 m / 32-cell first-order
-   Rusanov prototype;
-3. run the fixed 5→2, 5→3, and 5→4 MPa matrix with CFL 0.10 and no friction, heat transfer,
-   gravity, or internal interface;
-4. stop on the first accepted crossing or an explicit endpoint, forbidden-transition,
-   reverse-flow, guard, backend, or no-crossing-within-horizon outcome;
-5. retain raw transition, projection, accepted-state, second-projection, boundary vapor
-   transport, internal projection source, and total budget evidence separately;
-6. only after the minimal prototype is stable, extend to short two-phase-region growth and
-   assess mesh and time-step sensitivity;
-7. retain PRs #52/#53 as later numerical-improvement assets until the first-order pipeline
-   prototype is stable;
-8. keep production activation, physical Validation, design use, and acoustic accuracy
-   approval false until separately established.
+1. complete the local-PC reproduction checkpoint in Issue #85 and classify it as `EXACT`,
+   `NUMERICALLY_EQUIVALENT`, or `INVESTIGATION_REQUIRED`;
+2. only after the checkpoint is completed or explicitly dispositioned, execute and accept
+   the fixed 128-cell 2/3/4 MPa × CFL 0.10/0.05/0.025 matrix in Issue #86;
+3. retain PRs #52/#53 as later numerical-improvement assets until the first-order temporal
+   and near-saturation acoustic questions are separated;
+4. perform the independent near-saturation acoustic-continuity gate before approving any
+   post-crossing propagation;
+5. keep production activation, physical Validation, design use, and acoustic/numerical
+   accuracy approval false until separately established.

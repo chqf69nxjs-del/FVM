@@ -1,84 +1,119 @@
 # Stage 7 Current Gate Snapshot
 
-## Status — 2026-07-25
+## Status — 2026-07-26
 
 ```text
 Stage 1–6:                         COMPLETE
 Stage 7:                           IN_PROGRESS
-recorded development main:         e40562e03657dec526f84b3911cbf181973462fa
+recorded substantive main:         827d99bce97cea2785aa3334b3f5e950389c9aad
 pipeline Increment 2:              MERGED in PR #77
 fixed 4 MPa forensic diagnostic:   MERGED in PR #79
+mesh sensitivity at CFL 0.10:      MERGED in PR #82
+CFL contract / 0.10 replay:        MERGED in PR #84
 Gate P2:                           FALSE
-active next gate:                  32/64/128-cell mesh sensitivity at CFL 0.10
+active operational gate:           local-PC reproduction checkpoint — Issue #85
+next numerical execution gate:     fixed low-CFL matrix — Issue #86
 physical Validation:               NOT ESTABLISHED
 design-use acceptance:             NOT ESTABLISHED
 production HEM activation:         NOT APPROVED
 two-phase acoustic accuracy band:  NOT APPROVED
+post-crossing propagation:         NOT APPROVED
 ```
 
-This snapshot is the current continuation record after the existing
-[`MASTER_VERIFICATION_INDEX.md`](MASTER_VERIFICATION_INDEX.md) and
-[`stage7_execution_log.md`](stage7_execution_log.md). Detailed PR #77/#79 evidence is
-recorded in
-[`stage7_pipeline_increment2_and_forensics_central_record.md`](stage7_pipeline_increment2_and_forensics_central_record.md).
+This snapshot supersedes the earlier pre-mesh continuation state. Detailed historic
+entries remain in [`MASTER_VERIFICATION_INDEX.md`](MASTER_VERIFICATION_INDEX.md) and
+[`stage7_execution_log.md`](stage7_execution_log.md).
 
-## Merged pipeline observation — PR #77
+## PR #77 — merged fixed pipeline matrix
 
-The fixed 1.0 m / 0.10 m / 32-cell, first-order Rusanov prototype executed the unchanged
-5→2, 5→3, and 5→4 MPa matrix at CFL 0.10.
-
-| case | formal result | crossing step | crossing time [s] | cell | outlet distance [m] | maximum q_eq |
+| case | formal result | step | crossing time [s] | cell | outlet distance [m] | maximum q_eq |
 |---|---|---:|---:|---:|---:|---:|
 | 5→2 MPa | `ACCEPTED_FIRST_CROSSING` | 125 | `7.999325695335248e-4` | 29 | `0.078125` | `3.773646403587342e-6` |
 | 5→3 MPa | `ACCEPTED_FIRST_CROSSING` | 174 | `1.1121683091093555e-3` | 28 | `0.109375` | `1.6022773573103607e-6` |
 | 5→4 MPa | `GUARD_FAILURE` | 313 | `1.996923102525957e-3` | 25 | `0.203125` | `9.672588429198319e-9` |
 
-The 4 MPa observation is neither an accepted crossing nor an all-liquid control. It is a
-reproducible subthreshold raw liquid-to-two-phase crossing. The fixed case, algorithm, and
-`1e-6` accepted-crossing evidence threshold were not tuned.
+The 4 MPa observation is a reproducible subthreshold raw crossing. It is neither an
+accepted crossing nor an all-liquid control. The fixed `1e-6` evidence threshold and the
+physical/numerical contract were not tuned.
 
-## Merged fixed-case diagnosis — PR #79
-
-The exact PR #77 4 MPa baseline was reproduced before diagnosis. The retained categories are:
+## PR #79 — merged fixed-case diagnosis
 
 ```text
 THERMODYNAMIC_TWO_PHASE_SUPPORTED
 NEAR_SATURATION_PROPERTY_SENSITIVE
 MULTI_FACTOR_EVIDENCE
+perturbation classification = WEAKLY_RESOLVED
 ```
 
-The raw crossing point is independently on the equilibrium two-phase side in both
-internal-energy and specific-volume coordinates. The perturbation classification is
-`WEAKLY_RESOLVED`: no phase-region change occurs through relative `rho/e` perturbations of
-`1e-8`, while some `1e-6` perturbations return to the liquid side.
+The raw point is independently on the equilibrium two-phase side in internal-energy and
+specific-volume coordinates. Last-step evidence did not support direct attribution to
+Rusanov dissipation or one-sided boundary closure. The equilibrium sound-speed candidate
+changed from about `461.26 m/s` before crossing to about `43.22 m/s` after the micro-quality
+crossing; acoustic continuity and physical accuracy remain unapproved.
 
-The narrow last-step criteria did not trigger:
+## PR #82 — merged mesh sensitivity
+
+The 4 MPa raw crossing persisted at CFL 0.10:
+
+| cells | maximum q_eq | normalized crossing time | outlet distance [m] |
+|---:|---:|---:|---:|
+| 32 | `9.672588429198319e-9` | `0.9318710632753395` | `0.203125` |
+| 64 | `5.977506779042054e-7` | `0.8590001798084317` | `0.1484375` |
+| 128 | `3.8580990283897163e-7` | `0.8060444782479008` | `0.11328125` |
 
 ```text
-NUMERICAL_DIFFUSION_CONSISTENT
-BOUNDARY_CLOSURE_INFLUENCE_CONSISTENT
+FINITE_CROSSING_PERSISTS_ACROSS_MESHES
+CROSSING_TIME_POSITION_TREND_STABLE
+MESH_SEQUENCE_NON_MONOTONE
 ```
 
-This does not rule out accumulated first-order diffusion over earlier steps or indirect
-boundary influence. Those questions require separate sensitivity studies.
+The crossing exists on all three reviewed meshes, but crossing depth is non-monotone.
+Formal convergence order and mesh-independent physical accuracy are not established.
 
-## Acoustic caution
+## PR #84 — merged CFL contract and exact replay
 
-At the micro-quality crossing, the equilibrium sound-speed candidate changed from
-approximately `461.2567 m/s` in the accepted liquid state to `43.2231 m/s` in the raw
-two-phase state. Near-saturation acoustic continuity and physical accuracy remain
-unapproved. Post-crossing propagation is not yet an accepted capability.
+```text
+fixed cells:                    128
+fixed final pressures:          2 / 3 / 4 MPa
+reviewed CFL values:            0.10 / 0.05 / 0.025
+reviewed step caps:             8000 / 16000 / 32000
+CFL 0.10 baseline rows:         exact PR #82 replay
+CFL 0.05 / 0.025:               not executed / not accepted
+```
+
+Authoritative evidence:
+
+```text
+validated head:                 8564b97493686e06902e5fed0aeb2e117cbd662c
+contract workflow / artifact:   30191706675 / 8628766608
+contract artifact SHA256:       dc62c44b9844fd07ac15b564140ae1ba2cedeb1684ccaa5539d9eab77cdca8a5
+baseline workflow / artifact:   30191706654 / 8629224828
+baseline artifact SHA256:       00260475d3b7630b3e77cdd3778db970e026bcfc8aab91104d283a6936d53318
+contract + baseline tests:      45 passed
+related Stage 7 regressions:    119 passed
+full repository:                796 passed
+skips / failures / errors:      0 / 0 / 0
+pre-execution checkout state:   clean
+```
 
 ## Active next gate
 
-The next reviewed increment is
-[`stage7_lco2_hem_pipeline_4mpa_mesh_sensitivity_plan.md`](stage7_lco2_hem_pipeline_4mpa_mesh_sensitivity_plan.md).
-It keeps CFL at 0.10 and compares 32, 64, and 128 cells without changing the fixed pressure
-schedules, HEM classification/projection settings, or evidence threshold.
+Issue #85 is the manual local-PC checkpoint. It must record the local OS/WSL, Python,
+NumPy, CoolProp, Git SHA, working-tree state, focused regressions, exact CFL 0.10 replay,
+and full-suite result as `EXACT`, `NUMERICALLY_EQUIVALENT`, or
+`INVESTIGATION_REQUIRED`.
+
+Issue #86 then executes the fixed nine-run low-CFL matrix. CI preparation may proceed, but
+its final sensitivity conclusion must not be accepted into the central record before Issue
+#85 is completed or explicitly dispositioned.
 
 ```text
 mesh-independent crossing verified = false
-CFL sensitivity completed = false
+CFL-independent crossing verified = false
 near-saturation acoustic continuity approved = false
+post-crossing propagation approved = false
 Gate P2 passed = false
+physical Validation = false
+design-use acceptance = false
+production HEM activation = false
 ```
