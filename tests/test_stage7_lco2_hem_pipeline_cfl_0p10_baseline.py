@@ -17,6 +17,8 @@ TEST_PROVENANCE = {
     "property_backend_name": "coolprop_co2",
     "property_backend_version": "8.0.0-test",
     "source_git_sha": "test-source-sha",
+    "checkout_git_sha": "test-checkout-sha",
+    "git_status_porcelain": " M tracked-file.py",
     "verification_only": True,
     "design_use_acceptance": False,
     "production_hem_activation_approved": False,
@@ -132,6 +134,10 @@ def test_baseline_case_csv_rows_are_standalone_and_traceable(monkeypatch) -> Non
         assert row["property_backend_name"] == "coolprop_co2"
         assert row["property_backend_version"] == "8.0.0-test"
         assert row["source_git_sha"] == "test-source-sha"
+        assert row["checkout_git_sha"] == "test-checkout-sha"
+        assert row["git_status_porcelain"] == " M tracked-file.py"
+        assert row["checkout_is_clean"] is False
+        assert row["source_checkout_match"] is False
         assert row["verification_only"] is True
         assert row["design_use_acceptance"] is False
         assert row["production_hem_activation_approved"] is False
