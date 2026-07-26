@@ -1,0 +1,39 @@
+name: Gate 2 Central Record Refine Temp
+
+on:
+  push:
+    branches:
+      - agent/stage7-central-record-sync-pr77-pr84
+    paths:
+      - .github/gate2_refine.py
+
+permissions:
+  contents: write
+
+jobs:
+  refine:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: agent/stage7-central-record-sync-pr77-pr84
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Refine synchronized records
+        run: python .github/gate2_refine.py
+      - name: Validate
+        run: |
+          git diff --check
+          grep -q 'case_a_frozen = true' docs/verification/stage7_execution_log.md
+          grep -q 'case_b_frozen = true' docs/verification/stage7_execution_log.md
+          grep -q 'exact uniform open-two-phase preservation' docs/verification/stage7_execution_log.md
+          grep -q 'boundary-path preflight: `195 / 195 ACCEPTED LIQUID_CANDIDATE`' docs/verification/MASTER_VERIFICATION_INDEX.md
+      - name: Commit
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add docs/verification/MASTER_VERIFICATION_INDEX.md docs/verification/stage7_execution_log.md
+          git commit -m 'Preserve established Stage 7 verification facts in central sync'
+          git push origin HEAD:agent/stage7-central-record-sync-pr77-pr84
