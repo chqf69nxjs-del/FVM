@@ -20,6 +20,7 @@ from .hem_pipeline_cfl_sensitivity import (
     CFL_CELL_COUNT,
     EXPECTED_128_CELL_CFL_0P10,
     HEMPipelineCflSensitivityConfig,
+    HEMPipelineCflSensitivityError,
     PROPERTY_BACKEND_NAME,
     _assert_128_cell_cfl_0p10_baseline,
     collect_cfl_runtime_provenance,
@@ -53,13 +54,18 @@ def _baseline_provenance(
     *,
     case_runner: CflBaselineRunner,
 ) -> dict[str, object]:
-    if provenance is None:
-        if case_runner is not run_pipeline_depressurization_case:
+    if case_runner is run_pipeline_depressurization_case:
+        if provenance is not None:
             raise HEMPipelineCflBaselineError(
-                "an injected baseline case_runner requires explicit backend provenance"
+                "default baseline provenance is collected from the actual runtime; "
+                "caller-supplied provenance is only valid for injected runners"
             )
         raw = collect_cfl_runtime_provenance()
     else:
+        if provenance is None:
+            raise HEMPipelineCflBaselineError(
+                "an injected baseline case_runner requires explicit backend provenance"
+            )
         raw = normalize_cfl_provenance(provenance)
     result = dict(raw)
     result["parent_analysis_id"] = result.get("analysis_id", CFL_ANALYSIS_ID)
@@ -149,12 +155,25 @@ def baseline_case_csv_rows(
     """Return standalone CSV rows with backend and approval provenance embedded."""
 
     provenance = result.provenance
+    required_checkout = ("checkout_git_sha", "git_status_porcelain")
+    missing = [key for key in required_checkout if key not in provenance]
+    if missing:
+        raise HEMPipelineCflBaselineError(
+            f"standalone baseline CSV provenance is missing fields: {missing}"
+        )
+    source_sha = str(provenance["source_git_sha"])
+    checkout_sha = str(provenance["checkout_git_sha"])
+    dirty_state = str(provenance["git_status_porcelain"])
     prefix = {
         "analysis_id": provenance["analysis_id"],
         "analysis_model": provenance["analysis_model"],
         "property_backend_name": provenance["property_backend_name"],
         "property_backend_version": provenance["property_backend_version"],
-        "source_git_sha": provenance["source_git_sha"],
+        "source_git_sha": source_sha,
+        "checkout_git_sha": checkout_sha,
+        "git_status_porcelain": dirty_state,
+        "checkout_is_clean": dirty_state == "",
+        "source_checkout_match": source_sha == checkout_sha,
         "verification_only": True,
         "design_use_acceptance": False,
         "production_hem_activation_approved": False,
