@@ -9,6 +9,7 @@ on:
 
 env:
   PYTHONPATH: src
+  PYTHONDONTWRITEBYTECODE: '1'
   MPLBACKEND: Agg
   ANALYSIS_SOURCE_GIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
