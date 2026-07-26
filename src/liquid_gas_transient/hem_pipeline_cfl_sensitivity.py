@@ -34,6 +34,10 @@ FOUR_MPA_CASE_ID = "pipeline_liquid_control_p5m5_to_p4m5"
 CFL_ANALYSIS_ID = "stage7_pipeline_cfl_sensitivity_matrix"
 ANALYSIS_MODEL = "HEM"
 PROPERTY_BACKEND_NAME = "coolprop_co2"
+THRESHOLD_GUARD_FAILURE_REASON = (
+    "HEMPipelineDepressurizationError: "
+    "crossing quality evidence is below the fixed minimum"
+)
 
 CflClassification = Literal[
     "CROSSING_VANISHES_WITH_SMALLER_CFL",
@@ -419,19 +423,31 @@ def classify_four_mpa_cfl_sequence(
             },
         )
 
-    severe = {
-        "ENDPOINT_LANDING",
-        "FORBIDDEN_TRANSITION",
-        "REVERSE_FLOW_GUARD",
-        "BACKEND_FAILURE",
+    allowed_outcomes = {
+        "ACCEPTED_FIRST_CROSSING",
+        "NO_CROSSING_WITHIN_HORIZON",
+        "GUARD_FAILURE",
     }
-    if any(case.outcome in severe for case in control):
+    unusable = [
+        case
+        for case in control
+        if case.outcome not in allowed_outcomes
+        or (
+            case.outcome == "GUARD_FAILURE"
+            and (
+                case.failure_reason != THRESHOLD_GUARD_FAILURE_REASON
+                or not case.raw_crossing_observed
+            )
+        )
+    ]
+    if unusable:
         return (
             ("CFL_SENSITIVITY_INCONCLUSIVE",),
             {
                 "CFL_SENSITIVITY_INCONCLUSIVE": (
                     "At least one 4 MPa CFL row ended in an endpoint, forbidden, "
-                    "reverse-flow, or backend outcome; no trend classification is valid."
+                    "reverse-flow, backend, or non-threshold guard outcome; no trend "
+                    "classification is valid."
                 )
             },
         )
@@ -439,7 +455,11 @@ def classify_four_mpa_cfl_sequence(
     categories: list[CflClassification] = []
     rationale: dict[str, str] = {}
     crossed = [case.raw_crossing_observed for case in control]
-    if crossed[0] and not crossed[-1]:
+    if (
+        crossed[0]
+        and not crossed[-1]
+        and control[-1].outcome == "NO_CROSSING_WITHIN_HORIZON"
+    ):
         categories.append("CROSSING_VANISHES_WITH_SMALLER_CFL")
         rationale["CROSSING_VANISHES_WITH_SMALLER_CFL"] = (
             "The CFL 0.10 row crosses while CFL 0.025 remains liquid through "
@@ -579,13 +599,18 @@ def run_fixed_pipeline_cfl_sensitivity_matrix(
 ) -> HEMPipelineCflSensitivityResult:
     """Run the fixed nine-run CFL matrix with no result-dependent tuning."""
 
-    if provenance is None:
-        if case_runner is not run_pipeline_depressurization_case:
+    if case_runner is run_pipeline_depressurization_case:
+        if provenance is not None:
             raise HEMPipelineCflSensitivityError(
-                "an injected case_runner requires explicit backend provenance"
+                "default-runner provenance is collected from the actual runtime; "
+                "caller-supplied provenance is only valid for injected runners"
             )
         resolved_provenance = collect_cfl_runtime_provenance()
     else:
+        if provenance is None:
+            raise HEMPipelineCflSensitivityError(
+                "an injected case_runner requires explicit backend provenance"
+            )
         resolved_provenance = normalize_cfl_provenance(provenance)
 
     metrics: list[MeshCaseMetrics] = []
