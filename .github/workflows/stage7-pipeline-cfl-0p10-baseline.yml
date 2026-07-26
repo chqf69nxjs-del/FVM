@@ -101,6 +101,17 @@ jobs:
               assert row['property_backend_name'] == identity['backend']
               assert row['property_backend_version'] == identity['version']
               assert row['source_git_sha'] == provenance['source_git_sha']
+              assert row['checkout_git_sha'] == str(provenance['checkout_git_sha'])
+              assert row['git_status_porcelain'] == str(
+                  provenance['git_status_porcelain']
+              )
+              expected_clean = str(provenance['git_status_porcelain']) == ''
+              expected_match = (
+                  str(provenance['source_git_sha'])
+                  == str(provenance['checkout_git_sha'])
+              )
+              assert row['checkout_is_clean'] == str(expected_clean)
+              assert row['source_checkout_match'] == str(expected_match)
               assert row['verification_only'] == 'True'
               assert row['design_use_acceptance'] == 'False'
               assert row['production_hem_activation_approved'] == 'False'
