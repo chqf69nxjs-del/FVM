@@ -12,8 +12,6 @@ env:
   PYTHONDONTWRITEBYTECODE: '1'
   MPLBACKEND: Agg
   ANALYSIS_SOURCE_GIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-  GATE3_OUTPUT_DIR: ${{ runner.temp }}/stage7-gate3-numeric-reference
-  GATE3_JUNIT_XML: ${{ runner.temp }}/gate3-numeric-capture.xml
 
 jobs:
   capture-gate3-reference:
@@ -55,7 +53,7 @@ jobs:
       - name: Capture raw 128-cell CFL 0.10 histories
         run: |
           python -m liquid_gas_transient.hem_pipeline_gate3_numeric_capture \
-            --output-dir "$GATE3_OUTPUT_DIR"
+            --output-dir "$RUNNER_TEMP/stage7-gate3-numeric-reference"
 
       - name: Inspect diagnostic boundaries and Ubuntu exact identity
         run: |
@@ -64,7 +62,7 @@ jobs:
           import os
           from pathlib import Path
 
-          target = Path(os.environ['GATE3_OUTPUT_DIR'])
+          target = Path(os.environ['RUNNER_TEMP']) / 'stage7-gate3-numeric-reference'
           summary = json.loads(
               (target / 'gate3_numeric_capture_summary.json').read_text(
                   encoding='utf-8'
@@ -103,7 +101,7 @@ jobs:
           python -m pytest -q \
             tests/test_stage7_lco2_hem_pipeline_gate3_numeric_capture.py \
             --strict-markers \
-            --junitxml="$GATE3_JUNIT_XML"
+            --junitxml="$RUNNER_TEMP/gate3-numeric-capture.xml"
           git diff --check
 
       - name: Upload Gate 3 numeric reference
@@ -112,6 +110,6 @@ jobs:
         with:
           name: stage7-gate3-numeric-reference-${{ github.run_id }}
           path: |
-            ${{ env.GATE3_OUTPUT_DIR }}
-            ${{ env.GATE3_JUNIT_XML }}
+            ${{ runner.temp }}/stage7-gate3-numeric-reference
+            ${{ runner.temp }}/gate3-numeric-capture.xml
           if-no-files-found: error
