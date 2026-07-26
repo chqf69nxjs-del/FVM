@@ -23,11 +23,10 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - name: Install dependencies
+      - name: Install runtime dependencies without modifying the checkout
         run: |
-          python -m pip install --upgrade pip setuptools wheel
-          python -m pip install -e '.[plotting]'
-          python -m pip install pytest 'CoolProp==8.0.0'
+          python -m pip install --upgrade pip
+          python -m pip install numpy matplotlib pytest 'CoolProp==8.0.0'
       - name: Smoke check
         run: |
           python - <<'PY'
@@ -35,17 +34,12 @@ jobs:
           print('CoolProp', CoolProp.__version__)
           print('NumPy', numpy.__version__)
           PY
-      - name: Compile and diff checks
+      - name: Assert pristine checkout before numerical execution
         run: |
-          python -m compileall -q src tests
-          git diff --check
-      - name: Run dependency-free CFL contract and baseline tests
-        run: |
-          python -m pytest -q \
-            tests/test_stage7_lco2_hem_pipeline_cfl_sensitivity_contract.py \
-            tests/test_stage7_lco2_hem_pipeline_cfl_0p10_baseline.py \
-            --strict-markers \
-            --junitxml=cfl-baseline-pure.xml
+          echo "checkout_sha=$(git rev-parse HEAD)"
+          status="$(git status --porcelain=v1 --untracked-files=all)"
+          printf 'pre_execution_git_status=%s\n' "$status"
+          test -z "$status"
       - name: Replay exact PR82 128-cell CFL 0.10 baseline
         run: |
           python -m liquid_gas_transient.hem_pipeline_cfl_0p10_baseline \
@@ -86,6 +80,7 @@ jobs:
           assert provenance['property_backend_version'] == '8.0.0'
           assert provenance['source_git_sha'] == os.environ['ANALYSIS_SOURCE_GIT_SHA']
           assert provenance['checkout_git_sha']
+          assert provenance['git_status_porcelain'] == ''
           assert provenance['verification_only'] is True
           assert provenance['design_use_acceptance'] is False
           assert provenance['production_hem_activation_approved'] is False
@@ -102,15 +97,12 @@ jobs:
               assert row['property_backend_version'] == identity['version']
               assert row['source_git_sha'] == provenance['source_git_sha']
               assert row['checkout_git_sha'] == str(provenance['checkout_git_sha'])
-              assert row['git_status_porcelain'] == str(
-                  provenance['git_status_porcelain']
-              )
-              expected_clean = str(provenance['git_status_porcelain']) == ''
+              assert row['git_status_porcelain'] == ''
+              assert row['checkout_is_clean'] == 'True'
               expected_match = (
                   str(provenance['source_git_sha'])
                   == str(provenance['checkout_git_sha'])
               )
-              assert row['checkout_is_clean'] == str(expected_clean)
               assert row['source_checkout_match'] == str(expected_match)
               assert row['verification_only'] == 'True'
               assert row['design_use_acceptance'] == 'False'
@@ -118,6 +110,17 @@ jobs:
               assert row['CFL_independent_crossing_verified'] == 'False'
               assert row['Gate_P2_passed'] == 'False'
           PY
+      - name: Compile and diff checks
+        run: |
+          python -m compileall -q src tests
+          git diff --check
+      - name: Run dependency-free CFL contract and baseline tests
+        run: |
+          python -m pytest -q \
+            tests/test_stage7_lco2_hem_pipeline_cfl_sensitivity_contract.py \
+            tests/test_stage7_lco2_hem_pipeline_cfl_0p10_baseline.py \
+            --strict-markers \
+            --junitxml=cfl-baseline-pure.xml
       - name: Run PR77, PR79, PR82, and CFL contract regressions
         run: |
           python -m pytest -q \
