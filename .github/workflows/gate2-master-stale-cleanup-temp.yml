@@ -6,6 +6,13 @@ on:
       - agent/stage7-central-record-sync-pr77-pr84
     paths:
       - .github/gate2_master_cleanup.py
+      - .github/workflows/gate2-master-stale-cleanup-temp.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/gate2_master_cleanup.py
+      - .github/workflows/gate2-master-stale-cleanup-temp.yml
 
 permissions:
   contents: write
