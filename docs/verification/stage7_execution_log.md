@@ -874,8 +874,16 @@ The HEM verification path on recorded substantive development `main`
 
 - guarded pure-CO2 `rho/e` thermodynamic evaluation;
 - explicit phase classification and raw boundary-region transition detection;
-- dynamic transported/equilibrium-quality synchronization and mixed-phase EOS recovery;
-- actual first-order liquid-to-open-two-phase crossing and frozen Case A/B regressions;
+- an independently defined equilibrium sound-speed candidate;
+- first-order Rusanov/CFL operation on liquid and open-two-phase accepted states;
+- exact uniform open-two-phase preservation;
+- dynamic transported/equilibrium-quality synchronization;
+- projection activation and true no-op behavior;
+- mixed liquid/open-two-phase accepted-state recovery;
+- actual raw liquid-to-open-two-phase crossing from an all-liquid initial state;
+- post-crossing projection, EOS recovery, second-projection no-op, and vapor-budget closure;
+- deterministic repeated Case A crossing and exact matched-time all-liquid Case B;
+- frozen first-order Case A/B software-regression controls;
 - a prescribed-subcooled outlet with 195/195 accepted boundary preflight samples;
 - a fixed boundary-driven 2/3/4 MPa pipeline first-crossing matrix;
 - a fixed 4 MPa forensic diagnosis retaining the raw observation without threshold tuning;

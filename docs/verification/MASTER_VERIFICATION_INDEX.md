@@ -13,13 +13,14 @@ Historical detail through the V-013 reference-core checkpoint is preserved in
 - dynamic equilibrium-quality synchronization: `IMPLEMENTED; MERGED` in PRs #59–#60
 - first repeatable liquid-to-open-two-phase crossing Case A and matched liquid Case B:
   `FROZEN; MERGED` in PR #72
-- prescribed-subcooled outlet boundary Increment 1: `IMPLEMENTED; SOFTWARE-VERIFIED;
-  MERGED` in PR #75
+- prescribed-subcooled outlet boundary Increment 1: `IMPLEMENTED; SOFTWARE-VERIFIED; MERGED` in PR #75
+- boundary-path preflight: `195 / 195 ACCEPTED LIQUID_CANDIDATE`
+- first-order liquid-to-open-two-phase software crossing: `VERIFIED`
+- frozen Case A/B retained as the first-order crossing regression control
 - fixed boundary-driven 5→2/3/4 MPa pipeline matrix: `OBSERVED; MERGED` in PR #77
 - fixed 4 MPa subthreshold forensic diagnosis: `OBSERVED; MERGED` in PR #79
 - fixed 32/64/128-cell mesh-sensitivity matrix at CFL 0.10: `OBSERVED; MERGED` in PR #82
-- fixed 128-cell CFL-sensitivity contract and exact CFL 0.10 replay: `IMPLEMENTED;
-  SOFTWARE-VERIFIED; MERGED` in PR #84
+- fixed 128-cell CFL-sensitivity contract and exact CFL 0.10 replay: `IMPLEMENTED; SOFTWARE-VERIFIED; MERGED` in PR #84
 - 4 MPa raw crossing: present at 32, 64, and 128 cells; accepted-crossing threshold
   remains unchanged at `1e-6`
 - Gate P2: `FALSE`
