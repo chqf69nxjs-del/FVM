@@ -15,6 +15,8 @@ from pathlib import Path
 from typing import Sequence
 
 
+EXPECTED_PR91_FULL_SUITE_TEST_COUNT = 804
+
 KNOWN_WINDOWS_EXACT_MISMATCHES: dict[str, str] = {
     (
         "tests.test_stage7_lco2_hem_pipeline_depressurization_increment2::"
@@ -70,6 +72,8 @@ class HEMGate3WindowsSuiteError(RuntimeError):
 @dataclass(frozen=True)
 class Gate3WindowsSuiteResult:
     tests: int
+    expected_tests: int
+    test_count_exact: bool
     failures: int
     errors: int
     skipped: int
@@ -107,9 +111,15 @@ def _suite_totals(root: ET.Element) -> dict[str, int]:
     }
 
 
-def inspect_windows_full_suite(junit_xml: str | Path) -> Gate3WindowsSuiteResult:
+def inspect_windows_full_suite(
+    junit_xml: str | Path,
+    *,
+    expected_test_count: int = EXPECTED_PR91_FULL_SUITE_TEST_COUNT,
+) -> Gate3WindowsSuiteResult:
     """Require the full suite to contain only the reviewed Windows exact mismatches."""
 
+    if expected_test_count <= 0:
+        raise ValueError("expected_test_count must be positive")
     path = Path(junit_xml)
     if not path.is_file():
         raise HEMGate3WindowsSuiteError(f"JUnit XML does not exist: {path}")
@@ -142,9 +152,11 @@ def inspect_windows_full_suite(junit_xml: str | Path) -> Gate3WindowsSuiteResult
             if KNOWN_WINDOWS_EXACT_MISMATCHES[test_id] not in observed[test_id]
         )
     )
+    test_count_exact = totals["tests"] == expected_test_count
 
     accepted = bool(
-        totals["skipped"] == 0
+        test_count_exact
+        and totals["skipped"] == 0
         and not unexpected
         and not missing
         and not message_failures
@@ -157,6 +169,8 @@ def inspect_windows_full_suite(junit_xml: str | Path) -> Gate3WindowsSuiteResult
     )
     return Gate3WindowsSuiteResult(
         tests=totals["tests"],
+        expected_tests=expected_test_count,
+        test_count_exact=test_count_exact,
         failures=totals["failures"],
         errors=totals["errors"],
         skipped=totals["skipped"],
@@ -172,8 +186,13 @@ def inspect_windows_full_suite(junit_xml: str | Path) -> Gate3WindowsSuiteResult
 def write_windows_full_suite_report(
     junit_xml: str | Path,
     output_json: str | Path,
+    *,
+    expected_test_count: int = EXPECTED_PR91_FULL_SUITE_TEST_COUNT,
 ) -> Gate3WindowsSuiteResult:
-    result = inspect_windows_full_suite(junit_xml)
+    result = inspect_windows_full_suite(
+        junit_xml,
+        expected_test_count=expected_test_count,
+    )
     Path(output_json).write_text(
         json.dumps(result.summary(), indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
@@ -187,12 +206,21 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--junit", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--expected-tests",
+        type=int,
+        default=EXPECTED_PR91_FULL_SUITE_TEST_COUNT,
+    )
     return parser.parse_args(argv)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parse_args(argv)
-    result = write_windows_full_suite_report(args.junit, args.output)
+    result = write_windows_full_suite_report(
+        args.junit,
+        args.output,
+        expected_test_count=args.expected_tests,
+    )
     print(json.dumps(result.summary(), indent=2, sort_keys=True))
     return 0 if result.accepted_as_known_exact_mismatches_only else 1
 
