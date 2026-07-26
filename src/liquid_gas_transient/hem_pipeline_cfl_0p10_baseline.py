@@ -9,21 +9,21 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import os
-import platform
-import subprocess
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
-from typing import Callable, Sequence
-
-import numpy as np
+from typing import Callable, Mapping, Sequence
 
 from .hem_pipeline_4mpa_mesh_sensitivity import MeshCaseMetrics, _case_metrics
 from .hem_pipeline_cfl_sensitivity import (
+    ANALYSIS_MODEL,
+    CFL_ANALYSIS_ID,
     CFL_CELL_COUNT,
     EXPECTED_128_CELL_CFL_0P10,
     HEMPipelineCflSensitivityConfig,
+    PROPERTY_BACKEND_NAME,
     _assert_128_cell_cfl_0p10_baseline,
+    collect_cfl_runtime_provenance,
+    normalize_cfl_provenance,
 )
 from .hem_pipeline_depressurization_first_crossing import (
     FIXED_PIPELINE_DEPRESSURIZATION_CASES,
@@ -35,8 +35,7 @@ from .hem_pipeline_depressurization_first_crossing import (
 
 
 BASELINE_CFL = 0.10
-ANALYSIS_MODEL = "HEM"
-PROPERTY_BACKEND_NAME = "coolprop_co2"
+BASELINE_ANALYSIS_ID = "stage7_pipeline_cfl_0p10_baseline_replay"
 
 
 class HEMPipelineCflBaselineError(RuntimeError):
@@ -49,52 +48,28 @@ CflBaselineRunner = Callable[
 ]
 
 
-def _coolprop_version() -> str:
-    try:
-        import CoolProp  # type: ignore
-    except Exception as exc:  # pragma: no cover - optional dependency
-        raise ImportError("CoolProp is required for CFL baseline replay") from exc
-    version = str(getattr(CoolProp, "__version__", "")).strip()
-    if not version:
-        raise HEMPipelineCflBaselineError("CoolProp version is unavailable")
-    return version
-
-
-def _git_head() -> str | None:
-    try:
-        value = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"],
-            text=True,
-            stderr=subprocess.DEVNULL,
-        ).strip()
-    except (OSError, subprocess.CalledProcessError):
-        return None
-    return value or None
-
-
-def _runtime_provenance() -> dict[str, object]:
-    checkout_sha = _git_head()
-    source_sha = (
-        os.environ.get("ANALYSIS_SOURCE_GIT_SHA", "").strip()
-        or os.environ.get("GITHUB_SHA", "").strip()
-        or checkout_sha
-    )
-    if not source_sha:
-        raise HEMPipelineCflBaselineError(
-            "source Git SHA is unavailable; set ANALYSIS_SOURCE_GIT_SHA"
-        )
-    return {
-        "analysis_model": ANALYSIS_MODEL,
-        "property_backend_name": PROPERTY_BACKEND_NAME,
-        "property_backend_version": _coolprop_version(),
-        "source_git_sha": source_sha,
-        "checkout_git_sha": checkout_sha,
-        "github_repository": os.environ.get("GITHUB_REPOSITORY"),
-        "github_ref": os.environ.get("GITHUB_REF"),
-        "github_run_id": os.environ.get("GITHUB_RUN_ID"),
-        "python_version": platform.python_version(),
-        "numpy_version": np.__version__,
-    }
+def _baseline_provenance(
+    provenance: Mapping[str, object] | None,
+    *,
+    case_runner: CflBaselineRunner,
+) -> dict[str, object]:
+    if provenance is None:
+        if case_runner is not run_pipeline_depressurization_case:
+            raise HEMPipelineCflBaselineError(
+                "an injected baseline case_runner requires explicit backend provenance"
+            )
+        raw = collect_cfl_runtime_provenance()
+    else:
+        raw = normalize_cfl_provenance(provenance)
+    result = dict(raw)
+    result["parent_analysis_id"] = result.get("analysis_id", CFL_ANALYSIS_ID)
+    result["analysis_id"] = BASELINE_ANALYSIS_ID
+    result["analysis_model"] = ANALYSIS_MODEL
+    result["property_backend_name"] = PROPERTY_BACKEND_NAME
+    result["verification_only"] = True
+    result["design_use_acceptance"] = False
+    result["production_hem_activation_approved"] = False
+    return normalize_cfl_provenance(result)
 
 
 @dataclass(frozen=True)
@@ -108,6 +83,13 @@ class HEMPipelineCflBaselineResult:
         return {
             "schema_version": "stage7_lco2_hem_pipeline_cfl_0p10_baseline_v1",
             "scope": "verification_only",
+            "analysis_identity": {
+                "analysis_id": str(self.provenance["analysis_id"]),
+                "model": str(self.provenance["analysis_model"]),
+                "backend": str(self.provenance["property_backend_name"]),
+                "version": str(self.provenance["property_backend_version"]),
+            },
+            "provenance": dict(self.provenance),
             "case_count": len(self.cases),
             "n_cells": CFL_CELL_COUNT,
             "dx_m": 1.0 / CFL_CELL_COUNT,
@@ -116,7 +98,6 @@ class HEMPipelineCflBaselineResult:
             "case_ids": [case.case_id for case in self.cases],
             "all_pr82_rows_reproduced_exactly": len(self.cases) == 3,
             "low_cfl_matrix_executed": False,
-            "provenance": dict(self.provenance),
             "cases": [case.summary() for case in self.cases],
             "Gate_P2_passed": False,
             "CFL_independent_crossing_verified": False,
@@ -131,10 +112,14 @@ class HEMPipelineCflBaselineResult:
 def run_cfl_0p10_baseline(
     *,
     case_runner: CflBaselineRunner = run_pipeline_depressurization_case,
-    provenance: dict[str, object] | None = None,
+    provenance: Mapping[str, object] | None = None,
 ) -> HEMPipelineCflBaselineResult:
     """Run and require exact identity for all three PR #82 baseline rows."""
 
+    resolved_provenance = _baseline_provenance(
+        provenance,
+        case_runner=case_runner,
+    )
     config = HEMPipelineCflSensitivityConfig.for_cfl(BASELINE_CFL)
     metrics: list[MeshCaseMetrics] = []
     for case in FIXED_PIPELINE_DEPRESSURIZATION_CASES:
@@ -154,14 +139,35 @@ def run_cfl_0p10_baseline(
         )
     return HEMPipelineCflBaselineResult(
         cases=tuple(metrics),
-        provenance=dict(provenance or _runtime_provenance()),
+        provenance=resolved_provenance,
     )
+
+
+def baseline_case_csv_rows(
+    result: HEMPipelineCflBaselineResult,
+) -> list[dict[str, object]]:
+    """Return standalone CSV rows with backend and approval provenance embedded."""
+
+    provenance = result.provenance
+    prefix = {
+        "analysis_id": provenance["analysis_id"],
+        "analysis_model": provenance["analysis_model"],
+        "property_backend_name": provenance["property_backend_name"],
+        "property_backend_version": provenance["property_backend_version"],
+        "source_git_sha": provenance["source_git_sha"],
+        "verification_only": True,
+        "design_use_acceptance": False,
+        "production_hem_activation_approved": False,
+        "CFL_independent_crossing_verified": False,
+        "Gate_P2_passed": False,
+    }
+    return [{**prefix, **asdict(case)} for case in result.cases]
 
 
 def write_cfl_0p10_baseline_artifacts(
     output_dir: str | Path,
 ) -> tuple[HEMPipelineCflBaselineResult, dict[str, Path]]:
-    """Run the exact replay and write JSON, CSV, and Markdown evidence."""
+    """Run the exact replay and write traceable JSON, CSV, and Markdown evidence."""
 
     target = Path(output_dir)
     target.mkdir(parents=True, exist_ok=True)
@@ -177,7 +183,7 @@ def write_cfl_0p10_baseline_artifacts(
         encoding="utf-8",
     )
 
-    rows = [case.summary() for case in result.cases]
+    rows = baseline_case_csv_rows(result)
     with paths["cases_csv"].open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
         writer.writeheader()
@@ -191,10 +197,13 @@ def write_cfl_0p10_baseline_artifacts(
         "`EXACT PR #82 REPLAY; LOW-CFL MATRIX NOT EXECUTED; VERIFICATION ONLY`",
         "",
         "```text",
+        f"analysis ID:       {provenance['analysis_id']}",
         f"model:             {provenance['analysis_model']}",
         f"backend:           {provenance['property_backend_name']}",
         f"backend version:   {provenance['property_backend_version']}",
         f"source Git SHA:    {provenance['source_git_sha']}",
+        "design use:       false",
+        "production HEM:   false",
         "```",
         "",
         "| case | outcome | step | crossing time [s] | cell | max q_eq |",
