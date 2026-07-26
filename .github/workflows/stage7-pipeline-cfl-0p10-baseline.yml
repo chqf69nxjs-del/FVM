@@ -50,18 +50,18 @@ jobs:
         run: |
           python -m liquid_gas_transient.hem_pipeline_cfl_0p10_baseline \
             --output-dir artifacts/stage7-pipeline-cfl-0p10-baseline
-      - name: Inspect exact baseline artifact
+      - name: Inspect exact baseline artifacts and standalone CSV provenance
         run: |
           python - <<'PY'
+          import csv
           import json
           import os
           from pathlib import Path
 
-          path = Path(
-              'artifacts/stage7-pipeline-cfl-0p10-baseline/'
-              'cfl_0p10_baseline_summary.json'
+          target = Path('artifacts/stage7-pipeline-cfl-0p10-baseline')
+          summary = json.loads(
+              (target / 'cfl_0p10_baseline_summary.json').read_text(encoding='utf-8')
           )
-          summary = json.loads(path.read_text(encoding='utf-8'))
           print(json.dumps(summary, indent=2, sort_keys=True))
           assert summary['case_count'] == 3
           assert summary['n_cells'] == 128
@@ -73,12 +73,39 @@ jobs:
           assert summary['CFL_independent_crossing_verified'] is False
           assert summary['Gate_P2_passed'] is False
           assert len(summary['cases']) == 3
+          identity = summary['analysis_identity']
+          assert identity == {
+              'analysis_id': 'stage7_pipeline_cfl_0p10_baseline_replay',
+              'model': 'HEM',
+              'backend': 'coolprop_co2',
+              'version': '8.0.0',
+          }
           provenance = summary['provenance']
           assert provenance['analysis_model'] == 'HEM'
           assert provenance['property_backend_name'] == 'coolprop_co2'
           assert provenance['property_backend_version'] == '8.0.0'
           assert provenance['source_git_sha'] == os.environ['ANALYSIS_SOURCE_GIT_SHA']
           assert provenance['checkout_git_sha']
+          assert provenance['verification_only'] is True
+          assert provenance['design_use_acceptance'] is False
+          assert provenance['production_hem_activation_approved'] is False
+
+          with (target / 'cfl_0p10_baseline_cases.csv').open(
+              newline='', encoding='utf-8'
+          ) as handle:
+              rows = list(csv.DictReader(handle))
+          assert len(rows) == 3
+          for row in rows:
+              assert row['analysis_id'] == identity['analysis_id']
+              assert row['analysis_model'] == identity['model']
+              assert row['property_backend_name'] == identity['backend']
+              assert row['property_backend_version'] == identity['version']
+              assert row['source_git_sha'] == provenance['source_git_sha']
+              assert row['verification_only'] == 'True'
+              assert row['design_use_acceptance'] == 'False'
+              assert row['production_hem_activation_approved'] == 'False'
+              assert row['CFL_independent_crossing_verified'] == 'False'
+              assert row['Gate_P2_passed'] == 'False'
           PY
       - name: Run PR77, PR79, PR82, and CFL contract regressions
         run: |
