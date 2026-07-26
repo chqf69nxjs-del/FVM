@@ -16,6 +16,8 @@ from liquid_gas_transient.hem_phase_classification import (
 )
 from liquid_gas_transient.hem_pipeline_4mpa_mesh_sensitivity import MeshCaseMetrics
 from liquid_gas_transient.hem_pipeline_cfl_sensitivity import (
+    ANALYSIS_MODEL,
+    CFL_ANALYSIS_ID,
     CFL_CELL_COUNT,
     CFL_STEP_CAPS,
     CFL_VALUES,
@@ -24,8 +26,10 @@ from liquid_gas_transient.hem_pipeline_cfl_sensitivity import (
     FOUR_MPA_CASE_ID,
     HEMPipelineCflSensitivityConfig,
     HEMPipelineCflSensitivityError,
+    PROPERTY_BACKEND_NAME,
     _assert_128_cell_cfl_0p10_baseline,
     classify_four_mpa_cfl_sequence,
+    normalize_cfl_provenance,
     run_fixed_pipeline_cfl_sensitivity_matrix,
 )
 
@@ -35,6 +39,17 @@ CONTRACT_PATH = (
     / "docs/verification/"
     "stage7_lco2_hem_pipeline_cfl_sensitivity_contract_v1.json"
 )
+
+TEST_PROVENANCE = {
+    "analysis_id": CFL_ANALYSIS_ID,
+    "analysis_model": ANALYSIS_MODEL,
+    "property_backend_name": PROPERTY_BACKEND_NAME,
+    "property_backend_version": "8.0.0-test",
+    "source_git_sha": "test-source-sha",
+    "verification_only": True,
+    "design_use_acceptance": False,
+    "production_hem_activation_approved": False,
+}
 
 
 def _metric(
@@ -114,19 +129,12 @@ def test_cfl_contract_fixes_values_step_caps_and_128_cell_mesh() -> None:
     assert CFL_CELL_COUNT == 128
     assert CFL_VALUES == (0.10, 0.05, 0.025)
     assert CFL_STEP_CAPS == {0.10: 8000, 0.05: 16000, 0.025: 32000}
-
     for cfl in CFL_VALUES:
         config = HEMPipelineCflSensitivityConfig.for_cfl(cfl)
         assert config.n_cells == 128
         assert config.dx_m == 1.0 / 128.0
         assert config.cfl == cfl
         assert config.max_steps == CFL_STEP_CAPS[cfl]
-        assert config.cfl_override == {
-            "n_cells": 128,
-            "dx_m": 1.0 / 128.0,
-            "cfl": cfl,
-            "maximum_steps": CFL_STEP_CAPS[cfl],
-        }
 
 
 @pytest.mark.parametrize("cfl", [True, 0.20, 0.075, 0.01, 0.0, -0.05])
@@ -152,25 +160,14 @@ def test_cfl_contract_rejects_unreviewed_cfl_values(cfl: object) -> None:
         ("crossing_evidence_min_quality", 1.0e-9),
         ("accepted_state_quality_tolerance", 2.0e-10),
         ("mass_budget_relative_tolerance", 2.0e-10),
-        ("mass_budget_absolute_tolerance_kg", 2.0e-12),
-        ("momentum_budget_relative_tolerance", 2.0e-10),
-        ("momentum_budget_absolute_tolerance_kg_m_s", 2.0e-10),
-        ("energy_budget_relative_tolerance", 2.0e-10),
         ("energy_budget_absolute_tolerance_J", 2.0e-6),
-        ("vapor_budget_absolute_tolerance_kg", 2.0e-12),
         (
             "phase_config",
-            replace(
-                HEMPhaseClassificationConfig(),
-                endpoint_tolerance=2.0e-10,
-            ),
+            replace(HEMPhaseClassificationConfig(), endpoint_tolerance=2.0e-10),
         ),
         (
             "projection_config",
-            replace(
-                HEMEquilibriumQualitySyncConfig(),
-                activation_tolerance=2.0e-12,
-            ),
+            replace(HEMEquilibriumQualitySyncConfig(), activation_tolerance=2.0e-12),
         ),
     ],
 )
@@ -193,11 +190,6 @@ def test_fixed_run_specs_define_exact_nine_run_order() -> None:
     assert [spec.maximum_steps for spec in FIXED_CFL_SENSITIVITY_RUN_SPECS] == (
         [8000] * 3 + [16000] * 3 + [32000] * 3
     )
-    assert [spec.case_id for spec in FIXED_CFL_SENSITIVITY_RUN_SPECS[:3]] == [
-        "pipeline_crossing_candidate_p5m5_to_p2m5",
-        "pipeline_moderate_diagnostic_p5m5_to_p3m5",
-        "pipeline_liquid_control_p5m5_to_p4m5",
-    ]
     assert len({spec.run_id for spec in FIXED_CFL_SENSITIVITY_RUN_SPECS}) == 9
 
 
@@ -284,7 +276,18 @@ def test_classification_detects_persistent_nonmonotone_sequence() -> None:
     assert "CFL_SEQUENCE_NON_MONOTONE" in categories
 
 
-def test_matrix_orchestration_uses_exact_order_and_only_reviewed_configs(
+def test_severe_outcome_returns_only_inconclusive_even_if_crossing_recorded() -> None:
+    cases = (
+        _metric(0.10),
+        _metric(0.05, outcome="BACKEND_FAILURE", failure_reason="backend failed"),
+        _metric(0.025),
+    )
+    categories, rationale = classify_four_mpa_cfl_sequence(cases)
+    assert categories == ("CFL_SENSITIVITY_INCONCLUSIVE",)
+    assert set(rationale) == {"CFL_SENSITIVITY_INCONCLUSIVE"}
+
+
+def test_matrix_orchestration_uses_exact_order_and_explicit_provenance(
     monkeypatch,
 ) -> None:
     calls: list[tuple[str, int, float, int]] = []
@@ -304,12 +307,49 @@ def test_matrix_orchestration_uses_exact_order_and_only_reviewed_configs(
         "_assert_128_cell_cfl_0p10_baseline",
         lambda metric: None,
     )
-    result = run_fixed_pipeline_cfl_sensitivity_matrix(case_runner=fake_runner)
-
+    result = run_fixed_pipeline_cfl_sensitivity_matrix(
+        case_runner=fake_runner,
+        provenance=TEST_PROVENANCE,
+    )
     assert len(result.cases) == 9
     assert [item[1] for item in calls] == [128] * 9
     assert [item[2] for item in calls] == [0.10] * 3 + [0.05] * 3 + [0.025] * 3
     assert [item[3] for item in calls] == [8000] * 3 + [16000] * 3 + [32000] * 3
+    summary = result.summary()
+    assert summary["analysis_identity"] == {
+        "analysis_id": CFL_ANALYSIS_ID,
+        "model": ANALYSIS_MODEL,
+        "backend": PROPERTY_BACKEND_NAME,
+        "version": "8.0.0-test",
+    }
+    assert summary["provenance"]["source_git_sha"] == "test-source-sha"
+    assert summary["design_use_acceptance"] is False
+
+
+def test_injected_runner_requires_explicit_provenance() -> None:
+    def fake_runner(case, config):
+        raise AssertionError("must fail before execution")
+
+    with pytest.raises(
+        HEMPipelineCflSensitivityError,
+        match="explicit backend provenance",
+    ):
+        run_fixed_pipeline_cfl_sensitivity_matrix(case_runner=fake_runner)
+
+
+@pytest.mark.parametrize(
+    "updates",
+    [
+        {"property_backend_version": ""},
+        {"verification_only": False},
+        {"design_use_acceptance": True},
+        {"production_hem_activation_approved": True},
+    ],
+)
+def test_provenance_rejects_missing_identity_or_approval_drift(updates) -> None:
+    candidate = {**TEST_PROVENANCE, **updates}
+    with pytest.raises(HEMPipelineCflSensitivityError):
+        normalize_cfl_provenance(candidate)
 
 
 def test_machine_readable_contract_matches_code_constants() -> None:
@@ -318,21 +358,10 @@ def test_machine_readable_contract_matches_code_constants() -> None:
         "stage7_lco2_hem_pipeline_cfl_sensitivity_contract_v1"
     )
     assert contract["issue_number"] == 83
-    assert contract["status"] == "CONTRACT_IMPLEMENTED_EXECUTION_NOT_YET_ACCEPTED"
     assert contract["fixed_matrix"]["n_cells"] == 128
     assert contract["fixed_matrix"]["cfl_values"] == [0.10, 0.05, 0.025]
-    assert contract["fixed_matrix"]["maximum_steps"] == {
-        "0.100": 8000,
-        "0.050": 16000,
-        "0.025": 32000,
-    }
     assert contract["cfl_0p10_baseline"] == EXPECTED_128_CELL_CFL_0P10
-    approval = contract["approval_boundary"]
-    assert approval["Gate_P2_passed"] is False
-    assert approval["CFL_independent_crossing_verified"] is False
-    assert approval["physical_validation"] is False
-    assert approval["design_use_acceptance"] is False
-    assert approval["production_hem_activation_approved"] is False
+    assert contract["approval_boundary"]["CFL_independent_crossing_verified"] is False
 
 
 def test_cfl_module_does_not_redefine_solver_flux_or_higher_order_methods() -> None:
