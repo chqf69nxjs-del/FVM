@@ -15,7 +15,7 @@ env:
 
 jobs:
   validate-windows-full-suite:
-    runs-on: windows-2025
+    runs-on: windows-2022
     timeout-minutes: 180
     steps:
       - name: Checkout
