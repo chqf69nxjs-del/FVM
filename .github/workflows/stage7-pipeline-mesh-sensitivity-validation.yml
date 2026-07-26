@@ -10,6 +10,7 @@ on:
 env:
   PYTHONPATH: src
   MPLBACKEND: Agg
+  ANALYSIS_SOURCE_GIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
 jobs:
   validate-mesh-sensitivity:
@@ -47,15 +48,18 @@ jobs:
             --junitxml=mesh-pure.xml
       - name: Generate authoritative nine-run mesh artifacts
         run: |
-          python -m liquid_gas_transient.hem_pipeline_4mpa_mesh_sensitivity \
+          python -m liquid_gas_transient.hem_pipeline_4mpa_mesh_sensitivity_evidence \
             --output-dir artifacts/stage7-pipeline-mesh-sensitivity
-      - name: Inspect authoritative mesh summary
+      - name: Inspect authoritative mesh summary and figure identity
         run: |
           python - <<'PY'
           import json
+          import os
           from pathlib import Path
+          from PIL import Image
 
-          path = Path('artifacts/stage7-pipeline-mesh-sensitivity/4mpa_mesh_sensitivity_summary.json')
+          target = Path('artifacts/stage7-pipeline-mesh-sensitivity')
+          path = target / '4mpa_mesh_sensitivity_summary.json'
           summary = json.loads(path.read_text(encoding='utf-8'))
           print(json.dumps(summary, indent=2, sort_keys=True))
           assert summary['case_count'] == 9
@@ -67,6 +71,41 @@ jobs:
           assert summary['Gate_P2_passed'] is False
           assert summary['four_mpa_classifications']
           assert len(summary['cases']) == 9
+
+          identity = summary['analysis_identity']
+          assert identity == {
+              'case_id': 'pipeline_liquid_control_p5m5_to_p4m5',
+              'model': 'HEM',
+              'backend': 'coolprop_co2',
+              'version': '8.0.0',
+          }
+          provenance = summary['provenance']
+          assert provenance['analysis_case_id'] == identity['case_id']
+          assert provenance['analysis_model'] == identity['model']
+          assert provenance['property_backend_name'] == identity['backend']
+          assert provenance['property_backend_version'] == identity['version']
+          assert provenance['source_git_sha'] == os.environ['ANALYSIS_SOURCE_GIT_SHA']
+          assert provenance['checkout_git_sha']
+          assert provenance['github_repository'] == os.environ['GITHUB_REPOSITORY']
+          assert provenance['github_run_id'] == os.environ['GITHUB_RUN_ID']
+          assert len(provenance['runner_source_sha256']) == 64
+          assert len(provenance['evidence_wrapper_sha256']) == 64
+
+          expected_plots = {
+              'mesh_qeq_vs_dx.png',
+              'mesh_saturation_margin_vs_dx.png',
+              'mesh_crossing_time_position.png',
+              'mesh_sound_speed_jump.png',
+          }
+          assert set(summary['generated_plots']) == expected_plots
+          for name in expected_plots:
+              with Image.open(target / name) as image:
+                  metadata = image.info
+                  assert metadata['case'] == identity['case_id']
+                  assert metadata['model'] == identity['model']
+                  assert metadata['backend'] == identity['backend']
+                  assert metadata['version'] == identity['version']
+                  assert metadata['source_git_sha'] == provenance['source_git_sha']
           PY
       - name: Run PR77 and PR79 regression tests
         run: |
