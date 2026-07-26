@@ -6,6 +6,11 @@ on:
       - agent/stage7-central-record-sync-pr77-pr84
     paths:
       - .github/gate2_sync.py
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/gate2_sync.py
 
 permissions:
   contents: write
