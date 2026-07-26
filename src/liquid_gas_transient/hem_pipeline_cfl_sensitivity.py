@@ -9,8 +9,11 @@ HEM phase/projection algorithms, or any tolerance.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, fields, replace
-from typing import Callable, Literal, Sequence
+import os
+import platform
+import subprocess
+from dataclasses import asdict, dataclass, fields, replace
+from typing import Callable, Literal, Mapping, Sequence
 
 import numpy as np
 
@@ -28,6 +31,9 @@ CFL_CELL_COUNT = 128
 CFL_VALUES: tuple[float, ...] = (0.10, 0.05, 0.025)
 CFL_STEP_CAPS: dict[float, int] = {0.10: 8000, 0.05: 16000, 0.025: 32000}
 FOUR_MPA_CASE_ID = "pipeline_liquid_control_p5m5_to_p4m5"
+CFL_ANALYSIS_ID = "stage7_pipeline_cfl_sensitivity_matrix"
+ANALYSIS_MODEL = "HEM"
+PROPERTY_BACKEND_NAME = "coolprop_co2"
 
 CflClassification = Literal[
     "CROSSING_VANISHES_WITH_SMALLER_CFL",
@@ -145,6 +151,95 @@ EXPECTED_128_CELL_CFL_0P10: dict[str, dict[str, object]] = {
 
 class HEMPipelineCflSensitivityError(RuntimeError):
     """Raised when the reviewed CFL-only contract cannot be applied safely."""
+
+
+def _git_output(*args: str) -> str | None:
+    try:
+        value = subprocess.check_output(
+            ["git", *args], text=True, stderr=subprocess.DEVNULL
+        ).strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return value or None
+
+
+def collect_cfl_runtime_provenance() -> dict[str, object]:
+    """Collect explicit model/backend/version and Git/runtime identity."""
+
+    try:
+        import CoolProp  # type: ignore
+    except Exception as exc:  # pragma: no cover - optional dependency
+        raise ImportError("CoolProp is required for an executed CFL matrix") from exc
+    version = str(getattr(CoolProp, "__version__", "")).strip()
+    if not version:
+        raise HEMPipelineCflSensitivityError("CoolProp version is unavailable")
+
+    checkout_sha = _git_output("rev-parse", "HEAD")
+    source_sha = (
+        os.environ.get("ANALYSIS_SOURCE_GIT_SHA", "").strip()
+        or os.environ.get("GITHUB_HEAD_SHA", "").strip()
+        or os.environ.get("GITHUB_SHA", "").strip()
+        or checkout_sha
+    )
+    if not source_sha:
+        raise HEMPipelineCflSensitivityError(
+            "source Git SHA is unavailable; set ANALYSIS_SOURCE_GIT_SHA"
+        )
+    return {
+        "analysis_id": CFL_ANALYSIS_ID,
+        "analysis_model": ANALYSIS_MODEL,
+        "property_backend_name": PROPERTY_BACKEND_NAME,
+        "property_backend_version": version,
+        "source_git_sha": source_sha,
+        "checkout_git_sha": checkout_sha,
+        "git_branch": _git_output("rev-parse", "--abbrev-ref", "HEAD"),
+        "git_status_porcelain": _git_output("status", "--porcelain") or "",
+        "github_repository": os.environ.get("GITHUB_REPOSITORY"),
+        "github_ref": os.environ.get("GITHUB_REF"),
+        "github_head_ref": os.environ.get("GITHUB_HEAD_REF"),
+        "github_run_id": os.environ.get("GITHUB_RUN_ID"),
+        "github_run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
+        "python_version": platform.python_version(),
+        "numpy_version": np.__version__,
+        "verification_only": True,
+        "design_use_acceptance": False,
+        "production_hem_activation_approved": False,
+    }
+
+
+def normalize_cfl_provenance(provenance: Mapping[str, object]) -> dict[str, object]:
+    """Validate mandatory provenance fields and return a plain dictionary."""
+
+    required = (
+        "analysis_id",
+        "analysis_model",
+        "property_backend_name",
+        "property_backend_version",
+        "source_git_sha",
+        "verification_only",
+        "design_use_acceptance",
+        "production_hem_activation_approved",
+    )
+    result = dict(provenance)
+    missing = [key for key in required if key not in result]
+    if missing:
+        raise HEMPipelineCflSensitivityError(
+            f"CFL provenance is missing required fields: {missing}"
+        )
+    for key in required[:5]:
+        if not str(result[key]).strip():
+            raise HEMPipelineCflSensitivityError(
+                f"CFL provenance field {key} must not be empty"
+            )
+    if result["verification_only"] is not True:
+        raise HEMPipelineCflSensitivityError("CFL execution must remain verification-only")
+    if result["design_use_acceptance"] is not False:
+        raise HEMPipelineCflSensitivityError("design use must remain unapproved")
+    if result["production_hem_activation_approved"] is not False:
+        raise HEMPipelineCflSensitivityError(
+            "production HEM activation must remain unapproved"
+        )
+    return result
 
 
 @dataclass(frozen=True)
@@ -296,7 +391,9 @@ def _nonmonotone(values: Sequence[float | None]) -> bool:
     ):
         return False
     differences = [float(right) - float(left) for left, right in zip(values, values[1:])]
-    return any(first * second < 0.0 for first, second in zip(differences, differences[1:]))
+    return any(
+        first * second < 0.0 for first, second in zip(differences, differences[1:])
+    )
 
 
 def classify_four_mpa_cfl_sequence(
@@ -312,8 +409,6 @@ def classify_four_mpa_cfl_sequence(
             else len(CFL_VALUES)
         ),
     )
-    categories: list[CflClassification] = []
-    rationale: dict[str, str] = {}
     if [float(case.cfl) for case in control] != list(CFL_VALUES):
         return (
             ("CFL_SENSITIVITY_INCONCLUSIVE",),
@@ -331,12 +426,18 @@ def classify_four_mpa_cfl_sequence(
         "BACKEND_FAILURE",
     }
     if any(case.outcome in severe for case in control):
-        categories.append("CFL_SENSITIVITY_INCONCLUSIVE")
-        rationale["CFL_SENSITIVITY_INCONCLUSIVE"] = (
-            "At least one 4 MPa CFL row ended in an endpoint, forbidden, "
-            "reverse-flow, or backend outcome."
+        return (
+            ("CFL_SENSITIVITY_INCONCLUSIVE",),
+            {
+                "CFL_SENSITIVITY_INCONCLUSIVE": (
+                    "At least one 4 MPa CFL row ended in an endpoint, forbidden, "
+                    "reverse-flow, or backend outcome; no trend classification is valid."
+                )
+            },
         )
 
+    categories: list[CflClassification] = []
+    rationale: dict[str, str] = {}
     crossed = [case.raw_crossing_observed for case in control]
     if crossed[0] and not crossed[-1]:
         categories.append("CROSSING_VANISHES_WITH_SMALLER_CFL")
@@ -419,11 +520,20 @@ class HEMPipelineCflSensitivityResult:
     cases: tuple[MeshCaseMetrics, ...]
     four_mpa_classifications: tuple[CflClassification, ...]
     four_mpa_classification_rationale: dict[str, str]
+    provenance: dict[str, object]
 
     def summary(self) -> dict[str, object]:
+        identity = {
+            "analysis_id": str(self.provenance["analysis_id"]),
+            "model": str(self.provenance["analysis_model"]),
+            "backend": str(self.provenance["property_backend_name"]),
+            "version": str(self.provenance["property_backend_version"]),
+        }
         return {
             "schema_version": "stage7_lco2_hem_pipeline_cfl_sensitivity_v1",
             "scope": "verification_only",
+            "analysis_identity": identity,
+            "provenance": dict(self.provenance),
             "case_count": len(self.cases),
             "n_cells": CFL_CELL_COUNT,
             "dx_m": 1.0 / CFL_CELL_COUNT,
@@ -450,6 +560,7 @@ class HEMPipelineCflSensitivityResult:
             "physical_validation": False,
             "design_use_acceptance": False,
             "production_hem_activation_approved": False,
+            "cases": [asdict(case) for case in self.cases],
         }
 
 
@@ -464,8 +575,18 @@ def run_fixed_pipeline_cfl_sensitivity_matrix(
     *,
     case_runner: CflCaseRunner = run_pipeline_depressurization_case,
     on_case_result: CflCaseCallback | None = None,
+    provenance: Mapping[str, object] | None = None,
 ) -> HEMPipelineCflSensitivityResult:
     """Run the fixed nine-run CFL matrix with no result-dependent tuning."""
+
+    if provenance is None:
+        if case_runner is not run_pipeline_depressurization_case:
+            raise HEMPipelineCflSensitivityError(
+                "an injected case_runner requires explicit backend provenance"
+            )
+        resolved_provenance = collect_cfl_runtime_provenance()
+    else:
+        resolved_provenance = normalize_cfl_provenance(provenance)
 
     metrics: list[MeshCaseMetrics] = []
     for cfl in CFL_VALUES:
@@ -487,4 +608,5 @@ def run_fixed_pipeline_cfl_sensitivity_matrix(
         cases=tuple(metrics),
         four_mpa_classifications=classifications,
         four_mpa_classification_rationale=rationale,
+        provenance=resolved_provenance,
     )
