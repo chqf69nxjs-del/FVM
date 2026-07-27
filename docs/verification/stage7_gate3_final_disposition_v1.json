@@ -1,0 +1,91 @@
+{
+  "schema_version": "stage7_gate3_final_disposition_v1",
+  "date": "2026-07-27",
+  "scope": "verification_only_cross_runtime_closure",
+  "source_main_sha": "f1b2c76827482164a12e2924bf7119a0b150e421",
+  "disposition": "NUMERICALLY_EQUIVALENT",
+  "Gate_3_complete": true,
+  "evidence": {
+    "ubuntu_reference": {
+      "artifact_id": 8632513953,
+      "artifact_digest": "sha256:78002ddb524c9f1cac00040a14139d6da512f66f19d39a65afc53dbcac188060",
+      "runtime": {
+        "os": "Ubuntu 24.04",
+        "python": "3.12.13",
+        "numpy": "2.5.1",
+        "CoolProp": "8.0.0"
+      }
+    },
+    "windows_raw_history": {
+      "file": "stage7-gate3-numeric-candidate-20260726-222235.zip",
+      "sha256": "508e9b727a2e0d00974e4650c3f927e93af89eed9af96cde5c2b0b3e12368738",
+      "zip_crc_passed": true
+    },
+    "windows_full_suite_v2": {
+      "file": "stage7-gate3-windows-full-suite-v2-20260727-215656.zip",
+      "size_bytes": 30264,
+      "sha256": "67a0113b63db1b4770baf4bbd4104312c5c24839cf50956e57592f487fd7755f",
+      "zip_crc_passed": true,
+      "runtime": {
+        "os": "Windows-11-10.0.26200-SP0",
+        "python": "3.12.10",
+        "numpy": "2.5.1",
+        "CoolProp": "8.0.0",
+        "matplotlib": "3.11.1"
+      },
+      "source_git_sha": "f1b2c76827482164a12e2924bf7119a0b150e421",
+      "working_tree_clean_before": true,
+      "working_tree_clean_after": true,
+      "tests": 796,
+      "passed": 785,
+      "failures": 4,
+      "errors": 7,
+      "skipped": 0,
+      "pytest_exit_code": 1,
+      "inspector_exit_code": 0,
+      "inspector_disposition": "KNOWN_EXACT_WINDOWS_MISMATCHES_ONLY",
+      "unexpected_problem_tests": [],
+      "missing_expected_problem_tests": [],
+      "message_contract_failures": []
+    }
+  },
+  "cross_runtime_observation": {
+    "all_discrete_fields_exact": true,
+    "all_array_shapes_identical": true,
+    "all_values_finite": true,
+    "maximum_global_scale_normalized_difference": 5.519112370006797e-12,
+    "guard": 1e-10,
+    "inventory_differences": {
+      "mass_kg": 2.842170943040401e-14,
+      "momentum_kg_m_s": 1.3575363055906564e-11,
+      "energy_J": 1.7229467630386353e-08,
+      "vapor_mass_kg": 2.3924178250423736e-16
+    },
+    "difference_seed": "pre_FVM_CoolProp_backed_initial_state",
+    "discrete_event_divergence_observed": false,
+    "crossing_threshold_reversal_observed": false
+  },
+  "baseline_policy": {
+    "authoritative_exact_platform": "Ubuntu",
+    "ubuntu_exact_baselines_retained": true,
+    "windows_hashes_replace_ubuntu_hashes": false,
+    "exact_baseline_guards_changed": false,
+    "solver_logic_changed": false,
+    "algorithm_or_tolerance_changed": false
+  },
+  "next_gate": {
+    "Gate_4_execution_paused_until_central_record_sync": true,
+    "low_cfl_result_accepted": false,
+    "central_record_promotion_allowed_before_sync": false
+  },
+  "approval_boundary": {
+    "Gate_P2_passed": false,
+    "mesh_independent_crossing_verified": false,
+    "CFL_independent_crossing_verified": false,
+    "near_saturation_acoustic_continuity_approved": false,
+    "post_crossing_propagation_approved": false,
+    "physical_validation": false,
+    "design_use_acceptance": false,
+    "production_hem_activation_approved": false
+  }
+}
