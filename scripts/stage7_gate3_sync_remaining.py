@@ -1,59 +1,83 @@
 from pathlib import Path
 
 MAIN_SHA = "1bb1765617de72741086b199efa0d72be16ae651"
+PR91_SHA = "1bb1765617de72741086b199efa0d72be16ae651"
 
 
-def replace_once(text: str, old: str, new: str, label: str) -> str:
-    count = text.count(old)
-    if count != 1:
-        raise RuntimeError(f"{label}: expected one match, found {count}")
-    return text.replace(old, new, 1)
+def replace_if_present(text: str, old: str, new: str) -> str:
+    return text.replace(old, new, 1) if old in text else text
 
 
 master_path = Path("docs/verification/MASTER_VERIFICATION_INDEX.md")
 master = master_path.read_text(encoding="utf-8")
-master = replace_once(master, "## Current state — 2026-07-26", "## Current state — 2026-07-27", "master date")
-master = replace_once(
+master = replace_if_present(
+    master,
+    "## Current state — 2026-07-26",
+    "## Current state — 2026-07-27",
+)
+master = replace_if_present(
     master,
     "- recorded substantive development `main`: `827d99bce97cea2785aa3334b3f5e950389c9aad`",
     f"- recorded substantive development `main`: `{MAIN_SHA}`",
-    "master main",
 )
-pr84_bullet = "- fixed 128-cell CFL-sensitivity contract and exact CFL 0.10 replay: `IMPLEMENTED; SOFTWARE-VERIFIED; MERGED` in PR #84"
-master = replace_once(
-    master,
-    pr84_bullet,
-    pr84_bullet
-    + "\n- Gate 3 cross-runtime capture and local-PC checkpoint: `NUMERICALLY_EQUIVALENT; MERGED` in PR #91"
-    + "\n- Ubuntu remains authoritative for bitwise-exact scalars and SHA256 values; Windows hashes do not replace the Ubuntu baselines",
-    "master PR91 bullets",
+
+pr84_bullet = (
+    "- fixed 128-cell CFL-sensitivity contract and exact CFL 0.10 replay: "
+    "`IMPLEMENTED; SOFTWARE-VERIFIED; MERGED` in PR #84"
 )
-master = replace_once(
+pr91_bullet = (
+    "- Gate 3 cross-runtime capture and local-PC checkpoint: "
+    "`NUMERICALLY_EQUIVALENT; MERGED` in PR #91"
+)
+if pr91_bullet not in master:
+    master = master.replace(
+        pr84_bullet,
+        pr84_bullet
+        + "\n"
+        + pr91_bullet
+        + "\n- Ubuntu remains authoritative for bitwise-exact scalars and SHA256 values; "
+        "Windows hashes do not replace the Ubuntu baselines",
+        1,
+    )
+
+master = replace_if_present(
     master,
     "- active operational gate: local-PC reproduction checkpoint in Issue #85",
-    "- Gate 3 local-PC reproduction checkpoint: `COMPLETE; NUMERICALLY_EQUIVALENT` in PR #91; Issue #85 closed",
-    "master active gate",
+    "- Gate 3 local-PC reproduction checkpoint: `COMPLETE; NUMERICALLY_EQUIVALENT` "
+    "in PR #91; Issue #85 closed",
 )
-master = replace_once(
+master = replace_if_present(
     master,
     "- next numerical execution gate: fixed low-CFL matrix in Issue #86 after the local checkpoint",
-    "- next numerical execution gate: fixed low-CFL matrix in Issue #86 after this central-record synchronization",
-    "master next gate",
+    "- next numerical execution gate: fixed low-CFL matrix in Issue #86 after this "
+    "central-record synchronization",
 )
-pr84_row = "| PR #84 | fixed CFL contract and exact 128-cell/CFL 0.10 replay | `IMPLEMENTED; SOFTWARE-VERIFIED; MERGED` | merge `827d99bce97cea2785aa3334b3f5e950389c9aad` |"
-master = replace_once(
+
+pr84_row = (
+    "| PR #84 | fixed CFL contract and exact 128-cell/CFL 0.10 replay | "
+    "`IMPLEMENTED; SOFTWARE-VERIFIED; MERGED` | merge "
+    "`827d99bce97cea2785aa3334b3f5e950389c9aad` |"
+)
+pr91_row = (
+    "| PR #91 | Gate 3 cross-runtime numeric-equivalence closure | "
+    "`NUMERICALLY_EQUIVALENT; MERGED` | merge `1bb1765617de72741086b199efa0d72be16ae651` |"
+)
+if pr91_row not in master:
+    master = master.replace(pr84_row, pr84_row + "\n" + pr91_row, 1)
+
+master = replace_if_present(
     master,
-    pr84_row,
-    pr84_row + "\n| PR #91 | Gate 3 cross-runtime numeric-equivalence closure | `NUMERICALLY_EQUIVALENT; MERGED` | merge `1bb1765617de72741086b199efa0d72be16ae651` |",
-    "master milestone",
+    "The low-CFL 0.05/0.025 matrix has not been executed or accepted. Its final acceptance is\n"
+    "blocked on the independent local-PC reproduction checkpoint in Issue #85; execution is\n"
+    "tracked in Issue #86.",
+    "The independent local-PC reproduction checkpoint completed as `NUMERICALLY_EQUIVALENT`\n"
+    "in PR #91, with Issue #85 closed. The low-CFL 0.05/0.025 matrix remains unexecuted and\n"
+    "unaccepted; its controlled execution and review remain tracked in Issue #86.",
 )
-master = replace_once(
-    master,
-    "The low-CFL 0.05/0.025 matrix has not been executed or accepted. Its final acceptance is\nblocked on the independent local-PC reproduction checkpoint in Issue #85; execution is\ntracked in Issue #86.",
-    "The independent local-PC reproduction checkpoint completed as `NUMERICALLY_EQUIVALENT`\nin PR #91, with Issue #85 closed. The low-CFL 0.05/0.025 matrix remains unexecuted and\nunaccepted; its controlled execution and review remain tracked in Issue #86.",
-    "master PR84 continuation",
-)
-gate3_section = """
+
+section_heading = "### PR #91 — Gate 3 cross-runtime numeric-equivalence closure"
+if section_heading not in master:
+    section = """
 ### PR #91 — Gate 3 cross-runtime numeric-equivalence closure
 
 The authoritative Ubuntu 24.04 reference retained exact PR #82 scalar and SHA256 identity.
@@ -93,32 +117,66 @@ The exact Ubuntu baselines remain unchanged. The formal Gate 3 disposition is
 physical Validation, acoustic-accuracy, design-use, or production-activation approval.
 
 """
-master = replace_once(master, "## First-order V-013 baseline", gate3_section + "## First-order V-013 baseline", "master Gate3 section")
-master = replace_once(
+    anchor = "## First-order V-013 baseline"
+    if anchor not in master:
+        raise RuntimeError("MASTER insertion anchor is missing")
+    master = master.replace(anchor, section + anchor, 1)
+
+master = replace_if_present(
     master,
-    "The current active operational gate is Issue #85, followed by the fixed low-CFL execution\nin Issue #86. Gate P2, mesh-independent accuracy, CFL-independent crossing, near-saturation\nacoustic continuity, post-crossing propagation, physical Validation, design use, and\nproduction HEM activation remain unapproved.",
-    "Issue #85 is complete with the Gate 3 disposition `NUMERICALLY_EQUIVALENT`. The next\ncontrolled numerical gate is the fixed low-CFL execution in Issue #86. Gate P2,\nmesh-independent accuracy, CFL-independent crossing, near-saturation acoustic continuity,\npost-crossing propagation, physical Validation, design use, and production HEM activation\nremain unapproved.",
-    "master historical checkpoint",
+    "The current active operational gate is Issue #85, followed by the fixed low-CFL execution\n"
+    "in Issue #86. Gate P2, mesh-independent accuracy, CFL-independent crossing, near-saturation\n"
+    "acoustic continuity, post-crossing propagation, physical Validation, design use, and\n"
+    "production HEM activation remain unapproved.",
+    "Issue #85 is complete with the Gate 3 disposition `NUMERICALLY_EQUIVALENT`. The next\n"
+    "controlled numerical gate is the fixed low-CFL execution in Issue #86. Gate P2,\n"
+    "mesh-independent accuracy, CFL-independent crossing, near-saturation acoustic continuity,\n"
+    "post-crossing propagation, physical Validation, design use, and production HEM activation\n"
+    "remain unapproved.",
 )
+
+for required in (
+    "## Current state — 2026-07-27",
+    pr91_bullet,
+    pr91_row,
+    section_heading,
+    "Issue #85 closed",
+):
+    if required not in master:
+        raise RuntimeError(f"MASTER final marker missing: {required}")
 master_path.write_text(master, encoding="utf-8")
 
 log_path = Path("docs/verification/stage7_execution_log.md")
 log = log_path.read_text(encoding="utf-8")
-if "## 2026-07-26 to 2026-07-27 — Gate 3 cross-runtime closure" in log:
-    raise RuntimeError("Gate 3 execution-log entry already exists")
-log = replace_once(
+log = replace_if_present(
     log,
     "local_pc_reproduction_checkpoint_completed = false",
-    "local_pc_reproduction_checkpoint_completed = true\nlocal_pc_reproduction_disposition = NUMERICALLY_EQUIVALENT",
-    "execution log checkpoint flag",
+    "local_pc_reproduction_checkpoint_completed = true\n"
+    "local_pc_reproduction_disposition = NUMERICALLY_EQUIVALENT",
 )
-log = replace_once(
-    log,
-    "## Next\n\n1. complete the local-PC reproduction checkpoint in Issue #85 and classify it as `EXACT`,\n   `NUMERICALLY_EQUIVALENT`, or `INVESTIGATION_REQUIRED`;\n2. only after the checkpoint is completed or explicitly dispositioned, execute and accept\n   the fixed 128-cell 2/3/4 MPa × CFL 0.10/0.05/0.025 matrix in Issue #86;\n3. retain PRs #52/#53 as later numerical-improvement assets until the first-order temporal\n   and near-saturation acoustic questions are separated;\n4. perform the independent near-saturation acoustic-continuity gate before approving any\n   post-crossing propagation;\n5. keep production activation, physical Validation, design use, and acoustic/numerical\n   accuracy approval false until separately established.",
-    "## Next\n\n1. synchronize the merged PR #91 Gate 3 disposition into the three central records;\n2. execute the fixed 128-cell 2/3/4 MPa × CFL 0.10/0.05/0.025 matrix in Issue #86, first\n   requiring the CFL 0.10 rows to reproduce the retained PR #82 baseline exactly;\n3. keep all CFL 0.05/0.025 results unaccepted until their dedicated review and promotion;\n4. retain PRs #52/#53 as later numerical-improvement assets until the first-order temporal\n   and near-saturation acoustic questions are separated;\n5. perform the independent near-saturation acoustic-continuity gate before approving any\n   post-crossing propagation;\n6. keep production activation, physical Validation, design use, and acoustic/numerical\n   accuracy approval false until separately established.",
-    "execution log Next",
-)
-entry = """
+if "local_pc_reproduction_disposition = NUMERICALLY_EQUIVALENT" not in log:
+    marker = "local_pc_reproduction_checkpoint_completed = true"
+    if marker not in log:
+        raise RuntimeError("execution-log checkpoint marker is missing")
+    log = log.replace(
+        marker,
+        marker + "\nlocal_pc_reproduction_disposition = NUMERICALLY_EQUIVALENT",
+        1,
+    )
+
+closure_heading = "## 2026-07-26 to 2026-07-27 — Gate 3 cross-runtime closure"
+new_tail = """
+## Next
+
+1. execute the fixed 128-cell 2/3/4 MPa × CFL 0.10/0.05/0.025 matrix in Issue #86, first
+   requiring the CFL 0.10 rows to reproduce the retained PR #82 baseline exactly;
+2. keep all CFL 0.05/0.025 results unaccepted until their dedicated review and promotion;
+3. retain PRs #52/#53 as later numerical-improvement assets until the first-order temporal
+   and near-saturation acoustic questions are separated;
+4. perform the independent near-saturation acoustic-continuity gate before approving any
+   post-crossing propagation;
+5. keep production activation, physical Validation, design use, and acoustic/numerical
+   accuracy approval false until separately established.
 
 ## 2026-07-26 to 2026-07-27 — Gate 3 cross-runtime closure
 
@@ -165,7 +223,6 @@ tolerance changed.
 ```text
 Gate_3_disposition = NUMERICALLY_EQUIVALENT
 Gate_3_complete = true
-Gate_4_execution_paused_until_central_record_sync = true
 low_cfl_result_accepted = false
 Gate_P2_passed = false
 mesh_independent_crossing_verified = false
@@ -175,4 +232,22 @@ design_use_acceptance = false
 production_hem_activation_approved = false
 ```
 """
-log_path.write_text(log.rstrip() + entry + "\n", encoding="utf-8")
+
+if closure_heading in log:
+    prefix = log.split("\n## Next\n", 1)[0].rstrip()
+    log = prefix + "\n\n" + new_tail.strip() + "\n"
+else:
+    next_index = log.rfind("\n## Next\n")
+    if next_index < 0:
+        raise RuntimeError("execution-log final Next section is missing")
+    log = log[:next_index].rstrip() + "\n\n" + new_tail.strip() + "\n"
+
+for required in (
+    "local_pc_reproduction_checkpoint_completed = true",
+    "local_pc_reproduction_disposition = NUMERICALLY_EQUIVALENT",
+    closure_heading,
+    "Gate_3_disposition = NUMERICALLY_EQUIVALENT",
+):
+    if required not in log:
+        raise RuntimeError(f"execution-log final marker missing: {required}")
+log_path.write_text(log, encoding="utf-8")
