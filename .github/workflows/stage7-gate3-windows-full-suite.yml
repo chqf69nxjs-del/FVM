@@ -17,6 +17,8 @@ jobs:
   validate-windows-full-suite:
     runs-on: windows-2022
     timeout-minutes: 180
+    env:
+      MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -35,7 +37,7 @@ jobs:
       - name: Report runtime and checkout
         shell: pwsh
         run: |
-          python -c "import json, platform, CoolProp, numpy; print(json.dumps({'platform': platform.platform(), 'python': platform.python_version(), 'numpy': numpy.__version__, 'CoolProp': CoolProp.__version__}, indent=2))"
+          python -c "import json, platform, CoolProp, matplotlib, numpy; print(json.dumps({'platform': platform.platform(), 'python': platform.python_version(), 'numpy': numpy.__version__, 'CoolProp': CoolProp.__version__, 'matplotlib': matplotlib.__version__}, indent=2))"
           git rev-parse HEAD
           $status = git status --porcelain=v1 --untracked-files=all
           if ($status) { throw "checkout is dirty before execution: $status" }
@@ -70,8 +72,15 @@ jobs:
       - name: Assert pristine checkout after execution
         shell: pwsh
         run: |
+          $statusPath = Join-Path $env:RUNNER_TEMP 'stage7-gate3-windows-full-suite-git-status.txt'
           $status = git status --porcelain=v1 --untracked-files=all
-          if ($status) { throw "checkout is dirty after execution: $status" }
+          @($status) | Set-Content -LiteralPath $statusPath -Encoding UTF8
+          if ($status) {
+            Write-Host 'Post-suite working-tree changes:'
+            $status | ForEach-Object { Write-Host $_ }
+            throw "checkout is dirty after execution; see $statusPath"
+          }
+          Write-Host 'Post-suite working tree is clean.'
 
       - name: Upload Windows full-suite evidence
         if: always()
@@ -82,4 +91,5 @@ jobs:
             ${{ runner.temp }}/stage7-gate3-windows-full-suite.xml
             ${{ runner.temp }}/stage7-gate3-windows-full-suite.log
             ${{ runner.temp }}/stage7-gate3-windows-full-suite-report.json
+            ${{ runner.temp }}/stage7-gate3-windows-full-suite-git-status.txt
           if-no-files-found: warn
