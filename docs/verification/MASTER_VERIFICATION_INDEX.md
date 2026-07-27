@@ -3,11 +3,11 @@
 Historical detail through the V-013 reference-core checkpoint is preserved in
 [`archive/MASTER_VERIFICATION_INDEX_through_v013_reference_core.md`](archive/MASTER_VERIFICATION_INDEX_through_v013_reference_core.md).
 
-## Current state — 2026-07-26
+## Current state — 2026-07-27
 
 - Stage 1–6: `COMPLETE`
 - Stage 7: `IN_PROGRESS`
-- recorded substantive development `main`: `827d99bce97cea2785aa3334b3f5e950389c9aad`
+- recorded substantive development `main`: `1bb1765617de72741086b199efa0d72be16ae651`
 - V-013 first-order propagation/reflection baseline: `FORMALIZED; MERGED` in PR #51
 - pure-CO2 HEM thermodynamic and phase foundation: `MERGED` in PRs #54–#57
 - dynamic equilibrium-quality synchronization: `IMPLEMENTED; MERGED` in PRs #59–#60
@@ -21,13 +21,15 @@ Historical detail through the V-013 reference-core checkpoint is preserved in
 - fixed 4 MPa subthreshold forensic diagnosis: `OBSERVED; MERGED` in PR #79
 - fixed 32/64/128-cell mesh-sensitivity matrix at CFL 0.10: `OBSERVED; MERGED` in PR #82
 - fixed 128-cell CFL-sensitivity contract and exact CFL 0.10 replay: `IMPLEMENTED; SOFTWARE-VERIFIED; MERGED` in PR #84
+- Gate 3 cross-runtime capture and local-PC checkpoint: `NUMERICALLY_EQUIVALENT; MERGED` in PR #91
+- Ubuntu remains authoritative for bitwise-exact scalars and SHA256 values; Windows hashes do not replace the Ubuntu baselines
 - 4 MPa raw crossing: present at 32, 64, and 128 cells; accepted-crossing threshold
   remains unchanged at `1e-6`
 - Gate P2: `FALSE`
 - mesh-independent crossing accuracy: `NOT ESTABLISHED`
 - CFL-independent crossing: `NOT VERIFIED`
-- active operational gate: local-PC reproduction checkpoint in Issue #85
-- next numerical execution gate: fixed low-CFL matrix in Issue #86 after the local checkpoint
+- Gate 3 local-PC reproduction checkpoint: `COMPLETE; NUMERICALLY_EQUIVALENT` in PR #91; Issue #85 closed
+- next numerical execution gate: fixed low-CFL matrix in Issue #86 after this central-record synchronization
 - MUSCL/TVD reconstruction scaffold: `OPEN; READY FOR REVIEW` in PR #52
 - scalar-advection comparison: `VALIDATED STACKED DRAFT` in PR #53
 - physical Validation: `NOT ESTABLISHED`
@@ -87,6 +89,7 @@ propagation approval, design use, and production HEM activation remain unestabli
 | PR #79 | fixed 4 MPa subthreshold forensic diagnosis | `OBSERVED; MERGED` | merge `e40562e03657dec526f84b3911cbf181973462fa` |
 | PR #82 | fixed 32/64/128-cell mesh sensitivity at CFL 0.10 | `OBSERVED; MERGED` | merge `08d34069b45083537e1d5c4035993d3fc5c01de5` |
 | PR #84 | fixed CFL contract and exact 128-cell/CFL 0.10 replay | `IMPLEMENTED; SOFTWARE-VERIFIED; MERGED` | merge `827d99bce97cea2785aa3334b3f5e950389c9aad` |
+| PR #91 | Gate 3 cross-runtime numeric-equivalence closure | `NUMERICALLY_EQUIVALENT; MERGED` | merge `1bb1765617de72741086b199efa0d72be16ae651` |
 
 ## Boundary-driven pipeline continuation — PRs #77, #79, #82, and #84
 
@@ -163,9 +166,9 @@ full repository:              796 passed
 skips / failures / errors:    0 / 0 / 0
 ```
 
-The low-CFL 0.05/0.025 matrix has not been executed or accepted. Its final acceptance is
-blocked on the independent local-PC reproduction checkpoint in Issue #85; execution is
-tracked in Issue #86.
+The independent local-PC reproduction checkpoint completed as `NUMERICALLY_EQUIVALENT`
+in PR #91, with Issue #85 closed. The low-CFL 0.05/0.025 matrix remains unexecuted and
+unaccepted; its controlled execution and review remain tracked in Issue #86.
 
 ```text
 Gate_P2_passed = false
@@ -177,6 +180,45 @@ physical_validation = false
 design_use_acceptance = false
 production_hem_activation_approved = false
 ```
+
+
+### PR #91 — Gate 3 cross-runtime numeric-equivalence closure
+
+The authoritative Ubuntu 24.04 reference retained exact PR #82 scalar and SHA256 identity.
+An independent Windows 11 replay used Python 3.12.10, NumPy 2.5.1, and CoolProp 8.0.0.
+The Windows result was not bitwise identical, but all three reviewed 128-cell / CFL 0.10
+cases retained exact formal outcomes, step counts, crossing steps, crossing cells, crossing
+positions, and failure categories.
+
+```text
+Ubuntu reference artifact:       8632513953
+Ubuntu artifact SHA256:          78002ddb524c9f1cac00040a14139d6da512f66f19d39a65afc53dbcac188060
+Windows raw-history ZIP SHA256:  508e9b727a2e0d00974e4650c3f927e93af89eed9af96cde5c2b0b3e12368738
+maximum normalized difference:   5.519112370006797e-12
+predeclared comparison guard:    1.0e-10
+```
+
+The first cross-platform difference was already present in the CoolProp-backed uniform
+initial state before the first FVM update. It did not change a discrete event or reverse a
+crossing-threshold decision. All raw-history shapes matched, all values were finite, and
+mass, momentum, energy, and vapor inventory differences remained inside the existing
+absolute budget limits.
+
+The independent Windows full-repository packet v2 completed:
+
+```text
+source main:                       f1b2c76827482164a12e2924bf7119a0b150e421
+full repository:                   796 tests
+passed / failed / errors / skips:  785 / 4 / 7 / 0
+reviewed exact mismatches:         11
+unexpected problems:               0
+inspector result:                  KNOWN_EXACT_WINDOWS_MISMATCHES_ONLY
+packet SHA256:                     67a0113b63db1b4770baf4bbd4104312c5c24839cf50956e57592f487fd7755f
+```
+
+The exact Ubuntu baselines remain unchanged. The formal Gate 3 disposition is
+`NUMERICALLY_EQUIVALENT`; this is a cross-runtime software-verification conclusion, not a
+physical Validation, acoustic-accuracy, design-use, or production-activation approval.
 
 ## First-order V-013 baseline
 
@@ -642,7 +684,8 @@ Subsequent merged work executed the fixed boundary-driven pipeline matrix, diagn
 4 MPa subthreshold crossing, completed the 32/64/128-cell mesh matrix, and fixed the
 128-cell CFL contract with exact CFL 0.10 replay.
 
-The current active operational gate is Issue #85, followed by the fixed low-CFL execution
-in Issue #86. Gate P2, mesh-independent accuracy, CFL-independent crossing, near-saturation
-acoustic continuity, post-crossing propagation, physical Validation, design use, and
-production HEM activation remain unapproved.
+Issue #85 is complete with the Gate 3 disposition `NUMERICALLY_EQUIVALENT`. The next
+controlled numerical gate is the fixed low-CFL execution in Issue #86. Gate P2,
+mesh-independent accuracy, CFL-independent crossing, near-saturation acoustic continuity,
+post-crossing propagation, physical Validation, design use, and production HEM activation
+remain unapproved.

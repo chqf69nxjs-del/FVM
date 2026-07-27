@@ -1,18 +1,19 @@
 # Stage 7 Current Gate Snapshot
 
-## Status — 2026-07-26
+## Status — 2026-07-27
 
 ```text
 Stage 1–6:                         COMPLETE
 Stage 7:                           IN_PROGRESS
-recorded substantive main:         827d99bce97cea2785aa3334b3f5e950389c9aad
+recorded substantive main:         1bb1765617de72741086b199efa0d72be16ae651
 pipeline Increment 2:              MERGED in PR #77
 fixed 4 MPa forensic diagnostic:   MERGED in PR #79
 mesh sensitivity at CFL 0.10:      MERGED in PR #82
 CFL contract / 0.10 replay:        MERGED in PR #84
+Gate 3 cross-runtime checkpoint:   NUMERICALLY_EQUIVALENT; MERGED in PR #91
+Issue #85:                         COMPLETE; CLOSED
 Gate P2:                           FALSE
-active operational gate:           local-PC reproduction checkpoint — Issue #85
-next numerical execution gate:     fixed low-CFL matrix — Issue #86
+active numerical execution gate:   fixed low-CFL matrix — Issue #86
 physical Validation:               NOT ESTABLISHED
 design-use acceptance:             NOT ESTABLISHED
 production HEM activation:         NOT APPROVED
@@ -96,16 +97,31 @@ skips / failures / errors:      0 / 0 / 0
 pre-execution checkout state:   clean
 ```
 
+## PR #91 — merged Gate 3 cross-runtime closure
+
+```text
+Gate 3 disposition:                  NUMERICALLY_EQUIVALENT
+Ubuntu exact baseline retained:      true
+Windows hashes replace Ubuntu:       false
+all reviewed discrete events exact:  true
+maximum normalized array difference: 5.519112370006797e-12
+comparison guard:                    1.0e-10
+Windows full suite:                  796 tests
+passed / failed / errors / skips:    785 / 4 / 7 / 0
+unexpected Windows problems:         0
+```
+
+The Windows least-significant-bit differences begin in the CoolProp-backed initial state
+before the first FVM update. They do not change outcomes, step counts, crossing locations,
+or fixed-threshold decisions. Issue #85 is complete. This conclusion is limited to
+cross-runtime software reproduction and does not approve physical or design interpretation.
+
 ## Active next gate
 
-Issue #85 is the manual local-PC checkpoint. It must record the local OS/WSL, Python,
-NumPy, CoolProp, Git SHA, working-tree state, focused regressions, exact CFL 0.10 replay,
-and full-suite result as `EXACT`, `NUMERICALLY_EQUIVALENT`, or
-`INVESTIGATION_REQUIRED`.
-
-Issue #86 then executes the fixed nine-run low-CFL matrix. CI preparation may proceed, but
-its final sensitivity conclusion must not be accepted into the central record before Issue
-#85 is completed or explicitly dispositioned.
+Issue #85 is complete with the Gate 3 disposition `NUMERICALLY_EQUIVALENT`. Issue #86 is
+the next numerical execution gate for the fixed nine-run low-CFL matrix. The CFL 0.10 rows
+must first reproduce the retained PR #82 baseline exactly; CFL 0.05 and 0.025 results remain
+unaccepted until their dedicated execution, review, and central-record promotion.
 
 ```text
 mesh-independent crossing verified = false
