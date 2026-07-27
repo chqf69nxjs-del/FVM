@@ -924,7 +924,8 @@ cfl_contract_implemented = true
 cfl_0p10_baseline_reproduced_exactly = true
 low_cfl_matrix_executed = false
 CFL_independent_crossing_verified = false
-local_pc_reproduction_checkpoint_completed = false
+local_pc_reproduction_checkpoint_completed = true
+local_pc_reproduction_disposition = NUMERICALLY_EQUIVALENT
 algorithms_or_tolerances_tuned = false
 production_default_changed = false
 production_hem_activation_approved = false
@@ -937,13 +938,69 @@ numeric_accuracy_band_approved = false
 
 ## Next
 
-1. complete the local-PC reproduction checkpoint in Issue #85 and classify it as `EXACT`,
-   `NUMERICALLY_EQUIVALENT`, or `INVESTIGATION_REQUIRED`;
-2. only after the checkpoint is completed or explicitly dispositioned, execute and accept
-   the fixed 128-cell 2/3/4 MPa × CFL 0.10/0.05/0.025 matrix in Issue #86;
-3. retain PRs #52/#53 as later numerical-improvement assets until the first-order temporal
+1. synchronize the merged PR #91 Gate 3 disposition into the three central records;
+2. execute the fixed 128-cell 2/3/4 MPa × CFL 0.10/0.05/0.025 matrix in Issue #86, first
+   requiring the CFL 0.10 rows to reproduce the retained PR #82 baseline exactly;
+3. keep all CFL 0.05/0.025 results unaccepted until their dedicated review and promotion;
+4. retain PRs #52/#53 as later numerical-improvement assets until the first-order temporal
    and near-saturation acoustic questions are separated;
-4. perform the independent near-saturation acoustic-continuity gate before approving any
+5. perform the independent near-saturation acoustic-continuity gate before approving any
    post-crossing propagation;
-5. keep production activation, physical Validation, design use, and acoustic/numerical
+6. keep production activation, physical Validation, design use, and acoustic/numerical
    accuracy approval false until separately established.
+
+## 2026-07-26 to 2026-07-27 — Gate 3 cross-runtime closure
+
+### PR #91 — local-PC checkpoint and numeric-equivalence disposition
+
+Status: `NUMERICALLY_EQUIVALENT; MERGED`. Merge commit:
+`1bb1765617de72741086b199efa0d72be16ae651`.
+
+The Ubuntu 24.04 reference remained authoritative for bitwise-exact PR #82 scalar and
+SHA256 values. The independent Windows 11 runtime used Python 3.12.10, NumPy 2.5.1, and
+CoolProp 8.0.0. Its raw histories were not bitwise identical, but all reviewed outcomes,
+step counts, crossing steps, crossing cells, crossing positions, and failure categories
+were exact.
+
+```text
+Ubuntu reference artifact:          8632513953
+Ubuntu artifact SHA256:             78002ddb524c9f1cac00040a14139d6da512f66f19d39a65afc53dbcac188060
+Windows raw-history ZIP SHA256:     508e9b727a2e0d00974e4650c3f927e93af89eed9af96cde5c2b0b3e12368738
+maximum normalized difference:      5.519112370006797e-12
+predeclared comparison guard:       1.0e-10
+```
+
+The first platform-dependent difference was present in the initial CoolProp-backed state
+before time integration. No discrete-event divergence or crossing-threshold reversal was
+observed. Inventory differences remained inside the pre-existing absolute budget limits.
+
+The corrected independent Windows full-suite packet v2 recorded:
+
+```text
+source main:                         f1b2c76827482164a12e2924bf7119a0b150e421
+runtime:                             Windows 11 / Python 3.12.10
+NumPy / CoolProp / Matplotlib:       2.5.1 / 8.0.0 / 3.11.1
+full repository:                     796 tests
+passed / failures / errors / skips:  785 / 4 / 7 / 0
+known exact mismatches:              11
+unexpected / missing / changed:      0 / 0 / 0
+packet SHA256:                       67a0113b63db1b4770baf4bbd4104312c5c24839cf50956e57592f487fd7755f
+```
+
+The 11 Windows problems are the reviewed bitwise-exact baseline mismatches only. Ubuntu
+hashes were not replaced, exact guards were not weakened, and no solver algorithm or
+tolerance changed.
+
+```text
+Gate_3_disposition = NUMERICALLY_EQUIVALENT
+Gate_3_complete = true
+Gate_4_execution_paused_until_central_record_sync = true
+low_cfl_result_accepted = false
+Gate_P2_passed = false
+mesh_independent_crossing_verified = false
+CFL_independent_crossing_verified = false
+physical_validation = false
+design_use_acceptance = false
+production_hem_activation_approved = false
+```
+
