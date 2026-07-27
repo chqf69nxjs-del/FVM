@@ -1,0 +1,45 @@
+name: Stage 7 Gate 3 Central Record Sync PR v2
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - reopened
+      - synchronize
+
+permissions:
+  contents: write
+
+jobs:
+  synchronize-central-records:
+    if: github.head_ref == 'agent/stage7-gate3-central-record-sync' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout synchronization branch
+        uses: actions/checkout@v7
+        with:
+          ref: agent/stage7-gate3-central-record-sync
+          fetch-depth: 0
+
+      - name: Apply central-record synchronization
+        run: |
+          python scripts/stage7_gate3_central_record_sync.py
+          git restore .github/workflows/stage7-gate3-central-record-sync-once.yml
+          git restore .github/workflows/stage7-gate3-central-record-sync-pr.yml
+          git restore scripts/stage7_gate3_central_record_sync.py
+
+      - name: Validate, commit, and push records only
+        run: |
+          git diff --check
+          git diff -- docs/verification/MASTER_VERIFICATION_INDEX.md \
+            docs/verification/stage7_current_gate_snapshot.md \
+            docs/verification/stage7_execution_log.md
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add docs/verification/MASTER_VERIFICATION_INDEX.md \
+            docs/verification/stage7_current_gate_snapshot.md \
+            docs/verification/stage7_execution_log.md
+          git commit -m "Synchronize Stage 7 central records through Gate 3"
+          git push origin HEAD:agent/stage7-gate3-central-record-sync
