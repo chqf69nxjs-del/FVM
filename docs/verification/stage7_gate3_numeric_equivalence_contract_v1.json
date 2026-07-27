@@ -1,0 +1,87 @@
+{
+  "schema_version": "stage7_gate3_numeric_equivalence_contract_v1",
+  "scope": "verification_only_cross_runtime_closure",
+  "source_main_sha": "f1b2c76827482164a12e2924bf7119a0b150e421",
+  "fixed_execution": {
+    "n_cells": 128,
+    "cfl": 0.1,
+    "maximum_steps": 8000,
+    "final_boundary_pressures_pa": [2000000.0, 3000000.0, 4000000.0],
+    "spatial_flux": "existing_first_order_rusanov",
+    "property_backend": "CoolProp==8.0.0",
+    "numpy": "2.5.1"
+  },
+  "evidence": {
+    "ubuntu_reference_artifact_id": 8632513953,
+    "ubuntu_reference_artifact_digest": "sha256:78002ddb524c9f1cac00040a14139d6da512f66f19d39a65afc53dbcac188060",
+    "windows_candidate_zip": "stage7-gate3-numeric-candidate-20260726-222235.zip",
+    "windows_candidate_zip_sha256": "508e9b727a2e0d00974e4650c3f927e93af89eed9af96cde5c2b0b3e12368738"
+  },
+  "required_exact_discrete_fields": [
+    "case_id",
+    "n_cells",
+    "cfl",
+    "maximum_steps",
+    "outcome",
+    "failure_reason",
+    "step_count",
+    "crossing_step",
+    "crossing_cell_index",
+    "crossing_distance_from_outlet_m"
+  ],
+  "required_arrays": [
+    "time_history_s",
+    "pressure_history_pa",
+    "accepted_state_history"
+  ],
+  "numeric_guards": {
+    "all_shapes_identical": true,
+    "all_values_finite": true,
+    "maximum_global_scale_normalized_difference": 1e-10,
+    "inventory_absolute_limits": {
+      "mass_kg": 1e-12,
+      "momentum_kg_m_s": 1e-10,
+      "energy_J": 1e-6,
+      "vapor_mass_kg": 1e-12
+    }
+  },
+  "windows_full_suite_rule": {
+    "run_entire_repository": true,
+    "expected_main_test_count": 796,
+    "expected_pr91_test_count": 804,
+    "reference_pr91_initial_test_count": 799,
+    "skips_allowed": 0,
+    "unexpected_failures_or_errors_allowed": 0,
+    "reviewed_exact_mismatch_count": 11,
+    "exact_ubuntu_baselines_must_remain_unchanged": true
+  },
+  "observed_cross_runtime_maxima": {
+    "time_s": 2.690230850588282e-15,
+    "pressure_pa": 1.4462508261203766e-05,
+    "density_kg_m3": 4.204139258945361e-10,
+    "momentum_density": 9.738641892909072e-09,
+    "energy_density_j_m3": 5.429983139038086e-05,
+    "vapor_mass_fraction": 2.623925534993689e-15,
+    "maximum_global_scale_normalized_difference": 5.519112370006797e-12,
+    "inventory_mass_kg": 2.842170943040401e-14,
+    "inventory_momentum_kg_m_s": 1.3575363055906564e-11,
+    "inventory_energy_j": 1.7229467630386353e-08,
+    "inventory_vapor_mass_kg": 2.3924178250423736e-16
+  },
+  "interpretation": {
+    "numeric_evidence": "SUPPORTS_NUMERICALLY_EQUIVALENT",
+    "automatic_gate_acceptance": false,
+    "hash_baseline_replacement_allowed": false,
+    "algorithm_or_tolerance_changed": false
+  },
+  "approval_boundary": {
+    "Gate_P2_passed": false,
+    "mesh_independent_crossing_verified": false,
+    "CFL_independent_crossing_verified": false,
+    "near_saturation_acoustic_continuity_approved": false,
+    "post_crossing_propagation_approved": false,
+    "physical_validation": false,
+    "design_use_acceptance": false,
+    "production_hem_activation_approved": false
+  }
+}
