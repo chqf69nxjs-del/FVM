@@ -938,15 +938,14 @@ numeric_accuracy_band_approved = false
 
 ## Next
 
-1. synchronize the merged PR #91 Gate 3 disposition into the three central records;
-2. execute the fixed 128-cell 2/3/4 MPa × CFL 0.10/0.05/0.025 matrix in Issue #86, first
+1. execute the fixed 128-cell 2/3/4 MPa × CFL 0.10/0.05/0.025 matrix in Issue #86, first
    requiring the CFL 0.10 rows to reproduce the retained PR #82 baseline exactly;
-3. keep all CFL 0.05/0.025 results unaccepted until their dedicated review and promotion;
-4. retain PRs #52/#53 as later numerical-improvement assets until the first-order temporal
+2. keep all CFL 0.05/0.025 results unaccepted until their dedicated review and promotion;
+3. retain PRs #52/#53 as later numerical-improvement assets until the first-order temporal
    and near-saturation acoustic questions are separated;
-5. perform the independent near-saturation acoustic-continuity gate before approving any
+4. perform the independent near-saturation acoustic-continuity gate before approving any
    post-crossing propagation;
-6. keep production activation, physical Validation, design use, and acoustic/numerical
+5. keep production activation, physical Validation, design use, and acoustic/numerical
    accuracy approval false until separately established.
 
 ## 2026-07-26 to 2026-07-27 — Gate 3 cross-runtime closure
@@ -994,7 +993,6 @@ tolerance changed.
 ```text
 Gate_3_disposition = NUMERICALLY_EQUIVALENT
 Gate_3_complete = true
-Gate_4_execution_paused_until_central_record_sync = true
 low_cfl_result_accepted = false
 Gate_P2_passed = false
 mesh_independent_crossing_verified = false
@@ -1003,4 +1001,3 @@ physical_validation = false
 design_use_acceptance = false
 production_hem_activation_approved = false
 ```
-
