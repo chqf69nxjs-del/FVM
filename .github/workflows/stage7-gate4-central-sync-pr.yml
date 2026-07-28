@@ -10,7 +10,7 @@ on:
       - synchronize
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   synchronize-central-records:
@@ -38,19 +38,24 @@ jobs:
           exec(compile(code, 'stage7_gate4_central_sync.py', 'exec'))
           PY
 
-      - name: Validate and push clean three-file synchronization
+      - name: Validate generated central records
         run: |
           set -euo pipefail
           git diff --check
           grep -q 'CFL_SENSITIVITY_OBSERVED' docs/verification/MASTER_VERIFICATION_INDEX.md
           grep -q 'low-CFL result accepted = true' docs/verification/stage7_current_gate_snapshot.md
           grep -q 'Gate_4_execution = COMPLETE' docs/verification/stage7_execution_log.md
-          rm -f .github/workflows/stage7-gate4-central-sync-once.yml
-          rm -f .github/workflows/stage7-gate4-central-sync-pr.yml
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add -A
-          git diff --cached --check
-          git diff --cached --name-only
-          git commit -m 'Synchronize Stage 7 central records through Gate 4'
-          git push origin HEAD:agent/stage7-gate4-central-record-sync
+
+      - name: Build central-record artifact
+        run: |
+          mkdir -p gate4-central-records/docs/verification
+          cp docs/verification/MASTER_VERIFICATION_INDEX.md gate4-central-records/docs/verification/
+          cp docs/verification/stage7_current_gate_snapshot.md gate4-central-records/docs/verification/
+          cp docs/verification/stage7_execution_log.md gate4-central-records/docs/verification/
+
+      - name: Upload validated central records
+        uses: actions/upload-artifact@v7
+        with:
+          name: stage7-gate4-central-records-${{ github.run_id }}
+          path: gate4-central-records
+          if-no-files-found: error
