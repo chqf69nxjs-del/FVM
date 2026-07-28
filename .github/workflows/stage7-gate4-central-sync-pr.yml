@@ -15,7 +15,7 @@ permissions:
 jobs:
   synchronize-central-records:
     if: github.head_ref == 'agent/stage7-gate4-central-record-sync' && github.actor != 'github-actions[bot]'
-    runs-on: macos-14-arm64
+    runs-on: macos-14
     steps:
       - name: Checkout synchronization branch
         uses: actions/checkout@v7
