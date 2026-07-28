@@ -53,6 +53,7 @@ jobs:
           git diff --cached --check
           changed="$(git diff --cached --name-only)"
           printf '%s\n' "$changed"
-          test "$changed" = $'docs/verification/MASTER_VERIFICATION_INDEX.md\ndocs/verification/stage7_current_gate_snapshot.md\ndocs/verification/stage7_execution_log.md'
+          expected=$'.github/workflows/stage7-gate4-central-sync-once.yml\n.github/workflows/stage7-gate4-central-sync-pr.yml\ndocs/verification/MASTER_VERIFICATION_INDEX.md\ndocs/verification/stage7_current_gate_snapshot.md\ndocs/verification/stage7_execution_log.md'
+          test "$changed" = "$expected"
           git commit -m 'Synchronize Stage 7 central records through Gate 4'
           git push origin HEAD:agent/stage7-gate4-central-record-sync
