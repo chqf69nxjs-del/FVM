@@ -35,9 +35,17 @@ jobs:
 
       - name: Install validated central records
         run: |
-          cp gate4-central-records/docs/verification/MASTER_VERIFICATION_INDEX.md docs/verification/
-          cp gate4-central-records/docs/verification/stage7_current_gate_snapshot.md docs/verification/
-          cp gate4-central-records/docs/verification/stage7_execution_log.md docs/verification/
+          set -euo pipefail
+          find gate4-central-records -maxdepth 6 -type f -print
+          master="$(find gate4-central-records -type f -name MASTER_VERIFICATION_INDEX.md -print -quit)"
+          snapshot="$(find gate4-central-records -type f -name stage7_current_gate_snapshot.md -print -quit)"
+          log="$(find gate4-central-records -type f -name stage7_execution_log.md -print -quit)"
+          test -n "$master"
+          test -n "$snapshot"
+          test -n "$log"
+          cp "$master" docs/verification/MASTER_VERIFICATION_INDEX.md
+          cp "$snapshot" docs/verification/stage7_current_gate_snapshot.md
+          cp "$log" docs/verification/stage7_execution_log.md
           git diff --check
           grep -q 'CFL_SENSITIVITY_OBSERVED' docs/verification/MASTER_VERIFICATION_INDEX.md
           grep -q 'low-CFL result accepted = true' docs/verification/stage7_current_gate_snapshot.md
