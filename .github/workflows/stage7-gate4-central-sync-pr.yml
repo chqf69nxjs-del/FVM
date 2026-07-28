@@ -38,21 +38,26 @@ jobs:
 
       - name: Install validated central records
         run: |
-          set -euo pipefail
-          find gate4-central-records -maxdepth 6 -type f -print
-          master="$(find gate4-central-records -type f -name MASTER_VERIFICATION_INDEX.md -print -quit)"
-          snapshot="$(find gate4-central-records -type f -name stage7_current_gate_snapshot.md -print -quit)"
-          log="$(find gate4-central-records -type f -name stage7_execution_log.md -print -quit)"
-          test -n "$master"
-          test -n "$snapshot"
-          test -n "$log"
-          cp "$master" docs/verification/MASTER_VERIFICATION_INDEX.md
-          cp "$snapshot" docs/verification/stage7_current_gate_snapshot.md
-          cp "$log" docs/verification/stage7_execution_log.md
+          python - <<'PY'
+          from pathlib import Path
+          import shutil
+
+          source_root = Path('gate4-central-records')
+          target_root = Path('docs/verification')
+          required = {
+              'MASTER_VERIFICATION_INDEX.md': 'CFL_SENSITIVITY_OBSERVED',
+              'stage7_current_gate_snapshot.md': 'low-CFL result accepted = true',
+              'stage7_execution_log.md': 'Gate_4_execution = COMPLETE',
+          }
+          for name, marker in required.items():
+              matches = list(source_root.rglob(name))
+              assert len(matches) == 1, (name, matches)
+              destination = target_root / name
+              shutil.copyfile(matches[0], destination)
+              text = destination.read_text(encoding='utf-8')
+              assert marker in text, (name, marker)
+          PY
           git diff --check
-          grep -q 'CFL_SENSITIVITY_OBSERVED' docs/verification/MASTER_VERIFICATION_INDEX.md
-          grep -q 'low-CFL result accepted = true' docs/verification/stage7_current_gate_snapshot.md
-          grep -q 'Gate_4_execution = COMPLETE' docs/verification/stage7_execution_log.md
 
       - name: Publish clean three-file branch
         run: |
@@ -63,7 +68,17 @@ jobs:
             docs/verification/stage7_current_gate_snapshot.md \
             docs/verification/stage7_execution_log.md
           git diff --cached --check
-          changed="$(git diff --cached --name-only)"
-          test "$changed" = $'docs/verification/MASTER_VERIFICATION_INDEX.md\ndocs/verification/stage7_current_gate_snapshot.md\ndocs/verification/stage7_execution_log.md'
+          python - <<'PY'
+          import subprocess
+          expected = [
+              'docs/verification/MASTER_VERIFICATION_INDEX.md',
+              'docs/verification/stage7_current_gate_snapshot.md',
+              'docs/verification/stage7_execution_log.md',
+          ]
+          actual = subprocess.check_output(
+              ['git', 'diff', '--cached', '--name-only'], text=True
+          ).splitlines()
+          assert actual == expected, (actual, expected)
+          PY
           git commit -m 'Synchronize Stage 7 central records through Gate 4'
           git push --force origin HEAD:refs/heads/agent/stage7-gate4-central-records-clean
