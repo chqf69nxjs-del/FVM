@@ -16,7 +16,10 @@ permissions:
 jobs:
   publish-clean-central-records:
     if: github.head_ref == 'agent/stage7-gate4-central-record-sync' && github.actor != 'github-actions[bot]'
-    runs-on: ubuntu-24.04
+    runs-on: windows-2025
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Checkout current main
         uses: actions/checkout@v7
