@@ -3,11 +3,11 @@
 Historical detail through the V-013 reference-core checkpoint is preserved in
 [`archive/MASTER_VERIFICATION_INDEX_through_v013_reference_core.md`](archive/MASTER_VERIFICATION_INDEX_through_v013_reference_core.md).
 
-## Current state — 2026-07-27
+## Current state — 2026-07-28
 
 - Stage 1–6: `COMPLETE`
 - Stage 7: `IN_PROGRESS`
-- recorded substantive development `main`: `1bb1765617de72741086b199efa0d72be16ae651`
+- recorded substantive development `main`: `6399c5fddf6bfbe802da23fdb4f3992ad496e51f`
 - V-013 first-order propagation/reflection baseline: `FORMALIZED; MERGED` in PR #51
 - pure-CO2 HEM thermodynamic and phase foundation: `MERGED` in PRs #54–#57
 - dynamic equilibrium-quality synchronization: `IMPLEMENTED; MERGED` in PRs #59–#60
@@ -22,6 +22,7 @@ Historical detail through the V-013 reference-core checkpoint is preserved in
 - fixed 32/64/128-cell mesh-sensitivity matrix at CFL 0.10: `OBSERVED; MERGED` in PR #82
 - fixed 128-cell CFL-sensitivity contract and exact CFL 0.10 replay: `IMPLEMENTED; SOFTWARE-VERIFIED; MERGED` in PR #84
 - Gate 3 cross-runtime capture and local-PC checkpoint: `NUMERICALLY_EQUIVALENT; MERGED` in PR #91
+- Gate 4 fixed 128-cell low-CFL matrix: `CFL_SENSITIVITY_OBSERVED; MERGED` in PR #90
 - Ubuntu remains authoritative for bitwise-exact scalars and SHA256 values; Windows hashes do not replace the Ubuntu baselines
 - 4 MPa raw crossing: present at 32, 64, and 128 cells; accepted-crossing threshold
   remains unchanged at `1e-6`
@@ -29,7 +30,8 @@ Historical detail through the V-013 reference-core checkpoint is preserved in
 - mesh-independent crossing accuracy: `NOT ESTABLISHED`
 - CFL-independent crossing: `NOT VERIFIED`
 - Gate 3 local-PC reproduction checkpoint: `COMPLETE; NUMERICALLY_EQUIVALENT` in PR #91; Issue #85 closed
-- next numerical execution gate: fixed low-CFL matrix in Issue #86 after this central-record synchronization
+- Gate 4 low-CFL execution: `COMPLETE; CFL_SENSITIVITY_OBSERVED` in PR #90; Issue #86 closed after synchronization
+- next numerical gate: independent near-saturation acoustic-continuity review
 - MUSCL/TVD reconstruction scaffold: `OPEN; READY FOR REVIEW` in PR #52
 - scalar-advection comparison: `VALIDATED STACKED DRAFT` in PR #53
 - physical Validation: `NOT ESTABLISHED`
@@ -48,10 +50,12 @@ an actual first-order Rusanov/CFL liquid-to-open-two-phase crossing, synchronize
 post-crossing recovery, vapor-budget closure, a repeatable matched Case A/B software
 verification pair, a fixed minimal pipeline-depressurization specification, a verified
 prescribed-subcooled outlet boundary, a boundary-driven first-crossing pipeline runner,
-a fixed 4 MPa forensic diagnosis, and a 32/64/128-cell software mesh-sensitivity matrix.
-The next CFL comparison is contract-locked and its 128-cell/CFL 0.10 baseline has been
-reproduced exactly. Physical Validation, a two-phase acoustic accuracy band, post-crossing
-propagation approval, design use, and production HEM activation remain unestablished.
+a fixed 4 MPa forensic diagnosis, a 32/64/128-cell software mesh-sensitivity matrix, and
+a fixed 128-cell CFL 0.10/0.05/0.025 execution matrix. Gate 4 accepted the low-CFL
+observations as formal verification evidence: crossing time and position are stable, but
+crossing depth is non-monotone and the accepted/guard classification is CFL-dependent.
+Physical Validation, a two-phase acoustic accuracy band, post-crossing propagation
+approval, design use, and production HEM activation remain unestablished.
 
 ## Stage 7 milestone index
 
@@ -90,8 +94,9 @@ propagation approval, design use, and production HEM activation remain unestabli
 | PR #82 | fixed 32/64/128-cell mesh sensitivity at CFL 0.10 | `OBSERVED; MERGED` | merge `08d34069b45083537e1d5c4035993d3fc5c01de5` |
 | PR #84 | fixed CFL contract and exact 128-cell/CFL 0.10 replay | `IMPLEMENTED; SOFTWARE-VERIFIED; MERGED` | merge `827d99bce97cea2785aa3334b3f5e950389c9aad` |
 | PR #91 | Gate 3 cross-runtime numeric-equivalence closure | `NUMERICALLY_EQUIVALENT; MERGED` | merge `1bb1765617de72741086b199efa0d72be16ae651` |
+| PR #90 | fixed 128-cell low-CFL execution and evidence | `CFL_SENSITIVITY_OBSERVED; MERGED` | merge `6399c5fddf6bfbe802da23fdb4f3992ad496e51f` |
 
-## Boundary-driven pipeline continuation — PRs #77, #79, #82, and #84
+## Boundary-driven pipeline continuation — PRs #77, #79, #82, #84, and #90
 
 ### PR #77 — fixed first-crossing pipeline matrix
 
@@ -167,8 +172,8 @@ skips / failures / errors:    0 / 0 / 0
 ```
 
 The independent local-PC reproduction checkpoint completed as `NUMERICALLY_EQUIVALENT`
-in PR #91, with Issue #85 closed. The low-CFL 0.05/0.025 matrix remains unexecuted and
-unaccepted; its controlled execution and review remain tracked in Issue #86.
+in PR #91. PR #90 then completed the fixed low-CFL matrix and accepted the observations
+as formal verification evidence. The result does not establish CFL-independent crossing.
 
 ```text
 Gate_P2_passed = false
@@ -181,6 +186,52 @@ design_use_acceptance = false
 production_hem_activation_approved = false
 ```
 
+
+### PR #90 — Gate 4 fixed low-CFL execution and evidence
+
+The clean-head authoritative run completed the fixed 128-cell matrix without tuning. Only
+CFL and the predeclared step cap varied.
+
+```text
+merge:                            6399c5fddf6bfbe802da23fdb4f3992ad496e51f
+source head:                      ce54f388dc6db75151b7690ca83f8c355c05188f
+workflow / artifact:             30313389184 / 8675117973
+artifact SHA256:                  cee333aeba52510f9f99f89b6fbb36a1a01548bb1a21dd65bab967d203dfaa83
+CFL 0.10 exact PR #82 replay:     PASS
+Gate 4 / related / full JUnit:    50 / 126 / 809
+skips / failures / errors:       0 / 0 / 0
+```
+
+| final pressure | CFL | formal result | crossing time [s] | outlet distance [m] | maximum q_eq |
+|---:|---:|---|---:|---:|---:|
+| 2 MPa | 0.100 | `ACCEPTED_FIRST_CROSSING` | `0.0006422816041107276` | `0.05859375` | `1.1990738237934995e-6` |
+| 2 MPa | 0.050 | `GUARD_FAILURE` | `0.0006414831293446631` | `0.05859375` | `8.49256445269167e-8` |
+| 2 MPa | 0.025 | `GUARD_FAILURE` | `0.000641835254911946` | `0.05859375` | `4.5860628934931823e-7` |
+| 3 MPa | 0.100 | `GUARD_FAILURE` | `0.0009203833940858876` | `0.07421875` | `5.977506786571329e-7` |
+| 3 MPa | 0.050 | `GUARD_FAILURE` | `0.0009203372670546511` | `0.07421875` | `4.795347832264699e-7` |
+| 3 MPa | 0.025 | `GUARD_FAILURE` | `0.0009199386269654269` | `0.07421875` | `1.0679679596318976e-7` |
+| 4 MPa | 0.100 | `GUARD_FAILURE` | `0.0017272870719037706` | `0.11328125` | `3.8580990283897163e-7` |
+| 4 MPa | 0.050 | `GUARD_FAILURE` | `0.0017264912557689444` | `0.11328125` | `4.882555423709485e-9` |
+| 4 MPa | 0.025 | `GUARD_FAILURE` | `0.0017268445320799829` | `0.11328125` | `1.4058733473620004e-7` |
+
+```text
+FINITE_CROSSING_PERSISTS_ACROSS_CFL
+CROSSING_TIME_POSITION_TREND_STABLE
+CFL_SEQUENCE_NON_MONOTONE
+```
+
+The low-CFL observations are accepted as formal verification evidence. Crossing time and
+position are stable, but crossing depth does not converge monotonically. At 2 MPa the fixed
+`1e-6` accepted-crossing threshold is exceeded at CFL 0.10 but not at CFL 0.05 or 0.025.
+Therefore `CFL_independent_crossing_verified` remains false.
+
+```text
+Gate_4_execution = COMPLETE
+Gate_4_software_verification = PASSED
+Gate_4_numerical_disposition = CFL_SENSITIVITY_OBSERVED
+low_cfl_result_accepted = true
+CFL_independent_crossing_verified = false
+```
 
 ### PR #91 — Gate 3 cross-runtime numeric-equivalence closure
 
@@ -684,8 +735,7 @@ Subsequent merged work executed the fixed boundary-driven pipeline matrix, diagn
 4 MPa subthreshold crossing, completed the 32/64/128-cell mesh matrix, and fixed the
 128-cell CFL contract with exact CFL 0.10 replay.
 
-Issue #85 is complete with the Gate 3 disposition `NUMERICALLY_EQUIVALENT`. The next
-controlled numerical gate is the fixed low-CFL execution in Issue #86. Gate P2,
-mesh-independent accuracy, CFL-independent crossing, near-saturation acoustic continuity,
-post-crossing propagation, physical Validation, design use, and production HEM activation
-remain unapproved.
+Gate 4 completed in PR #90 with the disposition `CFL_SENSITIVITY_OBSERVED`. The next
+controlled numerical gate is the independent near-saturation acoustic-continuity review.
+Gate P2, mesh-independent accuracy, CFL-independent crossing, post-crossing propagation,
+physical Validation, design use, and production HEM activation remain unapproved.
