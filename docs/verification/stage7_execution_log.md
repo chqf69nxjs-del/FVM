@@ -888,7 +888,8 @@ The HEM verification path on recorded substantive development `main`
 - a fixed boundary-driven 2/3/4 MPa pipeline first-crossing matrix;
 - a fixed 4 MPa forensic diagnosis retaining the raw observation without threshold tuning;
 - a fixed 32/64/128-cell mesh-sensitivity matrix at CFL 0.10;
-- a fixed 128-cell CFL contract with exact CFL 0.10 baseline replay and traceable artifacts.
+- a fixed 128-cell CFL contract with exact CFL 0.10 baseline replay and traceable artifacts;
+- a fixed 128-cell CFL 0.10/0.05/0.025 matrix with accepted formal evidence.
 
 The current evidence does not support the following claims:
 
@@ -897,7 +898,7 @@ Gate P2:                                      false
 all-liquid 4 MPa control:                     false
 formal mesh-independent accuracy:             not established
 CFL-independent crossing:                     not verified
-CFL 0.05 / 0.025 matrix:                      not executed / not accepted
+CFL 0.05 / 0.025 matrix:                      executed / formal evidence accepted
 near-saturation acoustic continuity:          not approved
 post-crossing propagation:                    not approved
 open-two-phase to vapor crossing:             not verified
@@ -922,7 +923,10 @@ mesh_sensitivity_executed = true
 mesh_independent_crossing_verified = false
 cfl_contract_implemented = true
 cfl_0p10_baseline_reproduced_exactly = true
-low_cfl_matrix_executed = false
+low_cfl_matrix_executed = true
+low_cfl_result_accepted = true
+Gate_4_execution = COMPLETE
+Gate_4_numerical_disposition = CFL_SENSITIVITY_OBSERVED
 CFL_independent_crossing_verified = false
 local_pc_reproduction_checkpoint_completed = true
 local_pc_reproduction_disposition = NUMERICALLY_EQUIVALENT
@@ -938,15 +942,12 @@ numeric_accuracy_band_approved = false
 
 ## Next
 
-1. execute the fixed 128-cell 2/3/4 MPa × CFL 0.10/0.05/0.025 matrix in Issue #86, first
-   requiring the CFL 0.10 rows to reproduce the retained PR #82 baseline exactly;
-2. keep all CFL 0.05/0.025 results unaccepted until their dedicated review and promotion;
-3. retain PRs #52/#53 as later numerical-improvement assets until the first-order temporal
-   and near-saturation acoustic questions are separated;
-4. perform the independent near-saturation acoustic-continuity gate before approving any
+1. perform the independent near-saturation acoustic-continuity gate before approving any
    post-crossing propagation;
-5. keep production activation, physical Validation, design use, and acoustic/numerical
-   accuracy approval false until separately established.
+2. retain PRs #52/#53 as later numerical-improvement assets while the temporal and
+   near-saturation acoustic questions remain separated;
+3. keep CFL-independent crossing, Gate P2, production activation, physical Validation,
+   design use, and acoustic/numerical accuracy approval false until separately established.
 
 ## 2026-07-26 to 2026-07-27 — Gate 3 cross-runtime closure
 
@@ -997,6 +998,58 @@ low_cfl_result_accepted = false
 Gate_P2_passed = false
 mesh_independent_crossing_verified = false
 CFL_independent_crossing_verified = false
+physical_validation = false
+design_use_acceptance = false
+production_hem_activation_approved = false
+```
+
+## 2026-07-28 — Gate 4 low-CFL execution closure
+
+### PR #90 — fixed 128-cell CFL-sensitivity matrix
+
+Status: `CFL_SENSITIVITY_OBSERVED; MERGED`. Merge commit:
+`6399c5fddf6bfbe802da23fdb4f3992ad496e51f`.
+
+The clean-head authoritative workflow executed the fixed 2/3/4 MPa × CFL
+0.10/0.05/0.025 matrix. Only CFL and its predeclared 8000/16000/32000 step cap varied.
+The CFL 0.10 rows reproduced the retained PR #82 baseline exactly.
+
+```text
+source head:                      ce54f388dc6db75151b7690ca83f8c355c05188f
+workflow run:                     30313389184
+artifact ID:                      8675117973
+artifact SHA256:                  cee333aeba52510f9f99f89b6fbb36a1a01548bb1a21dd65bab967d203dfaa83
+runtime:                          Ubuntu 24.04 / Python 3.12.13
+NumPy / CoolProp:                 2.5.1 / 8.0.0
+Gate 4 dedicated JUnit:           50 passed
+related Stage 7 JUnit:            126 passed
+full repository JUnit:            809 passed
+skips / failures / errors:        0 / 0 / 0
+```
+
+Formal artifact classifications:
+
+```text
+FINITE_CROSSING_PERSISTS_ACROSS_CFL
+CROSSING_TIME_POSITION_TREND_STABLE
+CFL_SEQUENCE_NON_MONOTONE
+```
+
+Crossing time and position remain stable across the reviewed CFL sequence. Crossing depth
+is non-monotone, and at 2 MPa the fixed `1e-6` accepted-crossing threshold is exceeded at
+CFL 0.10 but not at CFL 0.05 or 0.025. The observations are accepted as formal evidence,
+but they do not establish CFL-independent crossing.
+
+```text
+Gate_4_execution = COMPLETE
+Gate_4_software_verification = PASSED
+Gate_4_numerical_disposition = CFL_SENSITIVITY_OBSERVED
+low_cfl_result_accepted = true
+CFL_independent_crossing_verified = false
+Gate_P2_passed = false
+mesh_independent_crossing_verified = false
+near_saturation_acoustic_continuity_approved = false
+post_crossing_propagation_approved = false
 physical_validation = false
 design_use_acceptance = false
 production_hem_activation_approved = false
