@@ -1,0 +1,107 @@
+name: Stage 7 Gate 4 Central Record Sync Once
+
+on:
+  push:
+    branches:
+      - agent/stage7-gate4-central-record-sync
+
+permissions:
+  contents: write
+
+jobs:
+  synchronize-central-records:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout synchronization branch
+        uses: actions/checkout@v7
+        with:
+          ref: agent/stage7-gate4-central-record-sync
+          fetch-depth: 0
+
+      - name: Apply Gate 4 central-record synchronization
+        env:
+          PATCH_GZIP_BASE64: >-
+            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
+            /SZheElqLKp+Vpf7/pI8X7JANHxVj5Lgkg9uXwr05UY8S4GT9MM49Xkk8eX5vYR0ckGVnXvCdAg3w3UDEqMmR+/omLQw+4O60JPp
+            0x6lXg+K7yYla9D70RXkYyVlyWwnil+3r9ZLhiaHZ5AUT8B4eo9qJDhsS3VTUsyTUQS7GgSjyeCX4T8ktp4aN3qwlMtzJkb6oVyX
+            QT/txLZGKA43pryHG0FG0oCMDYWNGAecQBdu8mScowXdCbyDgyUtsEOkV002LLHX5lyWDmQjavs5R/J5uGwDK9WHRT7rkDbLvTma
+            L5I/2Sx3YTaY0hZMaH0ml11YU21b0ihr38IrFl/WusJl9LYOQffzPtvunlp9u9p04jS4LaXp897iPRRXlDcXa97Wm4xKCYKASFDt
+            6m5CZLqlji9aPD6Kxq/n8gZn/QkWWVp0a5OzNWkJ3Ki/513MMVSJi7K7w9n1jLU25dKiubmJFDt9Sa+2zo4GJCpOU3Y9FUqTbc0n
+            rNkqOmutlFzLLuY+++juLrb6S4Rsxw47GokyZGyun1sdpfNLiNOr3mFb5f365Hw8bBAQ3uHZ3J4j3fgKqoMMIb3fsjQ6e3LN3B34
+            aRMc1jiyn84ROXl9Pbwip7DVq5NzMv754vSbHtn+DT+p9CU3d3ZPY29zkJnsEU9kVzfF4LPaGR/x/Ff43t4Tl2hNF5WAhMOlG1/r
+            n8s9jK5cU2yxQeBaO+QYXBuCY0hWtLG9+3/Iay/Iq411ib/vA3n9lqpZrrfpg1TYjrJ1Y/tS2d625Cnp9p5lOA2yWxAZy3YZtlsp
+            rLI9JGW+MXnklCpSl2j/o3Vmyxl0VJrLadOJ8MR4AQFdb10/tka1PM9SDbmPV/2aNWRzuSRp2iBVfYtiU0xBlW0VlFmSUYzvK0kB
+            1z1p8UV+35CYQfyB2UVZydYQZSsWtILECxYVaLi8jCEuXLxo4BE0C4558eMuRbHR0eEimHykSCApwFAiVLh2n+tQhD9ezazcKgL2
+            ZjmOWi0ZO8W/T6m4/Y5DN9BVh7dDcj9NUrrZPpdRoPUrMq3S9MsLUrk8tw4Q48Pm4hKBrXY7MA2S2WAtNkszYjdH98491uphycmq
+            sb/PNspwdWjNZK3oojOy4mfeZ9+UuJQC79rwWrQtnrV6tHFAHRVpmt8+sRiV5uLDHF6EwhuYVy+xtfTkQ9fPDb6X9/Q67w/VN7e4
+            jfHEYf2yFk8leF8SRlOMkDIBKge9b0/jResO3pMuQrV6rI0KrZj5oFG52ya1bV313C3W1RRaXj3t/PuMnHz7gk/I0Nt7XGTlYo4/
+            nqAR9wwERb9pq7jL7wABvc+25DTy4b7pCufrVt7zk7DS7jPVBrVcu5r3+pFxxLtC//rnNs1r476HPBxLHWYX9z8ukoL3L1YCOany
+            fQO3XFkfkA+UzkkgzULyVQfynZFb3EkR2CMPzw0FYyDY4TeCLP3owDIwhgqwsT6nfjJjoCS74w45MWWkBT0ujz5iSJDsUPxBT5C2
+            xYPEN6LcHxe0bOJ4SfGmB161kQuYAzKnBVrEZ4VdfgdXBFumP3hOEHbbHG6MwA0bljiMVjxu0Nsnou81f0dSsEtiqq8zNmqORikE
+            XUsGyp+um4jab0NK+hcoFE/TkPtaiZauYW2BZ1pKJGD0Dj0yxAFuBvlli2CPM26zt/u4v+yM0duxZC9gvLWQGO4HEYRRFKivGry5
+            fRtqvZ0l2nc4Zwm7WQ/JHReaFYUj3E/5ZcaAvGGdYagCZkl1rCzdqRzsuIIlcRoZixpPvurAlW4Hzu9jkfo+Ft7ia9/HclVVPdJs
+            fDWwl79+QWutQCOtK+5P8eqtqv9bQFhQVHav1cKwGtjq7NUGwt8X4xJI9xbs7+0EhiyIbg5UBLlGD6AXGTEGmj7QDOViMRs9wNen
+            eZ6OwButL6QPrIGGyNcAtKEGy5rg2KBk4s9SyRy9UaTUeNoYM3rirA9lmJoYzCA3UAjMZPLioWOwq3r14J0I3CoE95ong/JAllGp
+            8vi7g3RbQLfa/VY842e+VdgH5iEgULSiEvKllWsnDJRTVkA54UbX7o+Qve+PKE+7P8LAhr3ABQXXA8YeSJQ/9Zbr/xQAyBgY6T7X
+            bvk1FvZPXAGjut9Edb8Om36Tn/h1U1xOwlykWbOVi3QMFWHbv5NhWz7jIduHkC1EwK5mypkyD/CndOY3ucA6ETQMDL9JzBDOPSNw
+            DysMCOL8p8UdPytmsV+sIsBQKAsQRYBU4VNSVmUbYxhAPl4k82fPyQ9E5gc/kB4mKxKCaMEerDjsQDwQvWSIB3D3rNXCP1xupB9K
+            XOM53wAuCpzsRDrET6t7G+s+ZlEJ/0n0jp9dzxLuAWon3zIDWOAX5OXXFskdNxnahJkT2oFkfQ6ncglZ5mNZu8TtfwA/X9rNK0EA
+            AA==
+        run: |
+          python3 - <<'PY2'
+          import base64, gzip, os
+          payload = ''.join(os.environ['PATCH_GZIP_BASE64'].split())
+          code = gzip.decompress(base64.b64decode(payload))
+          exec(compile(code, 'stage7_gate4_central_sync.py', 'exec'))
+          PY2
+
+      - name: Validate and commit clean three-file synchronization
+        run: |
+          set -euo pipefail
+          git diff --check
+          grep -q 'CFL_SENSITIVITY_OBSERVED' docs/verification/MASTER_VERIFICATION_INDEX.md
+          grep -q 'low-CFL result accepted = true' docs/verification/stage7_current_gate_snapshot.md
+          grep -q 'Gate_4_execution = COMPLETE' docs/verification/stage7_execution_log.md
+          rm -f .github/workflows/stage7-gate4-central-sync-once.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git diff --cached --check
+          changed="$(git diff --cached --name-only)"
+          printf '%s\n' "$changed"
+          test "$changed" = $'docs/verification/MASTER_VERIFICATION_INDEX.md\ndocs/verification/stage7_current_gate_snapshot.md\ndocs/verification/stage7_execution_log.md'
+          git commit -m 'Synchronize Stage 7 central records through Gate 4'
+          git push origin HEAD:agent/stage7-gate4-central-record-sync
