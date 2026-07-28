@@ -1,4 +1,4 @@
-name: Stage 7 Gate 4 Central Record Sync PR
+name: Stage 7 Gate 4 Central Record Publisher
 
 on:
   pull_request:
@@ -10,49 +10,49 @@ on:
       - synchronize
 
 permissions:
-  contents: read
+  actions: read
+  contents: write
 
 jobs:
-  synchronize-central-records:
+  publish-clean-central-records:
     if: github.head_ref == 'agent/stage7-gate4-central-record-sync' && github.actor != 'github-actions[bot]'
     runs-on: macos-14
     steps:
-      - name: Checkout synchronization branch
+      - name: Checkout current main
         uses: actions/checkout@v7
         with:
-          ref: agent/stage7-gate4-central-record-sync
+          ref: main
           fetch-depth: 0
 
-      - name: Extract and execute reviewed synchronization payload
-        run: |
-          python3 - <<'PY'
-          import base64
-          import gzip
-          from pathlib import Path
-
-          text = Path('.github/workflows/stage7-gate4-central-sync-once.yml').read_text(encoding='utf-8')
-          tail = text.split('PATCH_GZIP_BASE64: >-', 1)[1]
-          block = tail.split('\n        run: |', 1)[0]
-          payload = ''.join(line.strip() for line in block.splitlines())
-          code = gzip.decompress(base64.b64decode(payload))
-          exec(compile(code, 'stage7_gate4_central_sync.py', 'exec'))
-          PY
-
-      - name: Show generated central-record diff
-        run: |
-          git diff --stat
-          git diff --name-only
-
-      - name: Build central-record artifact
-        run: |
-          mkdir -p gate4-central-records/docs/verification
-          cp docs/verification/MASTER_VERIFICATION_INDEX.md gate4-central-records/docs/verification/
-          cp docs/verification/stage7_current_gate_snapshot.md gate4-central-records/docs/verification/
-          cp docs/verification/stage7_execution_log.md gate4-central-records/docs/verification/
-
-      - name: Upload validated central records
-        uses: actions/upload-artifact@v7
+      - name: Download validated Gate 4 central records
+        uses: actions/download-artifact@v7
         with:
-          name: stage7-gate4-central-records-${{ github.run_id }}
+          name: stage7-gate4-central-records-30367104281
           path: gate4-central-records
-          if-no-files-found: error
+          github-token: ${{ github.token }}
+          repository: chqf69nxjs-del/FVM
+          run-id: 30367104281
+
+      - name: Install validated central records
+        run: |
+          cp gate4-central-records/docs/verification/MASTER_VERIFICATION_INDEX.md docs/verification/
+          cp gate4-central-records/docs/verification/stage7_current_gate_snapshot.md docs/verification/
+          cp gate4-central-records/docs/verification/stage7_execution_log.md docs/verification/
+          git diff --check
+          grep -q 'CFL_SENSITIVITY_OBSERVED' docs/verification/MASTER_VERIFICATION_INDEX.md
+          grep -q 'low-CFL result accepted = true' docs/verification/stage7_current_gate_snapshot.md
+          grep -q 'Gate_4_execution = COMPLETE' docs/verification/stage7_execution_log.md
+
+      - name: Publish clean three-file branch
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add docs/verification/MASTER_VERIFICATION_INDEX.md \
+            docs/verification/stage7_current_gate_snapshot.md \
+            docs/verification/stage7_execution_log.md
+          git diff --cached --check
+          changed="$(git diff --cached --name-only)"
+          test "$changed" = $'docs/verification/MASTER_VERIFICATION_INDEX.md\ndocs/verification/stage7_current_gate_snapshot.md\ndocs/verification/stage7_execution_log.md'
+          git commit -m 'Synchronize Stage 7 central records through Gate 4'
+          git push --force origin HEAD:refs/heads/agent/stage7-gate4-central-records-clean
