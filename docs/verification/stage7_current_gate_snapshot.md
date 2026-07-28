@@ -1,19 +1,21 @@
 # Stage 7 Current Gate Snapshot
 
-## Status — 2026-07-27
+## Status — 2026-07-28
 
 ```text
 Stage 1–6:                         COMPLETE
 Stage 7:                           IN_PROGRESS
-recorded substantive main:         1bb1765617de72741086b199efa0d72be16ae651
+recorded substantive main:         6399c5fddf6bfbe802da23fdb4f3992ad496e51f
 pipeline Increment 2:              MERGED in PR #77
 fixed 4 MPa forensic diagnostic:   MERGED in PR #79
 mesh sensitivity at CFL 0.10:      MERGED in PR #82
 CFL contract / 0.10 replay:        MERGED in PR #84
 Gate 3 cross-runtime checkpoint:   NUMERICALLY_EQUIVALENT; MERGED in PR #91
 Issue #85:                         COMPLETE; CLOSED
+Gate 4 low-CFL execution:          CFL_SENSITIVITY_OBSERVED; MERGED in PR #90
+Issue #86:                         COMPLETE; CLOSED AFTER CENTRAL SYNC
 Gate P2:                           FALSE
-active numerical execution gate:   fixed low-CFL matrix — Issue #86
+active numerical execution gate:   near-saturation acoustic-continuity review
 physical Validation:               NOT ESTABLISHED
 design-use acceptance:             NOT ESTABLISHED
 production HEM activation:         NOT APPROVED
@@ -79,7 +81,7 @@ fixed final pressures:          2 / 3 / 4 MPa
 reviewed CFL values:            0.10 / 0.05 / 0.025
 reviewed step caps:             8000 / 16000 / 32000
 CFL 0.10 baseline rows:         exact PR #82 replay
-CFL 0.05 / 0.025:               not executed / not accepted
+CFL 0.05 / 0.025:               executed / formal evidence accepted in PR #90
 ```
 
 Authoritative evidence:
@@ -116,14 +118,45 @@ before the first FVM update. They do not change outcomes, step counts, crossing 
 or fixed-threshold decisions. Issue #85 is complete. This conclusion is limited to
 cross-runtime software reproduction and does not approve physical or design interpretation.
 
-## Active next gate
-
-Issue #85 is complete with the Gate 3 disposition `NUMERICALLY_EQUIVALENT`. Issue #86 is
-the next numerical execution gate for the fixed nine-run low-CFL matrix. The CFL 0.10 rows
-must first reproduce the retained PR #82 baseline exactly; CFL 0.05 and 0.025 results remain
-unaccepted until their dedicated execution, review, and central-record promotion.
+## PR #90 — merged Gate 4 low-CFL execution
 
 ```text
+merge:                            6399c5fddf6bfbe802da23fdb4f3992ad496e51f
+source head:                      ce54f388dc6db75151b7690ca83f8c355c05188f
+workflow / artifact:             30313389184 / 8675117973
+artifact SHA256:                  cee333aeba52510f9f99f89b6fbb36a1a01548bb1a21dd65bab967d203dfaa83
+CFL 0.10 exact replay:            PASS
+Gate 4 / related / full JUnit:    50 / 126 / 809
+skips / failures / errors:       0 / 0 / 0
+```
+
+```text
+FINITE_CROSSING_PERSISTS_ACROSS_CFL
+CROSSING_TIME_POSITION_TREND_STABLE
+CFL_SEQUENCE_NON_MONOTONE
+```
+
+The low-CFL observations are formally accepted. Crossing time and position are stable, but
+crossing depth is non-monotone. The accepted/guard classification changes with CFL at
+2 MPa, so CFL-independent crossing is not verified.
+
+```text
+Gate_4_execution = COMPLETE
+Gate_4_software_verification = PASSED
+Gate_4_numerical_disposition = CFL_SENSITIVITY_OBSERVED
+low_cfl_result_accepted = true
+CFL_independent_crossing_verified = false
+```
+
+## Active next gate
+
+Gate 4 is complete with the disposition `CFL_SENSITIVITY_OBSERVED`. The low-CFL
+observations are accepted as formal evidence, while CFL-independent crossing remains false.
+The next controlled gate is the independent near-saturation acoustic-continuity review
+before any post-crossing propagation or production claim.
+
+```text
+low-CFL result accepted = true
 mesh-independent crossing verified = false
 CFL-independent crossing verified = false
 near-saturation acoustic continuity approved = false
