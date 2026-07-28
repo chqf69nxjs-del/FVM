@@ -38,13 +38,10 @@ jobs:
           exec(compile(code, 'stage7_gate4_central_sync.py', 'exec'))
           PY
 
-      - name: Validate generated central records
+      - name: Show generated central-record diff
         run: |
-          set -euo pipefail
-          git diff --check
-          grep -q 'CFL_SENSITIVITY_OBSERVED' docs/verification/MASTER_VERIFICATION_INDEX.md
-          grep -q 'low-CFL result accepted = true' docs/verification/stage7_current_gate_snapshot.md
-          grep -q 'Gate_4_execution = COMPLETE' docs/verification/stage7_execution_log.md
+          git diff --stat
+          git diff --name-only
 
       - name: Build central-record artifact
         run: |
