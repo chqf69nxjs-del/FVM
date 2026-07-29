@@ -109,7 +109,7 @@ def test_gate6_module_is_verification_orchestration_only() -> None:
     assert "class VerificationHEMLiquidOpenTwoPhaseEOS" not in source
     assert "class HEMEquilibriumQualityProjection" not in source
     assert "MUSCL" not in source
-    assert "quality clipping" in source
+    assert "quality projection" in source
     assert "production_default_changed" in source
 
 
