@@ -16,7 +16,7 @@ Gate 5 acoustic execution:         COMPLETE; MERGED in PR #96
 Gate 5 acoustic approval:          NOT APPROVED
 Gate 6 propagation execution:      COMPLETE; MERGED in PR #99
 Gate 6 propagation approval:       NOT APPROVED
-Issue #98:                         CLOSE AFTER THIS CENTRAL SYNC
+Issue #98:                         COMPLETE; CLOSED AFTER CENTRAL SYNC
 Gate P2:                           FALSE
 active next controlled gate:       Issue #100 boundary-adjacent phase-chatter diagnosis
 physical Validation:               NOT ESTABLISHED
