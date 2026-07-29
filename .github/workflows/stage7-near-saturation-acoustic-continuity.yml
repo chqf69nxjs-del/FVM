@@ -1,0 +1,158 @@
+name: Stage 7 Near-Saturation Acoustic Continuity
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: stage7-near-saturation-acoustic-continuity-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src
+  PYTHONDONTWRITEBYTECODE: '1'
+  MPLBACKEND: Agg
+  ANALYSIS_SOURCE_GIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  gate5-acoustic-continuity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install fixed dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy matplotlib pytest 'CoolProp==8.0.0'
+      - name: Assert pristine checkout
+        run: |
+          echo "checkout_sha=$(git rev-parse HEAD)"
+          status="$(git status --porcelain=v1 --untracked-files=all)"
+          printf 'pre_execution_git_status=%s\n' "$status"
+          test -z "$status"
+      - name: Execute fixed Gate 5 map
+        run: |
+          temporary_output="${RUNNER_TEMP}/stage7-near-saturation-acoustic-continuity"
+          repository_output="artifacts/stage7-near-saturation-acoustic-continuity"
+          rm -rf "$temporary_output" "$repository_output"
+          python -m liquid_gas_transient.hem_near_saturation_acoustic_continuity \
+            --output-dir "$temporary_output"
+          tracked_status="$(git status --porcelain=v1 --untracked-files=no)"
+          printf 'post_execution_tracked_git_status=%s\n' "$tracked_status"
+          test -z "$tracked_status"
+          mkdir -p "$repository_output"
+          cp -a "$temporary_output/." "$repository_output/"
+      - name: Inspect Gate 5 evidence contract
+        run: |
+          python - <<'PY'
+          import csv
+          import json
+          import os
+          from pathlib import Path
+
+          target = Path('artifacts/stage7-near-saturation-acoustic-continuity')
+          summary = json.loads((target / 'summary.json').read_text(encoding='utf-8'))
+          assert summary['scope'] == 'verification_only_0d'
+          assert summary['state_record_count'] == 33
+          assert summary['perturbation_record_count'] == 588
+          assert summary['initial_evidence_labels']
+          contract = summary['immutable_contract']
+          assert contract['version'] == '8.0.0'
+          assert contract['fvm_used'] is False
+          assert contract['boundary_used'] is False
+          assert contract['rusanov_used'] is False
+          assert contract['cfl_used'] is False
+          assert contract['sound_speed_formula_changed'] is False
+          provenance = summary['provenance']
+          assert provenance['source_git_sha'] == os.environ['ANALYSIS_SOURCE_GIT_SHA']
+          assert provenance['checkout_git_sha']
+          assert provenance['git_status_porcelain'] == ''
+          assert provenance['property_backend_version'] == '8.0.0'
+          for key in (
+              'Gate_5_execution_complete',
+              'near_saturation_acoustic_continuity_approved',
+              'two_phase_acoustic_accuracy_band_approved',
+              'post_crossing_propagation_approved',
+              'Gate_P2_passed',
+              'physical_validation',
+              'design_use_acceptance',
+              'production_hem_activation_approved',
+          ):
+              assert summary[key] is False
+          with (target / 'state_points.csv').open(newline='', encoding='utf-8') as handle:
+              states = list(csv.DictReader(handle))
+          assert len(states) == 33
+          successes = [row for row in states if row['acoustic_status'] == 'SUCCESS']
+          assert successes
+          assert all(float(row['c_eq_m_s']) > 0 for row in successes)
+          endpoints = [
+              row for row in states
+              if row['source_state_definition'] == 'PQ'
+              and float(row['source_coordinate']) == 0
+          ]
+          assert len(endpoints) == 3
+          assert all(row['acoustic_status'] != 'SUCCESS' for row in endpoints)
+          for name in (
+              'perturbations.csv',
+              'report.md',
+              'artifact_sha256.txt',
+              'sound_speed_vs_quality.png',
+              'sound_speed_vs_saturation_approach.png',
+              'perturbation_sensitivity.png',
+          ):
+              assert (target / name).is_file(), name
+          PY
+      - name: Compile and diff checks
+        run: |
+          python -m compileall -q src tests
+          git diff --check
+      - name: Run dedicated Gate 5 tests
+        run: |
+          python -m pytest -q \
+            tests/test_stage7_lco2_hem_near_saturation_acoustic_continuity.py \
+            --strict-markers --junitxml=gate5-dedicated.xml
+      - name: Run related Stage 7 regressions
+        run: |
+          python -m pytest -q \
+            tests/test_stage7_lco2_hem_equilibrium_sound_speed.py \
+            tests/test_stage7_lco2_hem_phase_classification.py \
+            tests/test_stage7_lco2_hem_pipeline_4mpa_subthreshold_forensics.py \
+            tests/test_stage7_lco2_hem_near_saturation_acoustic_continuity.py \
+            --strict-markers --junitxml=related-stage7.xml
+      - name: Run full repository tests
+        run: |
+          python -m pytest -q --strict-markers --junitxml=full-repository.xml
+      - name: Assert authoritative JUnit is clean
+        run: |
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          for name in ('gate5-dedicated.xml', 'related-stage7.xml', 'full-repository.xml'):
+              root = ET.parse(Path(name)).getroot()
+              suites = [root] if root.tag == 'testsuite' else list(root.findall('testsuite'))
+              totals = {
+                  key: sum(int(s.attrib.get(key, 0)) for s in suites)
+                  for key in ('tests', 'skipped', 'failures', 'errors')
+              }
+              print(name, totals)
+              assert totals['skipped'] == 0
+              assert totals['failures'] == 0
+              assert totals['errors'] == 0
+          PY
+      - name: Upload Gate 5 evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: stage7-near-saturation-acoustic-continuity-${{ github.run_id }}
+          path: |
+            artifacts/stage7-near-saturation-acoustic-continuity
+            gate5-dedicated.xml
+            related-stage7.xml
+            full-repository.xml
+          if-no-files-found: warn
