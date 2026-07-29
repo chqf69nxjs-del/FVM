@@ -1,11 +1,12 @@
 name: Stage 7 Near-Saturation Acoustic Continuity
 
 on:
-  push:
-    branches:
-      - agent/stage7-gate5-acoustic-continuity
   pull_request:
   workflow_dispatch:
+
+concurrency:
+  group: stage7-near-saturation-acoustic-continuity-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 env:
   PYTHONPATH: src
@@ -36,8 +37,16 @@ jobs:
           test -z "$status"
       - name: Execute fixed Gate 5 map
         run: |
+          temporary_output="${RUNNER_TEMP}/stage7-near-saturation-acoustic-continuity"
+          repository_output="artifacts/stage7-near-saturation-acoustic-continuity"
+          rm -rf "$temporary_output" "$repository_output"
           python -m liquid_gas_transient.hem_near_saturation_acoustic_continuity \
-            --output-dir artifacts/stage7-near-saturation-acoustic-continuity
+            --output-dir "$temporary_output"
+          tracked_status="$(git status --porcelain=v1 --untracked-files=no)"
+          printf 'post_execution_tracked_git_status=%s\n' "$tracked_status"
+          test -z "$tracked_status"
+          mkdir -p "$repository_output"
+          cp -a "$temporary_output/." "$repository_output/"
       - name: Inspect Gate 5 evidence contract
         run: |
           python - <<'PY'
@@ -81,11 +90,17 @@ jobs:
           successes = [row for row in states if row['acoustic_status'] == 'SUCCESS']
           assert successes
           assert all(float(row['c_eq_m_s']) > 0 for row in successes)
-          endpoints = [row for row in states if row['source_state_definition'] == 'PQ' and float(row['source_coordinate']) == 0]
+          endpoints = [
+              row for row in states
+              if row['source_state_definition'] == 'PQ'
+              and float(row['source_coordinate']) == 0
+          ]
           assert len(endpoints) == 3
           assert all(row['acoustic_status'] != 'SUCCESS' for row in endpoints)
           for name in (
-              'perturbations.csv', 'report.md', 'artifact_sha256.txt',
+              'perturbations.csv',
+              'report.md',
+              'artifact_sha256.txt',
               'sound_speed_vs_quality.png',
               'sound_speed_vs_saturation_approach.png',
               'perturbation_sensitivity.png',
@@ -117,10 +132,14 @@ jobs:
           python - <<'PY'
           import xml.etree.ElementTree as ET
           from pathlib import Path
+
           for name in ('gate5-dedicated.xml', 'related-stage7.xml', 'full-repository.xml'):
               root = ET.parse(Path(name)).getroot()
               suites = [root] if root.tag == 'testsuite' else list(root.findall('testsuite'))
-              totals = {key: sum(int(s.attrib.get(key, 0)) for s in suites) for key in ('tests', 'skipped', 'failures', 'errors')}
+              totals = {
+                  key: sum(int(s.attrib.get(key, 0)) for s in suites)
+                  for key in ('tests', 'skipped', 'failures', 'errors')
+              }
               print(name, totals)
               assert totals['skipped'] == 0
               assert totals['failures'] == 0
