@@ -10,9 +10,9 @@ from liquid_gas_transient.hem_near_saturation_acoustic_continuity import (
     APPROVAL_BOUNDARY,
     PERTURBATIONS,
     PRESSURES_PA,
+    PR79_REFERENCE,
     QUALITIES,
     SUBCOOLING_K,
-    PR79_REFERENCE,
     execute,
 )
 
@@ -26,9 +26,7 @@ def test_gate5_contract_is_locked() -> None:
     assert PR79_REFERENCE["raw_q_eq"] == 9.672588429198319e-9
 
 
-@pytest.mark.installed
-@pytest.mark.requires_coolprop
-
+@pytest.mark.coolprop_installed
 def test_gate5_execute_fixed_grid_and_artifacts(tmp_path: Path) -> None:
     output = tmp_path / "gate5"
     summary = execute(output)
@@ -63,7 +61,12 @@ def test_gate5_execute_fixed_grid_and_artifacts(tmp_path: Path) -> None:
     with (output / "state_points.csv").open(newline="", encoding="utf-8") as handle:
         states = list(csv.DictReader(handle))
     assert len(states) == 33
-    endpoints = [row for row in states if row["source_state_definition"] == "PQ" and float(row["source_coordinate"]) == 0.0]
+    endpoints = [
+        row
+        for row in states
+        if row["source_state_definition"] == "PQ"
+        and float(row["source_coordinate"]) == 0.0
+    ]
     assert len(endpoints) == 3
     assert all(row["acoustic_status"] in {"REFUSED", "FAILURE"} for row in endpoints)
 
