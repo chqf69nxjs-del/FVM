@@ -16,9 +16,9 @@ Gate 4 low-CFL execution:          CFL_SENSITIVITY_OBSERVED; MERGED in PR #90
 Issue #86:                         COMPLETE; CLOSED AFTER CENTRAL SYNC
 Gate 5 acoustic review execution:  COMPLETE; MERGED in PR #96
 Gate 5 acoustic approval:          NOT APPROVED
-Issue #95:                         CLOSE AFTER THIS CENTRAL SYNC
+Issue #95:                         COMPLETE; CLOSED AFTER CENTRAL SYNC
 Gate P2:                           FALSE
-active next controlled gate:       post-crossing propagation specification / review
+active next controlled gate:       Issue #98 post-crossing propagation review
 physical Validation:               NOT ESTABLISHED
 design-use acceptance:             NOT ESTABLISHED
 production HEM activation:         NOT APPROVED
@@ -200,8 +200,9 @@ including the negative finding that the strict q→0+ acoustic limit is not obse
 the unchanged phase-preserving central stencil. This is not an acoustic-accuracy or
 physical-validation approval.
 
-The next controlled gate is a specification-first post-crossing propagation review. It must
-retain the current production and approval boundaries until separately established.
+The next controlled gate is Issue #98, a specification-first post-crossing propagation
+review. It must retain the current production and approval boundaries until separately
+established.
 
 ```text
 low-CFL result accepted = true
