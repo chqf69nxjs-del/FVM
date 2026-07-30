@@ -5,7 +5,7 @@
 ```text
 Stage 1–6:                         COMPLETE
 Stage 7:                           IN_PROGRESS
-recorded substantive main:         163208a2d027f74217e63375a87ad07d4b845123
+recorded substantive main:         d98adbd6ae5d407814b0a92724f92f33bdbc0da1
 pipeline Increment 2:              MERGED in PR #77
 fixed 4 MPa forensic diagnostic:   MERGED in PR #79
 mesh sensitivity at CFL 0.10:      MERGED in PR #82
@@ -16,9 +16,11 @@ Gate 5 acoustic execution:         COMPLETE; MERGED in PR #96
 Gate 5 acoustic approval:          NOT APPROVED
 Gate 6 propagation execution:      COMPLETE; MERGED in PR #99
 Gate 6 propagation approval:       NOT APPROVED
-Issue #98:                         COMPLETE; CLOSED AFTER CENTRAL SYNC
+Gate 7 chatter diagnosis:          COMPLETE; MERGED in PR #102
+Gate 7 root-cause approval:        NOT APPROVED
+Issue #100:                        CLOSE AFTER THIS CENTRAL SYNC
 Gate P2:                           FALSE
-active next controlled gate:       Issue #100 boundary-adjacent phase-chatter diagnosis
+active next controlled gate:       specification pending for chatter causal discrimination
 physical Validation:               NOT ESTABLISHED
 design-use acceptance:             NOT ESTABLISHED
 production HEM activation:         NOT APPROVED
@@ -31,6 +33,7 @@ This snapshot is intentionally concise. Detailed historical entries remain in
 
 - [`stage7_gate5_closeout.md`](stage7_gate5_closeout.md)
 - [`stage7_gate6_closeout.md`](stage7_gate6_closeout.md)
+- [`stage7_gate7_closeout.md`](stage7_gate7_closeout.md)
 
 ## Project-level current conclusion
 
@@ -40,11 +43,12 @@ The first-order verification path now supports:
 - equilibrium-quality projection and accepted mixed liquid/open-two-phase recovery;
 - exact second-projection no-op behavior;
 - repeatable boundary-driven first-crossing cases;
-- fixed mesh and CFL sensitivity evidence;
+- fixed mesh and CFL sensitivity evidence for first crossing;
 - an independent near-saturation acoustic map;
 - continuation for 64 accepted steps after the first 5→2 MPa crossing;
 - an open-two-phase region that persists and moves upstream;
-- conservative and vapor-budget closure throughout the fixed continuation.
+- conservative and vapor-budget closure throughout the fixed continuation;
+- focused event-aligned diagnosis of the boundary-adjacent cell-30 chatter.
 
 The current evidence also retains important limitations:
 
@@ -52,17 +56,18 @@ The current evidence also retains important limitations:
 - accepted/guard classification is CFL-dependent at 2 MPa;
 - strict `q -> 0+` acoustic continuity is unresolved;
 - liquid and open-two-phase acoustic branches differ substantially;
-- cell 30 exhibits 49 boundary-adjacent phase-region changes in the fixed Gate 6 run;
-- propagation speed, chatter cause, physical accuracy, and design use are unapproved.
+- cell 30 repeatedly crosses the selected saturation boundary and switches acoustic branches;
+- the first-order flux, boundary-adjacent coupling, acoustic branch switch, and equilibrium model remain causally entangled;
+- propagation speed, chatter root cause, mitigation, physical accuracy, and design use are unapproved.
 
 ## Gate 3 — cross-runtime software reproduction
 
 ```text
-PR:                                 #91
-formal disposition:                 NUMERICALLY_EQUIVALENT
-all reviewed discrete events exact: true
+PR:                                  #91
+formal disposition:                  NUMERICALLY_EQUIVALENT
+all reviewed discrete events exact:  true
 maximum normalized array difference: 5.519112370006797e-12
-comparison guard:                   1.0e-10
+comparison guard:                    1.0e-10
 ```
 
 Ubuntu remains authoritative for exact scalar and SHA256 references. The Windows result preserves reviewed outcomes and decisions without replacing Ubuntu hashes.
@@ -122,15 +127,6 @@ Gate 6 / related / full JUnit:    9 / 54 / 820
 skips / failures / errors:        0 / 0 / 0
 ```
 
-The authoritative PR #77 baseline reproduced exactly before continuation:
-
-```text
-crossing step / cell:            125 / 29
-crossing time:                   7.999325695335248e-4 s
-maximum crossing q_eq:           3.773646403587342e-6
-baseline final-state SHA256:     170ce66c02a320d50389d0cf26fed78f21042f83dec6f64a0978e451cd91e361
-```
-
 The fixed continuation reached every predeclared checkpoint:
 
 | offset | open-two-phase cells | indices | furthest upstream distance [m] | maximum q_eq | maximum alpha |
@@ -150,34 +146,81 @@ PROJECTION_RECOVERY_STABLE
 CONSERVATION_BUDGET_STABLE
 ```
 
-The stable upstream front and localized cell-30 chatter are separate findings. Cell 30 changed region 49 times, while cells 28, 27, 26, 25, and 24 entered open two phase in order and did not reverse during the fixed horizon.
+The stable upstream front and localized cell-30 chatter are separate findings.
 
 ```text
 Gate_6_execution_complete = true
 post_crossing_propagation_approved = false
+```
+
+## Gate 7 — boundary-adjacent phase-chatter diagnosis
+
+```text
+implementation PR:                #102
+PR #102 merge SHA:                d98adbd6ae5d407814b0a92724f92f33bdbc0da1
+source head:                      71c2ac8bd12116a394baf76b52daa7d2dd0784ff
+workflow / artifact:             30501363884 / 8744210262
+artifact upload SHA256:           36b65d74f202c191e18f3c94b2bf865254bf9d13da1f796871b18a8a962a2d3f
+internal evidence-set SHA256:     1b39115cdbe47c11f52491a442d91784d29366ed3e863c8457de330248253c5b
+Gate 7 / related / full JUnit:    10 / 52 / 830
+skips / failures / errors:        0 / 0 / 0
+```
+
+The Gate 6 final accepted-state SHA and all 49 cell-30 region changes reproduced exactly. The fixed focused evidence contained 576 cell records, 192 interface-flux records, and 49 event-aligned comparisons.
+
+```text
+cell 29: 0 toggles; stable OPEN_TWO_PHASE
+cell 30: 49 toggles; localized chatter
+cell 31: 0 toggles; stable LIQUID_CANDIDATE
+```
+
+Reviewed evidence labels:
+
+```text
+STABLE_FRONT_SEPARATED_FROM_CHATTER
+PHASE_MARGIN_OSCILLATION_CORRELATED
+ACOUSTIC_BRANCH_SWITCH_CORRELATED
+PROJECTION_ACTIVITY_CORRELATED
+MULTI_FACTOR_CHATTER
+CHATTER_REVIEW_INCONCLUSIVE
+```
+
+Every cell-30 region change crossed both fixed saturated-liquid margin coordinates and switched between non-overlapping acoustic branches:
+
+```text
+delta_e sign changes:          49 / 49
+delta_v sign changes:          49 / 49
+acoustic branch switches:      49 / 49
+projection active at events:   49 / 49
+liquid sound speed:            492.148 to 533.022 m/s
+two-phase sound speed:          35.665 to 39.612 m/s
+```
+
+Projection changes only transported `rho*q`; it does not alter the `rho/e` state that determines the phase crossing. The boundary pressure remains monotonic. The predeclared interface-flux sign-change screen was not met (`41/49` for net mass flux, `0/49` for energy and vapor).
+
+From `+35` through `+64`, cell 30 changed region on every accepted step while cells 29 and 31 remained stable. This supports a multi-factor localized oscillation but not a unique root cause.
+
+```text
+Gate_7_execution_complete = true
 phase_chatter_root_cause_approved = false
 chatter_mitigation_authorized = false
 ```
 
-## Active next gate — Issue #100
+## Next controlled decision
 
-Issue #100 is a contract-first diagnostic of the boundary-adjacent chatter. It fixes:
+The next work should be specification-first and should discriminate among the remaining coupled mechanisms without suppressing the observed behavior. Candidate controlled comparisons are:
 
-```text
-comparison cells:      29 / 30 / 31
-interfaces:            29|30 / 30|31 / right boundary
-horizon:               same fixed +64 continuation steps
-comparison rule:       event step versus immediately preceding accepted step
-production changes:    prohibited
-```
+- post-crossing CFL sensitivity;
+- post-crossing mesh sensitivity;
+- fixed-state local flux/acoustic contribution analysis.
 
-It will record saturation margins, acoustic branches, projection activity, interface fluxes, boundary forcing, and event ordering. Evidence labels describe correlation only; root cause and mitigation remain unapproved.
+No next numerical gate, mitigation, hysteresis, or production change is authorized by this snapshot.
 
 ## Approval boundary
 
 ```text
 Gate_6_execution_complete = true
-Gate_7_execution_complete = false
+Gate_7_execution_complete = true
 post_crossing_propagation_approved = false
 phase_chatter_root_cause_approved = false
 chatter_mitigation_authorized = false
