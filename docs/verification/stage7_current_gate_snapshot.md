@@ -5,7 +5,7 @@
 ```text
 Stage 1–6:                              COMPLETE
 Stage 7:                                IN_PROGRESS
-recorded substantive main:              6c661029c01653d56b45629bcc7db6c37551531e
+recorded substantive main:              23c5683c345b2e3fea5d49177c04a4643288e805
 Gate 3 cross-runtime checkpoint:        NUMERICALLY_EQUIVALENT; PR #91
 Gate 4 low-CFL execution:               CFL_SENSITIVITY_OBSERVED; PR #90
 Gate 5 acoustic execution:              COMPLETE; PR #96
@@ -14,7 +14,7 @@ Gate 6 propagation execution:           COMPLETE; PR #99
 Gate 6 propagation approval:            NOT APPROVED
 Gate 7 chatter diagnosis:               COMPLETE; PR #102
 Gate 7 root-cause approval:             NOT APPROVED
-Application Track A1:                   SPECIFICATION COMPLETE; Issue #104
+Application Track A1:                   COMPLETE; PR #106; Issue #104 CLOSED
 selected first pilot:                   U3 pipeline depressurization / blowdown
 active next numerical gate:             Issue #105 post-crossing CFL sensitivity
 Gate P2:                                FALSE
@@ -186,7 +186,7 @@ chatter_mitigation_authorized = false
 
 ## Application Track A1 — real-problem application strategy
 
-Issue #104 fixes three initial use cases:
+Issue #104 fixed three initial use cases:
 
 ```text
 U1 — ESD valve operation / rapid isolation
