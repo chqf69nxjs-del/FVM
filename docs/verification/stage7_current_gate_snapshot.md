@@ -18,7 +18,7 @@ Gate 6 propagation execution:      COMPLETE; MERGED in PR #99
 Gate 6 propagation approval:       NOT APPROVED
 Gate 7 chatter diagnosis:          COMPLETE; MERGED in PR #102
 Gate 7 root-cause approval:        NOT APPROVED
-Issue #100:                        CLOSE AFTER THIS CENTRAL SYNC
+Issue #100:                        COMPLETE; CLOSED AFTER CENTRAL SYNC
 Gate P2:                           FALSE
 active next controlled gate:       specification pending for chatter causal discrimination
 physical Validation:               NOT ESTABLISHED
