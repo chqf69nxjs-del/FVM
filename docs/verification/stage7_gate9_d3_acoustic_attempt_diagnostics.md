@@ -5,7 +5,8 @@
 ```text
 Issue:                           #110
 前提D1:                          COMPLETE
-前提D2:                          PR #117でreview対応・再検証中
+前提D2:                          COMPLETE / PR #117 main merge済み
+D2 merge SHA:                    79e3c28aa8b69b2808dd9b1b51d38a682a4e632f
 増分:                            D3 / CFL 0.10 identity column
 property backend:                coolprop_co2
 backend design-use status:       VERIFICATION_ONLY_NOT_APPROVED_FOR_DESIGN_USE
@@ -62,7 +63,7 @@ trial step:    initial_step / 2^halving_index
 ```
 
 trialの両側がsupported candidateであり、固定設定でcenterと同じphase classを保つ場合
-のみ採用する。条件を満たさない場合は、次のhalvingへ進む。最大12回後も成立しない
+のみ採用する。条件を満たさない場合は次のhalvingへ進む。最大12回後も成立しない
 場合は、one-sided derivativeや代替音速を使わずrefusalする。
 
 ## 3. 透過proxyによる観測
@@ -141,7 +142,33 @@ candidate cell:     29
 maximum q_eq:       3.773646403587342e-06
 ```
 
-## 6. 単体テスト契約
+## 6. 第1増分の実行結果
+
+CFL `0.10`のdiagnostic OFF/ON identity pairで、次のacoustic evidenceを取得した。
+
+```text
+production acoustic evaluations:  6,544
+evaluation result records:         6,544
+stencil attempt records:          13,120
+density-axis attempts:             6,562
+energy-axis attempts:              6,558
+accepted attempts:                13,088
+refused attempts:                     32
+total acoustic event records:     19,664
+maximum observed halving index:        3
+```
+
+全evaluationにfinal recordが存在し、既存maximum `12`のhalving上限は変更されて
+いない。CFL `0.10`の実行では最大index `3`までが観測された。index `0…12`をすべて
+消費してrefusalする経路は、人工phase条件による専用単体testで固定している。
+
+観測OFF/ONではformal outcome、candidate、final state SHA、run signature、および全保持
+historyが完全一致した。
+
+この結果は、音速trialの記録経路が非侵襲であることを示す。CFL `0.025`の
+`ACOUSTIC_REFUSAL`原因や物理妥当性を示すものではない。
+
+## 7. 単体テスト契約
 
 ### 初回trial採用
 
@@ -170,7 +197,7 @@ trial stepが厳密に、
 
 固定CFL `0.10` pipelineをOFF/ONで独立実行し、全solver evidenceを完全一致させる。
 
-## 7. D4との境界
+## 8. D4との境界
 
 D3 observerは、production acoustic evaluator全体の呼出し順を取得する。一方、
 FVM step、cell index、`PRE_STEP_ACCEPTED`や`RAW_POST_FVM`などのstage metadataは、
@@ -188,7 +215,7 @@ PENDING_D4_EVENT_ALIGNED_STEP_CELL_STAGE_MAPPING
 D4では、candidate前8 accepted steps、candidate step、形式上可能な後8 accepted steps
 のcapture hookと組み合わせ、D3 eventを固定step/cell/stageへ対応付ける。
 
-## 8. 明示的に行わないこと
+## 9. 明示的に行わないこと
 
 ```text
 sound-speed formula変更
@@ -208,7 +235,7 @@ design-use acceptance
 production activation
 ```
 
-## 9. 完了境界
+## 10. 完了境界
 
 D3第1増分の完了条件は、次のとおりである。
 
