@@ -300,8 +300,8 @@ def _final(
     drho0: float,
     de0: float,
     result: HEMEquilibriumSoundSpeedEstimate | None,
-    error: BaseException | None,
     refusal: str,
+    backend_error_type: str,
 ) -> Gate9AcousticAttemptEvent:
     return Gate9AcousticAttemptEvent(
         evaluation_id=evaluation_id,
@@ -327,7 +327,7 @@ def _final(
         ),
         accepted_or_refused="ACCEPTED" if result is not None else "REFUSED",
         refusal_category="" if result is not None else refusal,
-        backend_error_type=_root_error_type(error),
+        backend_error_type=backend_error_type,
     )
 
 
@@ -339,7 +339,6 @@ def _parse_events(
     config: HEMEquilibriumSoundSpeedConfig,
     calls: Sequence[_EvaluatorCall],
     result: HEMEquilibriumSoundSpeedEstimate | None,
-    error: BaseException | None,
 ) -> tuple[Gate9AcousticAttemptEvent, ...]:
     drho0 = max(
         config.relative_density_step * abs(rho),
@@ -348,6 +347,10 @@ def _parse_events(
     de0 = max(
         config.relative_energy_step * max(abs(e), 1.0),
         config.minimum_energy_step_j_kg,
+    )
+    backend_error_type = next(
+        (call.error_type for call in calls if call.error_type),
+        "",
     )
     if not calls:
         return (
@@ -359,8 +362,8 @@ def _parse_events(
                 drho0=drho0,
                 de0=de0,
                 result=result,
-                error=error,
                 refusal="CENTER_INPUT_REJECTED_BEFORE_PROPERTY_EVALUATION",
+                backend_error_type=backend_error_type,
             ),
         )
 
@@ -380,8 +383,8 @@ def _parse_events(
                 drho0=drho0,
                 de0=de0,
                 result=result,
-                error=error,
                 refusal="CENTER_STATE_REJECTED",
+                backend_error_type=backend_error_type,
             ),
         )
 
@@ -440,9 +443,7 @@ def _parse_events(
                         plus=None,
                         accepted=False,
                         refusal="MINUS_STATE_REJECTED",
-                        error_type=(
-                            minus.error_type or "HEMEquilibriumSoundSpeedError"
-                        ),
+                        error_type=minus.error_type,
                     )
                 )
                 continue
@@ -468,9 +469,7 @@ def _parse_events(
                         plus=plus,
                         accepted=False,
                         refusal="PLUS_STATE_REJECTED",
-                        error_type=(
-                            plus.error_type or "HEMEquilibriumSoundSpeedError"
-                        ),
+                        error_type=plus.error_type,
                     )
                 )
                 continue
@@ -527,8 +526,8 @@ def _parse_events(
             drho0=drho0,
             de0=de0,
             result=result,
-            error=error,
             refusal=refusal,
+            backend_error_type=backend_error_type,
         )
     )
     return tuple(events)
@@ -582,7 +581,6 @@ def _instrumented_estimate(
         config=cfg,
         calls=calls,
         result=result,
-        error=error,
     ):
         state.observer(event)
     if error is not None:
