@@ -38,6 +38,8 @@ from .state import N_VARS
 
 RUSANOV_NORMALIZED_RESIDUAL_TOLERANCE = 5.0e-13
 D2_CAPTURE_STATUS = "D2_EXACT_PRODUCTION_RUSANOV_EVALUATION"
+PROPERTY_BACKEND_NAME = "coolprop_co2"
+PROPERTY_BACKEND_DESIGN_STATUS = "VERIFICATION_ONLY_NOT_APPROVED_FOR_DESIGN_USE"
 
 
 class HEMGate9RusanovDiagnosticError(RuntimeError):
@@ -71,6 +73,8 @@ class Gate9D2Result:
             "scope": "verification_only_read_only_production_rusanov_observer",
             "case_id": self.d1_diagnostics.case_id,
             "cfl": self.d1_diagnostics.cfl,
+            "property_backend_name": PROPERTY_BACKEND_NAME,
+            "property_backend_design_status": PROPERTY_BACKEND_DESIGN_STATUS,
             "focused_cells": list(self.d1_diagnostics.focused_cells),
             "focused_interfaces": list(self.d1_diagnostics.focused_interfaces),
             "production_evaluation_count": self.production_evaluation_count,
