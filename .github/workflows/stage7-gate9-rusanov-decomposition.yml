@@ -1,0 +1,189 @@
+name: Stage 7 Gate 9 D2 Rusanov Decomposition
+
+on:
+  pull_request:
+    paths:
+      - "src/liquid_gas_transient/flux.py"
+      - "src/liquid_gas_transient/hem_rusanov_diagnostic_decomposition.py"
+      - "tests/test_stage7_lco2_hem_gate9_rusanov_decomposition.py"
+      - "docs/verification/stage7_gate9_d2_rusanov_decomposition.md"
+      - ".github/workflows/stage7-gate9-rusanov-decomposition.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage7-gate9-d2-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src
+  PYTHONDONTWRITEBYTECODE: "1"
+  MPLBACKEND: Agg
+  ANALYSIS_SOURCE_GIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  gate9-d2-rusanov-decomposition:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install fixed dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy matplotlib pytest 'CoolProp==8.0.0'
+
+      - name: Assert pristine checkout
+        run: |
+          echo "checkout_sha=$(git rev-parse HEAD)"
+          test "$(git rev-parse HEAD)" = "$ANALYSIS_SOURCE_GIT_SHA" || \
+            test "${{ github.event_name }}" = "pull_request"
+          status="$(git status --porcelain=v1 --untracked-files=all)"
+          printf 'pre_execution_git_status=%s\n' "$status"
+          test -z "$status"
+
+      - name: Execute D2 diagnostic-off/on identity pair
+        run: |
+          temporary_output="${RUNNER_TEMP}/stage7-gate9-d2"
+          repository_output="artifacts/stage7-gate9-d2"
+          rm -rf "$temporary_output" "$repository_output"
+          python -m liquid_gas_transient.hem_rusanov_diagnostic_decomposition \
+            --output-dir "$temporary_output"
+          tracked_status="$(git status --porcelain=v1 --untracked-files=no)"
+          printf 'post_execution_tracked_git_status=%s\n' "$tracked_status"
+          test -z "$tracked_status"
+          mkdir -p "$repository_output"
+          cp -a "$temporary_output/." "$repository_output/"
+
+      - name: Inspect D2 evidence contract
+        run: |
+          python - <<'PY'
+          import csv
+          import json
+          from pathlib import Path
+
+          target = Path('artifacts/stage7-gate9-d2')
+          summary = json.loads((target / 'summary.json').read_text(encoding='utf-8'))
+          assert summary['schema_version'] == 'stage7_gate9_d2_rusanov_decomposition_increment1_v1'
+          assert summary['scope'] == 'verification_only_read_only_production_rusanov_observer'
+          assert summary['case_id'] == 'pipeline_crossing_candidate_p5m5_to_p2m5'
+          assert summary['cfl'] == 0.10
+          assert summary['property_backend_name'] == 'coolprop_co2'
+          assert summary['property_backend_design_status'] == (
+              'VERIFICATION_ONLY_NOT_APPROVED_FOR_DESIGN_USE'
+          )
+          assert summary['focused_cells'] == [28, 29, 30, 31]
+          assert summary['focused_interfaces'] == [
+              '27|28', '28|29', '29|30', '30|31', 'RIGHT_BOUNDARY'
+          ]
+          assert summary['production_evaluation_count'] == 125
+          assert summary['captured_step_count'] == 125
+          assert summary['interface_flux_record_count'] == 625
+          assert summary['cell_stage_record_count'] == 1500
+          assert summary['acoustic_attempt_record_count'] == 0
+          assert summary['normalized_reconstruction_residual_tolerance'] == 5e-13
+          assert summary['maximum_normalized_reconstruction_residual'] <= 5e-13
+          assert summary['rusanov_reconstruction_guard_passed'] is True
+          assert summary['diagnostic_off_on_identity'] is True
+          assert summary['solver_state_preserved'] is True
+          candidate = summary['candidate_summary']
+          assert candidate['candidate_step'] == 125
+          assert candidate['candidate_time_s'] == 7.999325695335248e-4
+          assert candidate['candidate_cells'] == [29]
+          assert candidate['maximum_candidate_q_equilibrium'] == 3.773646403587342e-6
+          assert candidate['formal_outcome'] == 'ACCEPTED_FIRST_CROSSING'
+          assert summary['production_flux_expression_changed'] is False
+          assert summary['production_solver_equations_changed'] is False
+          assert summary['eos_re_evaluated_for_decomposition'] is False
+          assert summary['wave_speed_recomputed_for_decomposition'] is False
+          assert summary['Gate_9_execution_complete'] is False
+          assert summary['physical_validation'] is False
+          assert summary['design_use_acceptance'] is False
+          assert summary['production_hem_activation_approved'] is False
+
+          with (target / 'focused_interface_flux_decomposition.csv').open(
+              newline='', encoding='utf-8'
+          ) as handle:
+              rows = list(csv.DictReader(handle))
+          assert len(rows) == 625
+          assert {row['interface_id'] for row in rows} == {
+              '27|28', '28|29', '29|30', '30|31', 'RIGHT_BOUNDARY'
+          }
+          assert all(
+              float(row['normalized_reconstruction_residual']) <= 5e-13
+              for row in rows
+          )
+          with (target / 'acoustic_attempt_history.csv').open(
+              newline='', encoding='utf-8'
+          ) as handle:
+              assert 'halving_index' in next(csv.reader(handle))
+          PY
+
+      - name: Compile and diff checks
+        run: |
+          python -m compileall -q src tests
+          git diff --check
+
+      - name: Run dedicated D2 tests
+        run: |
+          python -m pytest -q \
+            tests/test_stage7_lco2_hem_gate9_rusanov_decomposition.py \
+            --strict-markers \
+            --junitxml=gate9-d2-dedicated.xml
+
+      - name: Run related Stage 7 regressions
+        run: |
+          python -m pytest -q \
+            tests/test_stage7_gate9_contract.py \
+            tests/test_stage7_lco2_hem_pipeline_depressurization_increment2.py \
+            tests/test_stage7_lco2_hem_gate9_instrumentation_scaffold.py \
+            tests/test_stage7_lco2_hem_gate9_rusanov_decomposition.py \
+            --strict-markers \
+            --junitxml=related-stage7.xml
+
+      - name: Run full repository tests
+        run: |
+          python -m pytest -q --strict-markers --junitxml=full-repository.xml
+
+      - name: Assert authoritative JUnit is clean
+        run: |
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          for name in (
+              'gate9-d2-dedicated.xml',
+              'related-stage7.xml',
+              'full-repository.xml',
+          ):
+              root = ET.parse(Path(name)).getroot()
+              suites = [root] if root.tag == 'testsuite' else list(root.findall('testsuite'))
+              totals = {
+                  key: sum(int(s.attrib.get(key, 0)) for s in suites)
+                  for key in ('tests', 'skipped', 'failures', 'errors')
+              }
+              print(name, totals)
+              assert totals['skipped'] == 0
+              assert totals['failures'] == 0
+              assert totals['errors'] == 0
+          PY
+
+      - name: Upload D2 evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: stage7-gate9-d2-${{ github.run_id }}
+          path: |
+            artifacts/stage7-gate9-d2
+            gate9-d2-dedicated.xml
+            related-stage7.xml
+            full-repository.xml
+          if-no-files-found: warn
