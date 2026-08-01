@@ -100,6 +100,81 @@ def test_d3_observer_retains_exact_halving_sequence_until_phase_match() -> None:
     assert density[1].refusal_category == "PHASE_CLASS_MISMATCH"
 
 
+def test_d3_backend_error_type_is_reserved_for_evaluator_exceptions() -> None:
+    config = HEMEquilibriumSoundSpeedConfig(
+        relative_density_step=0.1,
+        relative_energy_step=1.0e-4,
+        max_step_halvings=0,
+    )
+
+    def guarded_evaluator(rho: float, e: float) -> PressurePhaseSample:
+        if rho < 10.0:
+            return PressurePhaseSample(
+                pressure_pa=1.0e6,
+                phase_class="critical_region",
+                scope_status="guarded_out",
+            )
+        return _sample(1.0e6 + 1.0e4 * rho + 2.0 * e)
+
+    guarded = Gate9AcousticAttemptCollector()
+    with pytest.raises(HEMEquilibriumSoundSpeedError, match="after 0 halvings"):
+        with observe_equilibrium_acoustic_attempts(guarded):
+            acoustic_module.estimate_equilibrium_sound_speed(
+                10.0,
+                1.0e5,
+                guarded_evaluator,
+                config=config,
+            )
+
+    guarded_attempts = [
+        event for event in guarded.events if event.event_kind == "STENCIL_ATTEMPT"
+    ]
+    guarded_final = [
+        event for event in guarded.events if event.event_kind == "EVALUATION_RESULT"
+    ]
+    assert len(guarded_attempts) == 1
+    assert guarded_attempts[0].refusal_category == "MINUS_STATE_REJECTED"
+    assert guarded_attempts[0].minus_state_valid is False
+    assert (
+        guarded_attempts[0].minus_phase_or_scope_category
+        == "critical_region|guarded_out"
+    )
+    assert guarded_attempts[0].backend_error_type == ""
+    assert len(guarded_final) == 1
+    assert guarded_final[0].backend_error_type == ""
+
+    class BackendFailure(RuntimeError):
+        pass
+
+    def failing_evaluator(rho: float, e: float) -> PressurePhaseSample:
+        if rho < 10.0:
+            raise BackendFailure("backend failed")
+        return _sample(1.0e6 + 1.0e4 * rho + 2.0 * e)
+
+    failed = Gate9AcousticAttemptCollector()
+    with pytest.raises(HEMEquilibriumSoundSpeedError, match="after 0 halvings"):
+        with observe_equilibrium_acoustic_attempts(failed):
+            acoustic_module.estimate_equilibrium_sound_speed(
+                10.0,
+                1.0e5,
+                failing_evaluator,
+                config=config,
+            )
+
+    failed_attempts = [
+        event for event in failed.events if event.event_kind == "STENCIL_ATTEMPT"
+    ]
+    failed_final = [
+        event for event in failed.events if event.event_kind == "EVALUATION_RESULT"
+    ]
+    assert len(failed_attempts) == 1
+    assert failed_attempts[0].refusal_category == "MINUS_STATE_REJECTED"
+    assert failed_attempts[0].minus_phase_or_scope_category == "EVALUATION_FAILED"
+    assert failed_attempts[0].backend_error_type == "BackendFailure"
+    assert len(failed_final) == 1
+    assert failed_final[0].backend_error_type == "BackendFailure"
+
+
 def test_d3_observer_records_all_zero_to_twelve_attempts_on_refusal() -> None:
     def evaluator(rho: float, e: float) -> PressurePhaseSample:
         phase = "target" if rho == 10.0 else "other"
