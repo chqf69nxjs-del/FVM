@@ -16,6 +16,8 @@ from liquid_gas_transient.hem_pipeline_depressurization_first_crossing import (
 )
 from liquid_gas_transient.hem_rusanov_diagnostic_decomposition import (
     D2_CAPTURE_STATUS,
+    PROPERTY_BACKEND_DESIGN_STATUS,
+    PROPERTY_BACKEND_NAME,
     RUSANOV_NORMALIZED_RESIDUAL_TOLERANCE,
     build_gate9_interface_flux_records,
     decompose_rusanov_interface,
@@ -197,6 +199,11 @@ def test_d2_writer_emits_locked_interface_artifact(
     paths = write_gate9_d2_artifacts(tmp_path, result)
 
     summary = json.loads(paths["summary"].read_text(encoding="utf-8"))
+    assert summary["property_backend_name"] == PROPERTY_BACKEND_NAME
+    assert (
+        summary["property_backend_design_status"]
+        == PROPERTY_BACKEND_DESIGN_STATUS
+    )
     assert summary["production_evaluation_count"] == 125
     assert summary["interface_flux_record_count"] == 625
     assert summary["rusanov_reconstruction_guard_passed"] is True
