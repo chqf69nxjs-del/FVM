@@ -76,6 +76,10 @@ jobs:
           assert summary['scope'] == 'verification_only_read_only_production_rusanov_observer'
           assert summary['case_id'] == 'pipeline_crossing_candidate_p5m5_to_p2m5'
           assert summary['cfl'] == 0.10
+          assert summary['property_backend_name'] == 'coolprop_co2'
+          assert summary['property_backend_design_status'] == (
+              'VERIFICATION_ONLY_NOT_APPROVED_FOR_DESIGN_USE'
+          )
           assert summary['focused_cells'] == [28, 29, 30, 31]
           assert summary['focused_interfaces'] == [
               '27|28', '28|29', '29|30', '30|31', 'RIGHT_BOUNDARY'
