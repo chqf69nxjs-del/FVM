@@ -69,9 +69,15 @@ jobs:
 
           target = Path('artifacts/stage7-gate9-d4')
           summary = json.loads((target / 'summary.json').read_text(encoding='utf-8'))
-          assert summary['schema_version'] == 'stage7_gate9_d4_event_alignment_increment1_v1'
-          assert summary['scope'] == 'verification_only_event_aligned_d1_d2_d3_integration'
-          assert summary['case_id'] == 'pipeline_crossing_candidate_p5m5_to_p2m5'
+          assert summary['schema_version'] == (
+              'stage7_gate9_d4_event_alignment_increment1_v2'
+          )
+          assert summary['scope'] == (
+              'verification_only_event_aligned_d1_d2_d3_integration'
+          )
+          assert summary['case_id'] == (
+              'pipeline_crossing_candidate_p5m5_to_p2m5'
+          )
           assert summary['cfl'] == 0.10
           assert summary['property_backend_name'] == 'coolprop_co2'
           assert summary['property_backend_design_status'] == (
@@ -82,7 +88,9 @@ jobs:
           assert summary['window_steps'] == list(range(117, 126))
           assert summary['available_pre_step_count'] == 8
           assert summary['available_post_step_count'] == 0
-          assert summary['post_window_status'] == 'NOT_AVAILABLE_DUE_TO_FORMAL_STOP'
+          assert summary['post_window_status'] == (
+              'NOT_AVAILABLE_DUE_TO_FORMAL_STOP'
+          )
           assert summary['focused_cells'] == [28, 29, 30, 31]
           assert summary['captured_exact_stages'] == [
               'PRE_STEP_ACCEPTED',
@@ -94,8 +102,11 @@ jobs:
           assert summary['exact_cell_stage_record_count'] == 180
           assert summary['d1_cell_stage_record_count'] == 108
           assert summary['interface_flux_record_count'] == 45
+          assert summary['cfl_decision_record_count'] == 9
           assert summary['aligned_acoustic_record_count'] > 0
-          assert summary['all_acoustic_records_have_step_cell_stage'] is True
+          assert summary['all_acoustic_records_have_step_cell_stage_dt'] is True
+          assert summary['all_cfl_decisions_match_production_dt'] is True
+          assert summary['all_timeline_records_have_source_time'] is True
           assert summary['rusanov_reconstruction_guard_passed'] is True
           assert summary['diagnostic_off_on_identity'] is True
           assert summary['forced_post_guard_continuation'] is False
@@ -103,22 +114,41 @@ jobs:
           assert summary['physical_validation'] is False
           assert summary['design_use_acceptance'] is False
 
-          with (target / 'event_aligned_exact_cell_stage_history.csv').open(
-              newline='', encoding='utf-8'
-          ) as handle:
-              exact = list(csv.DictReader(handle))
-          with (target / 'event_aligned_interface_flux_history.csv').open(
-              newline='', encoding='utf-8'
-          ) as handle:
-              interfaces = list(csv.DictReader(handle))
-          with (target / 'event_aligned_acoustic_history.csv').open(
-              newline='', encoding='utf-8'
-          ) as handle:
-              acoustic = list(csv.DictReader(handle))
+          def read_rows(name):
+              with (target / name).open(newline='', encoding='utf-8') as handle:
+                  return list(csv.DictReader(handle))
+
+          exact = read_rows('event_aligned_exact_cell_stage_history.csv')
+          interfaces = read_rows('event_aligned_interface_flux_history.csv')
+          acoustic = read_rows('event_aligned_acoustic_history.csv')
+          cfl = read_rows('event_aligned_cfl_decision_history.csv')
+          timeline = read_rows('candidate_event_timeline.csv')
+
           assert len(exact) == 180
           assert len(interfaces) == 45
+          assert len(cfl) == 9
           assert acoustic
-          assert all(row['absolute_step'] and row['cell_index'] and row['stage'] for row in acoustic)
+          assert timeline
+          assert all(
+              row['absolute_step']
+              and row['cell_index']
+              and row['stage']
+              and float(row['dt_s']) > 0.0
+              for row in acoustic
+          )
+          assert all(float(row['absolute_time_s']) > 0.0 for row in timeline)
+          assert all(row['formula_identity_passed'] == 'True' for row in cfl)
+
+          source_interface_times = {
+              (row['absolute_step'], row['interface_id']): row['absolute_time_s']
+              for row in interfaces
+          }
+          timeline_interface_times = {
+              (row['absolute_step'], row['entity_id']): row['absolute_time_s']
+              for row in timeline
+              if row['entity_type'] == 'INTERFACE'
+          }
+          assert timeline_interface_times == source_interface_times
           PY
 
       - name: Compile and diff checks
@@ -161,7 +191,11 @@ jobs:
               'full-repository.xml',
           ):
               root = ET.parse(Path(name)).getroot()
-              suites = [root] if root.tag == 'testsuite' else list(root.findall('testsuite'))
+              suites = (
+                  [root]
+                  if root.tag == 'testsuite'
+                  else list(root.findall('testsuite'))
+              )
               totals = {
                   key: sum(int(s.attrib.get(key, 0)) for s in suites)
                   for key in ('tests', 'skipped', 'failures', 'errors')
