@@ -17,12 +17,9 @@ Gate 9 execution complete:     false
 
 ## 1. 目的
 
-D1、D2、D3では、それぞれcell state、Rusanov flux、acoustic
-trialを観測できるようにした。ただし、独立した記録だけでは、
-candidate transitionに対する時間順序を厳密に比較できない。
+D1、D2、D3では、それぞれcell state、Rusanov flux、acoustic trialを観測できるようにした。ただし、独立した記録だけでは、どの現象がcandidate transitionより前に起き、どの現象が後に起きたかを厳密に比較できない。
 
-D4第1増分では、固定CFL `0.10`について、各証拠を次の共通座標へ
-対応付ける。
+D4第1増分では、固定CFL `0.10`について、各証拠を次の共通座標へ対応付ける。
 
 ```text
 absolute step
@@ -33,8 +30,7 @@ state stage
 candidate-relative step
 ```
 
-加えて、`FvmSolver.compute_dt()`が実際に用いたprimitive stateから、
-CFL時間刻み決定そのものを記録する。
+さらに、production `compute_dt()`が実際に用いた`|u|+c`と時間刻み決定根拠を独立したCFL decision recordとして保持する。
 
 ## 2. 対象window
 
@@ -55,8 +51,7 @@ candidate:   step 125
 candidate後: 0 steps
 ```
 
-既存formal pathはcandidateで停止するため、後8 stepを作る目的で
-計算を継続しない。artifactには、
+既存formal pathはcandidateで停止するため、後8 stepを作る目的で計算を継続しない。artifactには、
 
 ```text
 post_window_status = NOT_AVAILABLE_DUE_TO_FORMAL_STOP
@@ -66,8 +61,7 @@ post_window_status = NOT_AVAILABLE_DUE_TO_FORMAL_STOP
 
 ## 3. exact state stage
 
-既存runnerを変更せず、D4 context中だけ一時wrapperを設置し、
-すでに存在する配列のcopyを取得する。
+既存runnerを変更せず、D4 context中だけ一時wrapperを設置し、すでに存在する配列のcopyを取得する。
 
 ```text
 PRE_STEP_ACCEPTED
@@ -77,55 +71,13 @@ POST_SECOND_PROJECTION
 FINAL_ACCEPTED
 ```
 
-各copyはnon-writeableとし、対象cell `28 / 29 / 30 / 31`の保存変数を
-記録する。
+各copyはnon-writeableとし、対象cell `28 / 29 / 30 / 31`の保存変数を記録する。
 
-固定ケースではsource、friction、heat、gravity、production
-phase-change operatorが無効であるため、`RAW_POST_FVM`は既存
-`FvmSolver.step()`が返したpost-step stateをそのまま保持する。
+固定ケースではsource、friction、heat、gravity、production phase-change operatorが無効であるため、`RAW_POST_FVM`は既存`FvmSolver.step()`が返したpost-step stateをそのまま保持する。
 
-## 4. CFL decision alignment
+## 4. D2 flux alignment
 
-`compute_dt()`は、
-
-```text
-max(|u| + c)
-target CFL
-dx
-t_endまでの残り時間
-```
-
-からproduction `dt`を決める。
-
-D4では、`compute_dt()`内部の実primitive returnをcopyし、各stepについて
-次を記録する。
-
-```text
-maximum characteristic speed
-limiting cell
-limiting velocity / sound speed
-unconstrained CFL dt
-t_end clippingの有無
-production dt
-measured CFL
-focused cell 28...31のu / c / |u|+c
-```
-
-同じ演算でproduction `dt`をbitwiseに再構成できなければD4 failureとする。
-音速estimatorが新規に呼ばれなかった場合、trial eventを推測せず、
-
-```text
-NO_NEW_SOUND_SPEED_ESTIMATOR_CALL_OBSERVED_DURING_COMPUTE_DT
-```
-
-と記録する。これは、`compute_dt()`で実際に使われたsound speedを
-記録しないという意味ではない。sound speed値はproduction primitive
-から直接取得する。
-
-## 5. D2 flux alignment
-
-D2のproduction Rusanov observerを同じdiagnostic-on runへ組み込み、
-対象interfaceの記録をstep `117...125`へ切り出す。
+D2のproduction Rusanov observerを同じdiagnostic-on runへ組み込み、対象interfaceの記録をstep `117...125`へ切り出す。
 
 ```text
 27|28
@@ -135,14 +87,9 @@ D2のproduction Rusanov observerを同じdiagnostic-on runへ組み込み、
 RIGHT_BOUNDARY
 ```
 
-central成分とdissipative成分は、production fluxをnormalized residual
-`<= 5e-13`で再構成しなければならない。
+central成分とdissipative成分は、引き続きproduction fluxをnormalized residual `<= 5e-13`で再構成しなければならない。
 
-統合timelineでは、各interface record自身が保持する
-`absolute_time_s`を使用する。別stageから時刻を推定せず、欠落時刻を
-`0.0`で補完しない。
-
-## 6. D3 acoustic alignment
+## 5. D3 acoustic alignment
 
 D4は、既存classとfunctionへcontext中だけ一時wrapperを設置する。
 
@@ -152,7 +99,7 @@ D4は、既存classとfunctionへcontext中だけ一時wrapperを設置する。
 - scalar `_evaluate_scalar`
 - pipeline moduleが参照する`run_one_projected_fvm_case`
 
-これにより、実際に発生したD3 acoustic eventへ次を付与する。
+これにより、D3 acoustic eventへ次を付与する。
 
 ```text
 absolute step
@@ -163,15 +110,32 @@ stage
 vector role
 ```
 
-`compute_dt()`中に新しいsound-speed estimator callが発生した場合は
-`CFL_DT_EVALUATION`として記録する。cache等により新規trialが発生しない
-場合は、存在しないtrialを生成しない。
+production methodの戻り値、exception、評価順序、cache、flux、音速式は変更しない。context終了時には、すべてのmethod/function参照を元へ復元する。
 
-production methodの戻り値、exception、評価順序、cache、flux、音速式は
-変更しない。context終了時には、すべてのmethod/function参照を元へ
-復元する。
+`compute_dt()`中に新規sound-speed estimator callが実際に発生した場合のみ、`CFL_DT_EVALUATION`としてtrialを保持する。cache再利用により新規callがない場合は架空のtrialを生成せず、production primitiveで実際に使用された音速値をCFL decision recordへ保存する。
 
-## 7. 非侵襲性
+## 6. production CFL decision
+
+各window stepについて、production `compute_dt()`が実際に返したprimitive stateから次を保存する。
+
+```text
+maximum |u| + c
+limiting cell
+limiting velocity / sound speed
+unconstrained CFL dt
+t_end clippingの有無
+production dt
+measured CFL
+focused cell 28...31のu / c / |u|+c
+```
+
+同じ演算でproduction `dt`をbitwiseに再構成できなければD4 failureとする。
+
+## 7. timeline時刻契約
+
+`candidate_event_timeline.csv`では、cell、interface、acoustic、CFL decisionの各source record自身が保持する`absolute_time_s`を使用する。他stageから時刻を推定せず、欠落時刻を`0.0`で補完しない。
+
+## 8. 非侵襲性
 
 D4 diagnostic OFFとONで、以下を完全一致させる。
 
@@ -186,10 +150,9 @@ full pressure history
 full accepted-state history
 ```
 
-D4 wrapperはstateを補正せず、EOSを追加評価せず、formal stop後に
-継続しない。
+D4 wrapperはstateを補正せず、EOSを追加評価せず、formal stop後に継続しない。
 
-## 8. 成果物
+## 9. 成果物
 
 ```text
 summary.json
@@ -204,25 +167,53 @@ artifact_sha256.txt
 JUnit XML
 ```
 
-CFL `0.10`では、固定件数は以下である。
+固定CFL `0.10`の最終取得件数は以下である。
 
 ```text
 window steps:                    9
-exact stages per step:           5
-focused cells:                   4
 exact cell-stage records:        180
 D1 retained cell-stage records:  108
 focused interface records:       45
-CFL decision records:             9
+CFL decision records:              9
+aligned acoustic records:        248
+timeline records:                482
 ```
 
-acoustic record数は、cache利用と実際のproduction evaluationに従うため
-固定値を事前指定しない。ただし、artifactへ含める全acoustic recordは
-step/cell/stage/dtを持たなければならない。
+`compute_dt()`中はEOS cacheが利用され、新規sound-speed estimator callは観測されなかった。
 
-timelineの全rowは、そのsource record自身の正のphysical timeを持つ。
+```text
+cfl_dt_acoustic_trial_record_count = 0
+cfl_dt_acoustic_trial_capture_status =
+NO_NEW_SOUND_SPEED_ESTIMATOR_CALL_OBSERVED_DURING_COMPUTE_DT
+```
 
-## 9. 明示的に行わないこと
+これは音速を使用しなかったことを意味しない。production primitiveで実際に使用された音速値はCFL decision recordへ保存済みである。
+
+## 10. authoritative CI
+
+artifact semantics修正後headに対する最終結果：
+
+```text
+head:              aa48313a8e37710e6c715cf32a4b05f4d61058ef
+workflow run:      30735763579
+dedicated D4:      4 passed
+related Stage 7:  59 passed
+full repository: 884 passed
+skips:              0
+failures:           0
+errors:             0
+```
+
+Evidence artifact：
+
+```text
+artifact ID:      8830257754
+artifact SHA256:  5767323a0e93f6c49b6cd07d7652b068e6d41cc54b10e2dc501df23e4f3126bf
+```
+
+checkout、D4 OFF/ON実行、artifact契約、compile/diff、専用・関連・全体試験、JUnit clean、artifact uploadの全工程が成功した。
+
+## 11. 明示的に行わないこと
 
 ```text
 CFL 0.05 / 0.025への展開
@@ -242,17 +233,18 @@ design-use acceptance
 production activation
 ```
 
-## 10. 完了境界
+## 12. 完了境界
 
-D4第1増分の完了条件は以下である。
+D4第1増分の技術的完了条件は満たした。
 
 ```text
 CFL 0.10 window 117...125を固定
 5 exact stagesを全window stepで取得
 D1 / D2 / D3を共通step/timeへ対応付け
-production CFL decisionを9 stepで取得
 focused acoustic recordへcell/stage/dtを付与
-timelineでsource固有時刻を保持
+production CFL decisionを9 step取得
+production dtをbitwise再構成
+source固有時刻をtimelineへ保存
 D2 residual guardを維持
 OFF/ON exact identity
 専用・関連・全repository testがclean
