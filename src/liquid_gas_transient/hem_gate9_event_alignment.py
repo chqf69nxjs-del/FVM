@@ -452,11 +452,11 @@ def _timeline(exact, interfaces, acoustic, candidate_step: int):
     stage_order = {name: i for i, name in enumerate(D4_CAPTURED_STAGES)}
     raw: list[tuple[tuple, str, str, str, dict]] = []
     for r in exact:
-        raw.append(((r.absolute_step, stage_order.get(r.stage, 90), r.cell_index, 0), r.stage, "CELL", str(r.cell_index), {"state_sha256": r.state_sha256}))
+        raw.append(((r.absolute_step, stage_order.get(r.stage, 90), 0, str(r.cell_index), 0), r.stage, "CELL", str(r.cell_index), {"state_sha256": r.state_sha256}))
     for r in interfaces:
-        raw.append(((r.absolute_step, 1, r.interface_id, 1), "FVM_INTERFACE_FLUX", "INTERFACE", r.interface_id, {"a_max": r.a_max, "residual": r.normalized_reconstruction_residual}))
+        raw.append(((r.absolute_step, 1, 1, str(r.interface_id), 0), "FVM_INTERFACE_FLUX", "INTERFACE", r.interface_id, {"a_max": r.a_max, "residual": r.normalized_reconstruction_residual}))
     for r in acoustic:
-        raw.append(((r.absolute_step, stage_order.get(r.stage, 50), r.cell_index, 2, r.evaluation_id), r.stage, "ACOUSTIC", str(r.cell_index), {"event_kind": r.event_kind, "halving_index": r.halving_index, "accepted_or_refused": r.accepted_or_refused, "refusal_category": r.refusal_category}))
+        raw.append(((r.absolute_step, stage_order.get(r.stage, 50), 2, str(r.cell_index), r.evaluation_id), r.stage, "ACOUSTIC", str(r.cell_index), {"event_kind": r.event_kind, "halving_index": r.halving_index, "accepted_or_refused": r.accepted_or_refused, "refusal_category": r.refusal_category}))
     out = []
     for index, item in enumerate(sorted(raw, key=lambda value: value[0])):
         key, stage, entity_type, entity_id, detail = item
