@@ -191,11 +191,11 @@ NO_NEW_SOUND_SPEED_ESTIMATOR_CALL_OBSERVED_DURING_COMPUTE_DT
 
 ## 10. authoritative CI
 
-artifact semantics修正後headに対する最終結果：
+最終headに対するauthoritative結果：
 
 ```text
-head:              aa48313a8e37710e6c715cf32a4b05f4d61058ef
-workflow run:      30735763579
+head:              a1d79a85e436ee1e82b11e743657278ab37216d0
+workflow run:      30738752262
 dedicated D4:      4 passed
 related Stage 7:  59 passed
 full repository: 884 passed
@@ -207,8 +207,8 @@ errors:             0
 Evidence artifact：
 
 ```text
-artifact ID:      8830257754
-artifact SHA256:  5767323a0e93f6c49b6cd07d7652b068e6d41cc54b10e2dc501df23e4f3126bf
+artifact ID:      8831018683
+artifact SHA256:  3dae3a544ecd04e36a86b50a8c88645ea14f390b6ebdb42d55a6f5e97a857f09
 ```
 
 checkout、D4 OFF/ON実行、artifact契約、compile/diff、専用・関連・全体試験、JUnit clean、artifact uploadの全工程が成功した。
