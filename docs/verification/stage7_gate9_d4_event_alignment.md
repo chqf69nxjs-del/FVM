@@ -167,7 +167,7 @@ artifact_sha256.txt
 JUnit XML
 ```
 
-固定CFL `0.10`の最終取得件数は以下である。
+固定CFL `0.10`の期待件数は以下である。
 
 ```text
 window steps:                    9
@@ -175,11 +175,10 @@ exact cell-stage records:        180
 D1 retained cell-stage records:  108
 focused interface records:       45
 CFL decision records:              9
-aligned acoustic records:        248
-timeline records:                482
+aligned acoustic records:        >0
 ```
 
-`compute_dt()`中はEOS cacheが利用され、新規sound-speed estimator callは観測されなかった。
+`compute_dt()`中にEOS cacheが利用され、新規sound-speed estimator callがない場合は、次の状態を明示する。
 
 ```text
 cfl_dt_acoustic_trial_record_count = 0
@@ -187,31 +186,25 @@ cfl_dt_acoustic_trial_capture_status =
 NO_NEW_SOUND_SPEED_ESTIMATOR_CALL_OBSERVED_DURING_COMPUTE_DT
 ```
 
-これは音速を使用しなかったことを意味しない。production primitiveで実際に使用された音速値はCFL decision recordへ保存済みである。
+これは音速を使用しなかったことを意味しない。production primitiveで実際に使用された音速値はCFL decision recordへ保存する。
 
-## 10. authoritative CI
+## 10. authoritative CIの記録方法
 
-最終headに対するauthoritative結果：
+最終headのworkflow run、JUnit件数、artifact ID、artifact SHA256は、CI完了後にPR #119本文とIssue #110へ固定する。
+
+これらを本ファイルへ事後追記すると、その追記自体が新しいheadを生成してCIを再起動するため、本報告書では自己参照する最終run識別子を保持しない。
+
+完了判定に必要なCI契約は以下である。
 
 ```text
-head:              a1d79a85e436ee1e82b11e743657278ab37216d0
-workflow run:      30738752262
-dedicated D4:      4 passed
-related Stage 7:  59 passed
-full repository: 884 passed
+dedicated D4:      clean
+related Stage 7:   clean
+full repository:   clean
 skips:              0
 failures:           0
 errors:             0
+artifact upload:   success
 ```
-
-Evidence artifact：
-
-```text
-artifact ID:      8831018683
-artifact SHA256:  3dae3a544ecd04e36a86b50a8c88645ea14f390b6ebdb42d55a6f5e97a857f09
-```
-
-checkout、D4 OFF/ON実行、artifact契約、compile/diff、専用・関連・全体試験、JUnit clean、artifact uploadの全工程が成功した。
 
 ## 11. 明示的に行わないこと
 
@@ -235,7 +228,7 @@ production activation
 
 ## 12. 完了境界
 
-D4第1増分の技術的完了条件は満たした。
+D4第1増分の技術的完了条件は以下である。
 
 ```text
 CFL 0.10 window 117...125を固定
