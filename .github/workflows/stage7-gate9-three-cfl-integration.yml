@@ -1,0 +1,217 @@
+name: Stage 7 Gate 9 Three-CFL Integration
+
+on:
+  pull_request:
+    paths:
+      - "src/liquid_gas_transient/hem_gate9_three_cfl_integration.py"
+      - "tests/test_stage7_lco2_hem_gate9_three_cfl_integration.py"
+      - "docs/verification/stage7_gate9_d5_three_cfl_integration.md"
+      - ".github/workflows/stage7-gate9-three-cfl-integration.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage7-gate9-d5-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src
+  PYTHONDONTWRITEBYTECODE: "1"
+  MPLBACKEND: Agg
+  ANALYSIS_SOURCE_GIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  gate9-d5-three-cfl-integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install fixed dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy matplotlib pytest 'CoolProp==8.0.0'
+
+      - name: Assert pristine checkout
+        run: |
+          echo "checkout_sha=$(git rev-parse HEAD)"
+          status="$(git status --porcelain=v1 --untracked-files=all)"
+          printf 'pre_execution_git_status=%s\n' "$status"
+          test -z "$status"
+
+      - name: Execute fixed three-CFL D5 integration
+        run: |
+          temporary_output="${RUNNER_TEMP}/stage7-gate9-d5"
+          repository_output="artifacts/stage7-gate9-d5"
+          rm -rf "$temporary_output" "$repository_output"
+          python -m liquid_gas_transient.hem_gate9_three_cfl_integration \
+            --output-dir "$temporary_output"
+          tracked_status="$(git status --porcelain=v1 --untracked-files=no)"
+          printf 'post_execution_tracked_git_status=%s\n' "$tracked_status"
+          test -z "$tracked_status"
+          mkdir -p "$repository_output"
+          cp -a "$temporary_output/." "$repository_output/"
+
+      - name: Inspect D5 evidence contract
+        run: |
+          python - <<'PY'
+          import csv
+          import json
+          import os
+          from pathlib import Path
+
+          target = Path('artifacts/stage7-gate9-d5')
+          summary = json.loads((target / 'summary.json').read_text(encoding='utf-8'))
+          assert summary['schema_version'] == 'stage7_gate9_d5_three_cfl_integration_v1'
+          assert summary['scope'] == 'verification_only_same_schema_three_cfl_integration'
+          assert summary['locked_cfl_sequence'] == [0.10, 0.05, 0.025]
+          assert summary['column_count'] == 3
+          assert summary['focused_cell_stage_record_count'] == 540
+          assert summary['focused_interface_flux_record_count'] == 135
+          assert summary['cfl_decision_record_count'] == 27
+          assert summary['projection_record_count'] == 108
+          assert summary['budget_record_count'] == 27
+          assert summary['candidate_metric_count'] == 3
+          assert summary['candidate_comparison_count'] == 3
+          assert summary['candidate_depth_sequence_status'] == 'NON_MONOTONE'
+          for key in (
+              'all_gate8_formal_identities_reproduced',
+              'all_rusanov_reconstruction_guards_passed',
+              'all_cfl_decisions_match_production_dt',
+              'all_timeline_records_have_source_time',
+              'all_second_projections_exact_noop',
+              'budgets_traceable',
+              'D5_three_cfl_integration_complete',
+          ):
+              assert summary[key] is True, key
+          assert summary['D6_temporal_correlation_classification_complete'] is False
+          assert summary['Gate_9_execution_complete'] is False
+          assert summary['crossing_depth_root_cause_approved'] is False
+          assert summary['physical_validation'] is False
+          assert summary['design_use_acceptance'] is False
+          assert summary['production_hem_activation_approved'] is False
+          assert summary['provenance']['source_git_sha'] == os.environ['ANALYSIS_SOURCE_GIT_SHA']
+          assert summary['provenance']['git_status_porcelain'] == ''
+          assert summary['provenance']['property_backend_version'] == '8.0.0'
+
+          with (target / 'per_cfl_candidate_metrics.csv').open(
+              newline='', encoding='utf-8'
+          ) as handle:
+              metrics = list(csv.DictReader(handle))
+          assert len(metrics) == 3
+          by_cfl = {float(row['cfl']): row for row in metrics}
+          expected = {
+              0.10: ('ACCEPTED_FIRST_CROSSING', 125, 7.999325695335248e-4, 3.773646403587342e-6),
+              0.05: ('GUARD_FAILURE', 249, 7.967173062790038e-4, 1.1006096906989802e-7),
+              0.025: ('ACCEPTED_FIRST_CROSSING', 499, 7.981201399992095e-4, 1.3949366092287805e-6),
+          }
+          for cfl, contract in expected.items():
+              row = by_cfl[cfl]
+              outcome, step, time_s, quality = contract
+              assert row['formal_outcome'] == outcome
+              assert int(row['candidate_step']) == step
+              assert float(row['candidate_time_s']) == time_s
+              assert int(row['candidate_cell']) == 29
+              assert float(row['maximum_candidate_q_eq']) == quality
+              assert row['q_internal_energy_coordinate']
+              assert row['q_specific_volume_coordinate']
+              assert row['second_projection_exact_noop'] == 'True'
+              assert row['final_state_sha256']
+              assert row['run_signature_sha256']
+
+          required = {
+              'summary.json',
+              'per_cfl_candidate_metrics.csv',
+              'focused_cell_stage_history.csv',
+              'focused_interface_flux_decomposition.csv',
+              'candidate_event_comparison.csv',
+              'saturation_margin_history.csv',
+              'projection_history.csv',
+              'budget_history.csv',
+              'acoustic_attempt_history.csv',
+              'cfl_decision_history.csv',
+              'candidate_event_timeline.csv',
+              'report.md',
+              'candidate_quality_vs_physical_time.png',
+              'saturation_margins_vs_physical_time.png',
+              'candidate_step_flux_decomposition.png',
+              'acoustic_branch_vs_margin.png',
+              'cross_cfl_depth_comparison.png',
+              'artifact_sha256.txt',
+          }
+          assert required == {path.name for path in target.iterdir()}
+          assert all((target / name).stat().st_size > 0 for name in required)
+          PY
+
+      - name: Compile and diff checks
+        run: |
+          python -m compileall -q src tests
+          git diff --check
+
+      - name: Run dedicated D5 tests
+        run: |
+          python -m pytest -q \
+            tests/test_stage7_lco2_hem_gate9_three_cfl_integration.py \
+            --strict-markers \
+            --junitxml=gate9-d5-dedicated.xml
+
+      - name: Run related Stage 7 regressions
+        run: |
+          python -m pytest -q \
+            tests/test_stage7_gate9_contract.py \
+            tests/test_stage7_lco2_hem_pipeline_post_crossing_cfl_sensitivity_full.py \
+            tests/test_stage7_lco2_hem_gate9_instrumentation_scaffold.py \
+            tests/test_stage7_lco2_hem_gate9_rusanov_decomposition.py \
+            tests/test_stage7_lco2_hem_gate9_acoustic_attempt_diagnostics.py \
+            tests/test_stage7_lco2_hem_gate9_event_alignment.py \
+            tests/test_stage7_lco2_hem_gate9_refined_event_alignment.py \
+            tests/test_stage7_lco2_hem_gate9_three_cfl_integration.py \
+            --strict-markers \
+            --junitxml=related-stage7.xml
+
+      - name: Run full repository tests
+        run: |
+          python -m pytest -q --strict-markers --junitxml=full-repository.xml
+
+      - name: Assert authoritative JUnit is clean
+        run: |
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          for name in (
+              'gate9-d5-dedicated.xml',
+              'related-stage7.xml',
+              'full-repository.xml',
+          ):
+              root = ET.parse(Path(name)).getroot()
+              suites = [root] if root.tag == 'testsuite' else list(root.findall('testsuite'))
+              totals = {
+                  key: sum(int(s.attrib.get(key, 0)) for s in suites)
+                  for key in ('tests', 'skipped', 'failures', 'errors')
+              }
+              print(name, totals)
+              assert totals['skipped'] == 0
+              assert totals['failures'] == 0
+              assert totals['errors'] == 0
+          PY
+
+      - name: Upload D5 evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: stage7-gate9-d5-${{ github.run_id }}
+          path: |
+            artifacts/stage7-gate9-d5
+            gate9-d5-dedicated.xml
+            related-stage7.xml
+            full-repository.xml
+          if-no-files-found: warn
