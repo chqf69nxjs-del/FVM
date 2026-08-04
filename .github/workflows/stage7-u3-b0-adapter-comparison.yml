@@ -5,6 +5,8 @@ on:
     paths:
       - "src/liquid_gas_transient/u3_b0_discharge_adapter.py"
       - "tests/test_stage7_u3_b0_discharge_adapter.py"
+      - "tests/conftest.py"
+      - "pyproject.toml"
       - "docs/verification/stage7_u3_b0_adapter_comparison.md"
       - "docs/verification/stage7_u3_b0_discharge_boundary_contract_v1.json"
       - ".github/workflows/stage7-u3-b0-adapter-comparison.yml"
@@ -25,6 +27,7 @@ env:
   ANALYSIS_SOURCE_GIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
   REFERENCE_ARTIFACT_ID: "8890056064"
   REFERENCE_ARTIFACT_ZIP_SHA256: "7005055beb8b0722dd035f37c0fa6d10f46ddd121d6ead5906a8d941fb6c23a6"
+  U3_B0_REQUIRE_REFERENCE_ARTIFACT: "1"
 
 jobs:
   u3-b0-adapter-comparison:
