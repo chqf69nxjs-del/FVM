@@ -161,11 +161,11 @@ jobs:
             --strict-markers \
             --junitxml=u3-b0-reference-dedicated.xml
 
-      - name: Run related contract and boundary regressions
+      - name: Run related contract regressions
         run: |
           python -m pytest -q \
             tests/test_stage7_u3_b0_discharge_reference.py \
-            tests/test_stage7_lco2_hem_technical_report_contract.py \
+            tests/test_lco2_fvm_hem_technical_report_contract.py \
             --strict-markers \
             --junitxml=related-stage7.xml
 
