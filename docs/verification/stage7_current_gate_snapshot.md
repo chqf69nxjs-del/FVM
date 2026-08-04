@@ -1,44 +1,30 @@
 # Stage 7 Current Gate Snapshot
 
-## Status — 2026-07-30
+## Status — 2026-08-04
 
 ```text
 Stage 1–6:                              COMPLETE
 Stage 7:                                IN_PROGRESS
-recorded substantive main:              9a943cf93fbcd6c637d16f6f81957d7452c84b16
-Gate 3 cross-runtime checkpoint:        NUMERICALLY_EQUIVALENT; PR #91
-Gate 4 low-CFL execution:               CFL_SENSITIVITY_OBSERVED; PR #90
-Gate 5 acoustic execution:              COMPLETE; PR #96
-Gate 5 acoustic approval:               NOT APPROVED
-Gate 6 propagation execution:           COMPLETE; PR #99
-Gate 6 propagation approval:            NOT APPROVED
-Gate 7 chatter diagnosis:               COMPLETE; PR #102
-Gate 7 root-cause approval:             NOT APPROVED
-Gate 8 CFL execution:                   COMPLETE; PR #107 / #108; Issue #105
-Gate 8 post-crossing comparability:      NOT ESTABLISHED
-Application Track A1:                   COMPLETE; PR #106; Issue #104 CLOSED
+recorded substantive main:              5f0099101cbc9e9694297394a4c424904260ba94
+Gate 3 cross-runtime checkpoint:        NUMERICALLY_EQUIVALENT
+Gate 4 low-CFL execution:               CFL_SENSITIVITY_OBSERVED
+Gate 5 acoustic execution:              COMPLETE; approval withheld
+Gate 6 propagation execution:           COMPLETE; approval withheld
+Gate 7 chatter diagnosis:               COMPLETE; root cause unapproved
+Gate 8 three-CFL execution:             COMPLETE
+Gate 9 D0-D6 diagnosis:                 COMPLETE; PR #122; Issue #110 CLOSED
+crossing-depth CFL sensitivity:          CHARACTERIZED
+crossing-depth root cause:               NOT APPROVED
+Application Track A1:                   COMPLETE
 selected first pilot:                   U3 pipeline depressurization / blowdown
-next numerical gate:                    Issue #110 crossing-depth forensic diagnosis
-active U3 component track:              Issue #109 B0 discharge-boundary benchmark
-Gate P2:                                FALSE
-physical Validation:                    NOT ESTABLISHED
+active primary implementation:          Issue #109 U3 B0 discharge benchmark
+active documentation track:             Issue #114 technical report
+physical validation:                    NOT ESTABLISHED
 design-use acceptance:                  NOT ESTABLISHED
 production HEM activation:              NOT APPROVED
 ```
 
-Detailed historical evidence remains in:
-
-- [`MASTER_VERIFICATION_INDEX.md`](MASTER_VERIFICATION_INDEX.md)
-- [`stage7_execution_log.md`](stage7_execution_log.md)
-- [`stage7_gate5_closeout.md`](stage7_gate5_closeout.md)
-- [`stage7_gate6_closeout.md`](stage7_gate6_closeout.md)
-- [`stage7_gate7_closeout.md`](stage7_gate7_closeout.md)
-- [`stage7_gate8_closeout.md`](stage7_gate8_closeout.md)
-- [`stage7_real_problem_application_strategy.md`](stage7_real_problem_application_strategy.md)
-- [`stage7_gate8_post_crossing_cfl_sensitivity_plan.md`](stage7_gate8_post_crossing_cfl_sensitivity_plan.md)
-- [`stage7_u3_physical_discharge_boundary_benchmark_spec.md`](stage7_u3_physical_discharge_boundary_benchmark_spec.md)
-- [`stage7_u3_b0_discharge_boundary_contract_v1.json`](stage7_u3_b0_discharge_boundary_contract_v1.json)
-- [`stage7_u3_b0_discharge_boundary_implementation_plan.md`](stage7_u3_b0_discharge_boundary_implementation_plan.md)
+Detailed historical evidence remains in the gate closeout records, execution log, and master verification index. Gate 9 is summarized in [`stage7_gate9_closeout.md`](stage7_gate9_closeout.md).
 
 ## Project-level current conclusion
 
@@ -47,244 +33,101 @@ The first-order pure-CO2 HEM verification path now supports:
 - direct liquid-to-open-two-phase crossing from an all-liquid initial state;
 - equilibrium-quality projection and accepted mixed-state recovery;
 - exact second-projection no-op behavior;
-- fixed first-crossing mesh and CFL sensitivity evidence;
+- fixed mesh and CFL sensitivity evidence;
 - an independent near-saturation acoustic map;
-- one complete CFL `0.10` continuation through the fixed T1–T4 horizon;
-- a persistent open-two-phase region moving upstream in that fixed column;
-- conservative and vapor-budget closure throughout retained successful states;
-- event-aligned diagnosis of boundary-adjacent cell-30 chatter;
-- one completed 32-cell Gate 8 formal-outcome matrix at CFL `0.10 / 0.05 / 0.025`.
+- one fixed 64-step post-crossing continuation;
+- conservative and vapor-budget closure in retained successful states;
+- event-aligned diagnosis of localized boundary-adjacent phase chatter;
+- full three-CFL event integration and temporal / correlation classification.
 
-The evidence also establishes important limitations:
+The evidence also establishes the following limitations:
 
-- crossing depth and accepted/guard classification are non-monotone across CFL;
-- CFL `0.05` reaches cell 29 with subthreshold quality and cannot start continuation;
-- CFL `0.025` accepts crossing but encounters an unchanged acoustic refusal before T3;
-- strict `q -> 0+` acoustic continuity is unresolved;
-- liquid and open-two-phase acoustic branches differ substantially;
-- cell 30 repeatedly crosses the selected saturation boundary and switches acoustic branches;
-- first-order flux, boundary-adjacent coupling, acoustic switching, and equilibrium modeling remain causally entangled;
-- post-crossing CFL / mesh independence, propagation speed, physical accuracy, and design use are unapproved.
+- crossing depth is CFL-sensitive and non-monotone;
+- accepted / guard classification changes across the fixed CFL sequence;
+- candidate time and position remain stable, but crossing depth does not converge monotonically;
+- raw thermodynamic crossing precedes quality projection;
+- the fixed threshold discretizes a continuous crossing-depth difference;
+- candidate `dt`, Rusanov dissipation, boundary net flux, and acoustic branch do not individually explain the complete depth ordering;
+- strict near-saturation acoustic continuity, chatter root cause, physical phase-front speed, mesh / CFL independence, physical validation, and design use remain unapproved.
 
-## Development model — two controlled tracks
+## Gate 9 authoritative closeout
 
 ```text
-Track N — numerical / model characterization
-Track A — real-problem application definition and validation planning
+D5 PR / source head:                   #121 / 45894a3fbe8c176c8435517c6204d94359dccccc
+D5 workflow / artifact:                30805641241 / 8855725551
+D5 artifact ZIP SHA256:                6b4f8f8076d9e7b61d4edb91c2653b2a010a05ee231c45b4c61dae9da6216850
+
+D6 PR / source head:                   #122 / b90aa04ca3e1d8f2958f6a700c4ae73917ce39c8
+D6 main merge SHA:                     5f0099101cbc9e9694297394a4c424904260ba94
+D6 workflow / artifact:                30860513453 / 8875962770
+D6 artifact ZIP SHA256:                b0c4b490eedeb7332659051d13cc1e108ef08dfd381eec9fbf63773c4e4aa088
+D6 dedicated / related / full:         6 / 52 / 903 passed
+skips / failures / errors:             0 / 0 / 0
 ```
 
-Track N identifies numerical sensitivity, guards, and model limitations. Track A defines engineering decisions, required inputs and outputs, component benchmarks, and physical validation steps. Neither track may bypass the approval boundary of the other.
-
-## Gate 3 — cross-runtime software reproduction
+Assigned D6 labels:
 
 ```text
-PR:                                  #91
-formal disposition:                  NUMERICALLY_EQUIVALENT
-all reviewed discrete events exact:  true
-maximum normalized array difference: 5.519112370006797e-12
-comparison guard:                    1.0e-10
+CANDIDATE_TIME_POSITION_STABLE_ACROSS_CFL
+CROSSING_DEPTH_CFL_SENSITIVE
+CROSSING_DEPTH_SEQUENCE_NON_MONOTONE
+SATURATION_MARGIN_DISPLACEMENT_CORRELATED
+PROJECTION_ACTIVITY_POSTDATES_RAW_CROSSING
+THRESHOLD_CLASSIFICATION_DISCONTINUITY_OBSERVED
+CROSSING_DEPTH_REVIEW_INCONCLUSIVE
 ```
 
-Ubuntu remains authoritative for exact scalar and SHA256 references. The reviewed Windows result preserves outcomes and decisions without replacing Ubuntu hashes.
-
-## Gate 4 — low-CFL first-crossing execution
+Not assigned:
 
 ```text
-PR:                                  #90
-workflow / artifact:                 30313389184 / 8675117973
-formal disposition:                  CFL_SENSITIVITY_OBSERVED
-low_cfl_result_accepted:             true
-CFL_independent_crossing_verified:   false
-```
-
-Crossing time and position show a stable trend, but crossing depth is non-monotone and the fixed accepted / guard decision changes with CFL at 2 MPa.
-
-## Gate 5 — near-saturation acoustic review
-
-```text
-PR:                                  #96
-workflow / artifact:                 30451125151 / 8723959176
-state / perturbation records:        33 / 588
-successful / failed-or-refused:      24 / 9
-```
-
-Reviewed labels:
-
-```text
-FINITE_JUMP_MODEL_CONSISTENT
-PHASE_CLASSIFIER_SENSITIVE
-NEAR_SATURATION_PROPERTY_SENSITIVE
-ACOUSTIC_REVIEW_INCONCLUSIVE
-```
-
-The nearest sampled liquid and acoustically evaluable open-two-phase branches have a large finite sound-speed difference. The unchanged central stencil cannot evaluate `q=0`, `q=1e-12`, or `q=1e-10`.
-
-```text
-Gate_5_execution_complete = true
-near_saturation_acoustic_continuity_approved = false
-two_phase_acoustic_accuracy_band_approved = false
-```
-
-## Gate 6 — post-crossing propagation review
-
-```text
-implementation PR:                  #99
-workflow / artifact:                30466063542 / 8730632937
-Gate 6 / related / full JUnit:      9 / 54 / 820
-skips / failures / errors:          0 / 0 / 0
-```
-
-The fixed CFL 0.10 continuation reached all predeclared checkpoints:
-
-| offset | open-two-phase cells | indices | furthest upstream distance [m] | maximum q_eq | maximum alpha |
-|---:|---:|---|---:|---:|---:|
-| +1 | 1 | `[29]` | 0.078125 | `9.9651e-6` | `7.3594e-5` |
-| +4 | 2 | `[28, 29]` | 0.109375 | `2.7667e-5` | `2.0583e-4` |
-| +16 | 4 | `[27, 28, 29, 30]` | 0.140625 | `1.3211e-4` | `9.3335e-4` |
-| +64 | 7 | `[24, 25, 26, 27, 28, 29, 30]` | 0.234375 | `1.2605e-3` | `9.0086e-3` |
-
-```text
-Gate_6_execution_complete = true
-post_crossing_propagation_approved = false
-```
-
-## Gate 7 — boundary-adjacent phase-chatter diagnosis
-
-```text
-implementation PR:                  #102
-workflow / artifact:                30501363884 / 8744210262
-Gate 7 / related / full JUnit:      10 / 52 / 830
-skips / failures / errors:          0 / 0 / 0
-focused cell / interface / events:  576 / 192 / 49
+CANDIDATE_STEP_OVERSHOOT_CORRELATED
+RUSANOV_DISSIPATION_CORRELATED
+BOUNDARY_FLUX_IMBALANCE_CORRELATED
+ACOUSTIC_BRANCH_SELECTION_CORRELATED
+MULTI_FACTOR_CROSSING_DEPTH
 ```
 
 ```text
-cell 29: 0 toggles; stable OPEN_TWO_PHASE
-cell 30: 49 toggles; localized chatter
-cell 31: 0 toggles; stable LIQUID_CANDIDATE
+D6_temporal_correlation_classification_complete = true
+Gate_9_execution_complete = true
+crossing_depth_CFL_sensitivity_characterized = true
+crossing_depth_root_cause_approved = false
 ```
 
-Reviewed labels:
+## Active next controlled work — U3 B0
+
+Issue #109 implements the first independently benchmarkable physical-discharge component: the subcooled-liquid orifice limit.
 
 ```text
-STABLE_FRONT_SEPARATED_FROM_CHATTER
-PHASE_MARGIN_OSCILLATION_CORRELATED
-ACOUSTIC_BRANCH_SWITCH_CORRELATED
-PROJECTION_ACTIVITY_CORRELATED
-MULTI_FACTOR_CHATTER
-CHATTER_REVIEW_INCONCLUSIVE
+Delta_p  = p0 - pb
+Aeff     = Aref * f_open
+m_dot    = Cd * Aeff * sqrt(2 * rho0 * Delta_p)
+E_dot    = m_dot * h0
 ```
 
-Every cell-30 region change crossed both fixed saturated-liquid margin coordinates, switched between non-overlapping acoustic branches, and activated quality synchronization. Projection changes only transported `rho*q`; it does not alter the raw `rho/e` crossing state.
+Required benchmark families:
 
 ```text
-Gate_7_execution_complete = true
-phase_chatter_root_cause_approved = false
-chatter_mitigation_authorized = false
+B0-01 CLOSED_ELEMENT
+B0-02 ZERO_PRESSURE_DROP
+B0-03 SUBCOOLED_LIQUID_LIMIT
+B0-04 AREA_SCALING
+B0-05 DISCHARGE_COEFFICIENT_SCALING
+G-01 REVERSE_PRESSURE_NOT_SUPPORTED
+G-02 INPUT_OR_PROPERTY_FAILURE
+G-03 SINGLE_PHASE_SCOPE_FAILURE
 ```
 
-## Gate 8 — completed post-crossing CFL execution
+B0 remains component-only and verification-only. B1 choking, two-phase critical discharge, pipe coupling, receiver dynamics, physical validation, design use, and production activation remain out of scope.
 
-```text
-implementation PRs:                    #107 / #108
-PR #108 merge SHA:                      9a943cf93fbcd6c637d16f6f81957d7452c84b16
-workflow / artifact:                    30544667388 / 8761925785
-artifact digest:                        6efd929562d30538fd517a71894f4e71ea2753f80a0b9ccb015937489c092ded
-Gate 8 / related / full JUnit:          10 / 70 / 850
-skips / failures / errors:              0 / 0 / 0
-```
+## Parallel documentation track
 
-Formal outcome matrix:
+Issue #114 retains the controlled technical-report structure. It must now be updated from its pre-Gate-9 scope to include:
 
-| CFL | first-crossing outcome | maximum q_eq | continuation | checkpoints |
-|---:|---|---:|---|---|
-| 0.10 | accepted | `3.773646403587342e-6` | complete | T1 / T2 / T3 / T4 |
-| 0.05 | threshold guard | `1.1006096906989802e-7` | not started | none |
-| 0.025 | accepted | `1.3949366092287805e-6` | acoustic fail-safe after 64 valid steps | T1 / T2 |
-
-CFL `0.025` stopped at last valid elapsed time `9.542346840227527e-5 s`, just short of T3, because the unchanged equilibrium sound-speed evaluator could not find a valid central density stencil after 12 halvings.
-
-Reviewed labels:
-
-```text
-FIXED_HORIZON_OUTCOME_DIVERGENCE
-CFL_SEQUENCE_NON_MONOTONE
-POST_CROSSING_CFL_REVIEW_INCONCLUSIVE
-```
-
-```text
-Gate_8_execution_complete = true
-post_crossing_CFL_sensitivity_characterized = false
-CFL_independent_post_crossing_verified = false
-```
-
-## Application Track A1 — real-problem application strategy
-
-The selected first pilot is U3 pipeline depressurization / blowdown. Every future engineering result must present:
-
-```text
-representative result
-+ numerical / model sensitivity envelope
-+ applicability warnings / guard outcomes
-+ unapproved or unvalidated model elements
-```
-
-The existing prescribed-subcooled outlet remains a verification analogue, not a physical blowdown closure.
-
-## Active next work
-
-### Track N — Issue #110
-
-The next numerical gate is a specification-first event-aligned diagnosis of CFL-dependent crossing depth and the CFL `0.025` acoustic refusal.
-
-```text
-threshold changes:                 prohibited
-flux / stencil changes:            prohibited
-one-sided acoustic substitution:   prohibited
-root-cause approval:               false
-```
-
-The planned evidence separates raw saturation-margin displacement, Rusanov central and dissipative contributions, boundary-adjacent flux imbalance, acoustic-branch selection, and post-raw projection activity.
-
-### Track A — Issue #109
-
-The U3 physical-discharge track begins with the B0 subcooled-liquid component benchmark.
-
-```text
-p0:                                5.0 MPa
-upstream definition:               5 K subcooled
-Aref:                              1.0e-4 m2
-base opening / Cd:                 0.5 / 0.8
-base back pressure:                4.95 MPa
-B1 choking:                        out of scope
-pipe coupling:                     out of scope
-```
-
-The B0 numerical states, sign convention, cases, and tolerances are locked before results. Static pressure-force mapping remains deferred to a later FVM adapter.
-
-## Forward roadmap
-
-### Track N
-
-```text
-Issue #110 crossing-depth / acoustic-refusal forensic diagnosis
-→ post-crossing mesh sensitivity
-→ local flux / acoustic causal discrimination
-→ longer-duration continuation
-→ HEM / non-equilibrium comparison
-```
-
-### Track A
-
-```text
-Issue #109 B0 single-phase discharge-component benchmark
-→ B1 equilibrium nozzle / critical-state reference
-→ physical discharge-boundary adapter
-→ friction / thermal / elevation extensions
-→ integrated blowdown case
-→ validation-data comparison
-→ sensitivity-bounded engineering-screening review
-```
+- Gate 9 execution and closeout;
+- the final CFL sensitivity disposition;
+- explicit root-cause and approval boundaries;
+- U3 B0 as the active next implementation track.
 
 ## Approval boundary
 
@@ -292,15 +135,19 @@ Issue #109 B0 single-phase discharge-component benchmark
 application_specification_complete = true
 real_problem_pilot_selected = true
 Gate_8_execution_complete = true
-post_crossing_CFL_sensitivity_characterized = false
-CFL_independent_post_crossing_verified = false
-mesh_independent_post_crossing_verified = false
+Gate_9_execution_complete = true
+crossing_depth_CFL_sensitivity_characterized = true
+
+crossing_depth_root_cause_approved = false
+CFL_independent_crossing_verified = false
+mesh_independent_crossing_verified = false
 post_crossing_propagation_approved = false
 phase_chatter_root_cause_approved = false
 chatter_mitigation_authorized = false
 near_saturation_acoustic_continuity_approved = false
 two_phase_acoustic_accuracy_band_approved = false
-Gate_P2_passed = false
+physical_discharge_boundary_approved = false
+integrated_blowdown_model_approved = false
 physical_validation = false
 design_use_acceptance = false
 production_hem_activation_approved = false
