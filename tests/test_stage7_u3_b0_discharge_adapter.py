@@ -171,6 +171,7 @@ def test_comparison_tolerance_and_formal_outcome_contract() -> None:
     assert all(row["comparison_passed"] for row in rows)
 
 
+@pytest.mark.u3_b0_reference_artifact
 @pytest.mark.coolprop_installed
 def test_locked_matrix_matches_authoritative_reference() -> None:
     reference_dir_text = os.environ.get("U3_B0_REFERENCE_ARTIFACT_DIR")
@@ -186,6 +187,7 @@ def test_locked_matrix_matches_authoritative_reference() -> None:
     assert all(row["comparison_passed"] for row in comparisons)
 
 
+@pytest.mark.u3_b0_reference_artifact
 @pytest.mark.coolprop_installed
 def test_comparison_artifact_contract(tmp_path: Path) -> None:
     reference_dir_text = os.environ.get("U3_B0_REFERENCE_ARTIFACT_DIR")
