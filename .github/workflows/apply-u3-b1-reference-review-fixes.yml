@@ -6,12 +6,20 @@ on:
       - agent/u3-b1-independent-reference
     paths:
       - .github/workflows/apply-u3-b1-reference-review-fixes.yml
+  pull_request:
+    paths:
+      - .github/workflows/apply-u3-b1-reference-review-fixes.yml
 
 permissions:
   contents: write
 
+concurrency:
+  group: u3-b1-reference-review-fixes
+  cancel-in-progress: true
+
 jobs:
   apply-review-fixes:
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout PR branch
@@ -99,9 +107,8 @@ jobs:
           replace_once(
               authoritative_tests,
               '''from pathlib import Path\n\nfrom liquid_gas_transient.u3_b1_critical_state_authoritative import critical_search\n''',
-              '''from pathlib import Path\nfrom types import SimpleNamespace\n\nimport pytest\n\nimport liquid_gas_transient.u3_b1_critical_state_authoritative as authoritative\nfrom liquid_gas_transient.u3_b1_critical_state_authoritative import critical_search\n''',
+              '''from pathlib import Path\nfrom types import SimpleNamespace\n\nimport liquid_gas_transient.u3_b1_critical_state_authoritative as authoritative\nfrom liquid_gas_transient.u3_b1_critical_state_authoritative import critical_search\n''',
           )
-          replace_once(authoritative_tests, '\n\nimport pytest\n', '\n')
           test_text = authoritative_tests.read_text(encoding="utf-8")
           if "test_locked_check_fail_safe_retains_b0_and_check_rows" in test_text:
               raise RuntimeError("authoritative regression test already present")
