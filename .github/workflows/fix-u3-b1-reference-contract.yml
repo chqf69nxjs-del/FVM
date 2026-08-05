@@ -1,0 +1,98 @@
+name: Fix U3 B1 pressure-ratio neighbor offset
+
+on:
+  push:
+    branches:
+      - agent/u3-b1-independent-reference
+    paths:
+      - .github/workflows/fix-u3-b1-reference-contract.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-contract-fix:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v7
+        with:
+          ref: agent/u3-b1-independent-reference
+          fetch-depth: 0
+
+      - name: Apply exact source and regression-test patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          source = Path("src/liquid_gas_transient/u3_b1_critical_state_reference.py")
+          text = source.read_text(encoding="utf-8")
+          old = '''    offset = float(search["peak_neighbor_relative_offset"])
+              neighbor_pressures = [
+                  best.candidate.pressure_pa * (1.0 - offset),
+                  best.candidate.pressure_pa * (1.0 + offset),
+              ]
+          '''
+          new = '''    offset = float(search["peak_neighbor_relative_offset"])
+              pressure_offset_pa = offset * p0
+              neighbor_pressures = [
+                  best.candidate.pressure_pa - pressure_offset_pa,
+                  best.candidate.pressure_pa + pressure_offset_pa,
+              ]
+          '''
+          if text.count(old) != 1:
+              raise SystemExit("expected source block was not found exactly once")
+          source.write_text(text.replace(old, new), encoding="utf-8")
+
+          tests = Path("tests/test_stage7_u3_b1_critical_state_reference.py")
+          test_text = tests.read_text(encoding="utf-8")
+          anchor = '''def test_synthetic_guards_are_explicit() -> None:
+          '''
+          regression = '''def test_peak_neighbor_offset_is_in_pressure_ratio_coordinates() -> None:
+              contract = load_contract(CONTRACT)
+              contract = {
+                  **contract,
+                  "critical_state_search": {
+                      **contract["critical_state_search"],
+                      "minimum_peak_prominence_relative": 2.0e-8,
+                  },
+              }
+              provider = AnalyticProvider()
+              upstream = provider.upstream_snapshot(1.0e6, 320.0)
+              critical, _, outcome, message = critical_search(
+                  contract,
+                  provider,
+                  upstream,
+                  {"gas"},
+                  0.8,
+              )
+              assert outcome is None, message
+              assert critical is not None
+              assert critical.peak_prominence_relative >= 2.0e-8
+
+
+          '''
+          if test_text.count(anchor) != 1:
+              raise SystemExit("expected test anchor was not found exactly once")
+          if "test_peak_neighbor_offset_is_in_pressure_ratio_coordinates" in test_text:
+              raise SystemExit("regression test already exists")
+          tests.write_text(test_text.replace(anchor, regression + anchor), encoding="utf-8")
+          PY
+
+      - name: Validate patch
+        shell: bash
+        run: |
+          python -m compileall -q src tests
+          git diff --check
+          grep -n "pressure_offset_pa = offset \* p0" src/liquid_gas_transient/u3_b1_critical_state_reference.py
+          grep -n "test_peak_neighbor_offset_is_in_pressure_ratio_coordinates" tests/test_stage7_u3_b1_critical_state_reference.py
+
+      - name: Commit patch to PR branch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/liquid_gas_transient/u3_b1_critical_state_reference.py tests/test_stage7_u3_b1_critical_state_reference.py
+          git commit -m "Fix B1 pressure-ratio neighbor offset"
+          git push origin HEAD:agent/u3-b1-independent-reference
