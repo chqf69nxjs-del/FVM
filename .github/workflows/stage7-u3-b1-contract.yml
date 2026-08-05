@@ -1,0 +1,101 @@
+name: Stage 7 U3 B1 Critical-State Contract
+
+on:
+  pull_request:
+    paths:
+      - "docs/verification/stage7_u3_b1_critical_state_contract_v1.json"
+      - "docs/verification/stage7_u3_b1_critical_state_specification.md"
+      - "tests/test_stage7_u3_b1_critical_state_contract.py"
+      - ".github/workflows/stage7-u3-b1-contract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage7-u3-b1-contract-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  validate-u3-b1-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependency
+        run: python -m pip install pytest
+
+      - name: Validate contract JSON
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path(
+              "docs/verification/stage7_u3_b1_critical_state_contract_v1.json"
+          )
+          contract = json.loads(path.read_text(encoding="utf-8"))
+          assert contract["status"] == "LOCKED_BEFORE_RESULTS"
+          assert contract["approval_boundary"]["u3_b1_contract_locked"] is True
+          assert len(contract["benchmark_cases"]) == 17
+          print(json.dumps({
+              "schema_version": contract["schema_version"],
+              "case_count": len(contract["benchmark_cases"]),
+              "coarse_node_count": contract["critical_state_search"]["coarse_node_count"],
+              "reference_implemented": contract["approval_boundary"]["u3_b1_reference_implemented"],
+          }, indent=2))
+          PY
+
+      - name: Run dedicated contract tests
+        run: |
+          python -m pytest -q \
+            tests/test_stage7_u3_b1_critical_state_contract.py \
+            --strict-markers \
+            --junitxml=u3-b1-contract.xml
+
+      - name: Assert clean JUnit result
+        run: |
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          root = ET.parse(Path("u3-b1-contract.xml")).getroot()
+          suites = [root] if root.tag == "testsuite" else list(root.findall("testsuite"))
+          totals = {
+              key: sum(int(suite.attrib.get(key, 0)) for suite in suites)
+              for key in ("tests", "skipped", "failures", "errors")
+          }
+          print(totals)
+          assert totals == {
+              "tests": 5,
+              "skipped": 0,
+              "failures": 0,
+              "errors": 0,
+          }
+          PY
+
+      - name: Compile and diff checks
+        run: |
+          python -m compileall -q tests
+          git diff --check
+
+      - name: Upload contract evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: stage7-u3-b1-contract-${{ github.run_id }}
+          path: |
+            docs/verification/stage7_u3_b1_critical_state_contract_v1.json
+            docs/verification/stage7_u3_b1_critical_state_specification.md
+            u3-b1-contract.xml
+          if-no-files-found: error
