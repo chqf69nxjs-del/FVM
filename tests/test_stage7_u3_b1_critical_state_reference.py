@@ -119,6 +119,29 @@ def test_analytic_critical_search_finds_interior_maximum() -> None:
     assert critical.peak_prominence_relative >= 1e-8
 
 
+def test_peak_neighbor_offset_is_in_pressure_ratio_coordinates() -> None:
+    contract = load_contract(CONTRACT)
+    contract = {
+        **contract,
+        "critical_state_search": {
+            **contract["critical_state_search"],
+            "minimum_peak_prominence_relative": 2.0e-8,
+        },
+    }
+    provider = AnalyticProvider()
+    upstream = provider.upstream_snapshot(1.0e6, 320.0)
+    critical, _, outcome, message = critical_search(
+        contract,
+        provider,
+        upstream,
+        {"gas"},
+        0.8,
+    )
+    assert outcome is None, message
+    assert critical is not None
+    assert critical.peak_prominence_relative >= 2.0e-8
+
+
 def test_synthetic_guards_are_explicit() -> None:
     contract = load_contract(CONTRACT)
     provider = AnalyticProvider()

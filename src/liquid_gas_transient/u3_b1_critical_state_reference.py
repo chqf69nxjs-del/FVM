@@ -604,9 +604,10 @@ def critical_search(
         )
 
     offset = float(search["peak_neighbor_relative_offset"])
+    pressure_offset_pa = offset * p0
     neighbor_pressures = [
-        best.candidate.pressure_pa * (1.0 - offset),
-        best.candidate.pressure_pa * (1.0 + offset),
+        best.candidate.pressure_pa - pressure_offset_pa,
+        best.candidate.pressure_pa + pressure_offset_pa,
     ]
     neighbor_fluxes: list[float] = []
     for pressure in neighbor_pressures:
