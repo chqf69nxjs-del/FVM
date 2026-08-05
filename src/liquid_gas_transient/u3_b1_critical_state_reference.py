@@ -208,7 +208,15 @@ class CoolPropProvider:
         temperature = float(
             props("T", "P", pressure_pa, "SMASS", entropy_J_kg_K, "CO2")
         )
-        phase = str(self._PhaseSI("P", pressure_pa, "T", temperature, "CO2"))
+        phase = str(
+            self._PhaseSI(
+                "P",
+                pressure_pa,
+                "SMASS",
+                entropy_J_kg_K,
+                "CO2",
+            )
+        )
         return CandidateState(
             pressure_pa=pressure_pa,
             temperature_K=temperature,
@@ -1089,10 +1097,26 @@ def write_csv(path: Path, rows: Iterable[dict[str, Any]]) -> None:
         writer.writerows(values)
 
 
+def plot_provenance_text(
+    case_name: str,
+    backend_version: str,
+    source_git_sha: str,
+) -> str:
+    return (
+        f"case={case_name} | "
+        "model=U3 B1 single-phase isentropic critical-state reference | "
+        f"backend=CoolProp | version={backend_version} | "
+        f"source={source_git_sha[:12]}"
+    )
+
+
 def write_plots(
     output_dir: Path,
     candidate_records: list[dict[str, Any]],
     sweep_rows: list[dict[str, Any]],
+    *,
+    backend_version: str,
+    source_git_sha: str,
 ) -> None:
     import matplotlib.pyplot as plt
 
@@ -1110,7 +1134,13 @@ def write_plots(
     )
     plt.xlabel("Candidate pressure [MPa]")
     plt.ylabel("Effective mass flux [kg m$^{-2}$ s$^{-1}$]")
-    plt.title("U3 B1 single-phase mass-flux path")
+    plt.title(
+        "U3 B1 single-phase mass-flux path\n"
+        + plot_provenance_text(
+            "GAS_CRITICAL / Cd=0.8", backend_version, source_git_sha
+        ),
+        fontsize=9,
+    )
     plt.tight_layout()
     plt.savefig(output_dir / "mass_flux_vs_pressure.png", dpi=160)
     plt.close()
@@ -1123,7 +1153,13 @@ def write_plots(
     )
     plt.xlabel("Back pressure [MPa]")
     plt.ylabel("Mass flow [kg/s]")
-    plt.title("U3 B1 back-pressure response")
+    plt.title(
+        "U3 B1 back-pressure response\n"
+        + plot_provenance_text(
+            "GAS_CRITICAL sweep / Cd=0.8", backend_version, source_git_sha
+        ),
+        fontsize=9,
+    )
     plt.tight_layout()
     plt.savefig(output_dir / "back_pressure_response.png", dpi=160)
     plt.close()
@@ -1225,7 +1261,13 @@ def write_artifact(
         output_dir / "conservative_transfer_table.csv",
         [asdict(result) for result in results],
     )
-    write_plots(output_dir, candidate_records, sweep_rows)
+    write_plots(
+        output_dir,
+        candidate_records,
+        sweep_rows,
+        backend_version=provider.version,
+        source_git_sha=source_git_sha,
+    )
 
     expected_files_without_junit = {
         name

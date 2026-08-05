@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
+import liquid_gas_transient.u3_b1_critical_state_authoritative as authoritative
 from liquid_gas_transient.u3_b1_critical_state_authoritative import critical_search
 from liquid_gas_transient.u3_b1_critical_state_reference import (
     CandidateState,
@@ -69,3 +71,30 @@ def test_peak_neighbor_offset_is_measured_in_upstream_pressure_ratio() -> None:
 
 
 import pytest
+
+
+def test_locked_check_fail_safe_retains_b0_and_check_rows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_locked_checks(*args: object, **kwargs: object) -> object:
+        raise ZeroDivisionError("synthetic zero denominator")
+
+    monkeypatch.setattr(
+        authoritative,
+        "_ORIGINAL_LOCKED_CHECKS",
+        fail_locked_checks,
+    )
+    contract = {
+        "benchmark_cases": [
+            {"case_id": "unit", "expected_outcome": "SUCCESS_UNIT"}
+        ]
+    }
+    results = [SimpleNamespace(case_id="unit", formal_outcome="SUCCESS_UNIT")]
+
+    rows, summary = authoritative.locked_checks_fail_safe(contract, results)
+
+    assert any(row.get("measure") for row in rows)
+    assert any(row.get("check") for row in rows)
+    assert all(row["passed"] is False for row in rows)
+    assert summary["all_expected_outcomes_match"] is True
+    assert summary["all_locked_checks_passed"] is False

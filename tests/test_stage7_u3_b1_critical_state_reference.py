@@ -10,6 +10,7 @@ from liquid_gas_transient.u3_b1_critical_state_reference import (
     NONFINITE_INPUT,
     NONPOSITIVE_KINETIC_ENERGY_HEAD,
     CandidateState,
+    CoolPropProvider,
     ReferenceInput,
     UpstreamState,
     construct_result,
@@ -18,6 +19,7 @@ from liquid_gas_transient.u3_b1_critical_state_reference import (
     golden_section_maximize,
     load_contract,
     normalize_phase,
+    plot_provenance_text,
 )
 
 CONTRACT = Path("docs/verification/stage7_u3_b1_critical_state_contract_v1.json")
@@ -206,3 +208,42 @@ def test_transfer_construction_uses_effective_stream_velocity() -> None:
     assert result.energy_transfer_outward_W == pytest.approx(expected_mass * 200000.0)
     assert result.static_pressure_force_included is False
     assert result.production_fvm_connected is False
+
+
+def test_coolprop_candidate_phase_uses_pressure_entropy_coordinates() -> None:
+    provider = object.__new__(CoolPropProvider)
+    provider.version = "fake"
+    phase_calls: list[tuple[object, ...]] = []
+
+    def props(output: str, *args: object) -> float:
+        values = {
+            "T": 280.0,
+            "DMASS": 12.0,
+            "HMASS": 190000.0,
+            "SMASS": 1000.0,
+        }
+        return values[output]
+
+    def phase(*args: object) -> str:
+        phase_calls.append(args)
+        return "gas"
+
+    provider._PropsSI = props
+    provider._PhaseSI = phase
+    candidate = provider.isentropic_candidate(8.0e5, 1000.0)
+
+    assert candidate.phase == "gas"
+    assert phase_calls == [("P", 8.0e5, "SMASS", 1000.0, "CO2")]
+
+
+def test_plot_provenance_contains_required_fields() -> None:
+    text = plot_provenance_text(
+        "GAS_CRITICAL / Cd=0.8",
+        "8.0.0",
+        "0123456789abcdef",
+    )
+    assert "case=GAS_CRITICAL / Cd=0.8" in text
+    assert "model=U3 B1 single-phase isentropic critical-state reference" in text
+    assert "backend=CoolProp" in text
+    assert "version=8.0.0" in text
+    assert "source=0123456789ab" in text

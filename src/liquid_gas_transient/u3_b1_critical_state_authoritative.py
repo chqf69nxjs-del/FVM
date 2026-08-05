@@ -270,7 +270,16 @@ def locked_checks_fail_safe(
             "critical_pressure_Cd_independence_passed": False,
             "all_locked_checks_passed": False,
         }
-        return [row], summary
+        b0_placeholder = {
+            "measure": "aggregate_check_construction_failure",
+            "reference_value": "",
+            "b0_value": "",
+            "relative_error": "",
+            "tolerance": "finite locked metrics",
+            "passed": False,
+            "formal_message": f"{type(exc).__name__}: {exc}",
+        }
+        return [b0_placeholder, row], summary
 
 
 def install_authoritative_interpretation() -> None:
