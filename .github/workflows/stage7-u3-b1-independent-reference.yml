@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "src/liquid_gas_transient/u3_b1_critical_state_reference.py"
+      - "src/liquid_gas_transient/u3_b1_critical_state_diagnostic.py"
       - "tests/test_stage7_u3_b1_critical_state_reference.py"
       - "docs/verification/stage7_u3_b1_critical_state_contract_v1.json"
       - "docs/verification/stage7_u3_b1_independent_reference.md"
@@ -52,6 +53,9 @@ jobs:
         run: |
           output="artifacts/stage7-u3-b1-independent-reference"
           rm -rf "$output"
+          python -m liquid_gas_transient.u3_b1_critical_state_diagnostic \
+            --contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
+            --output-dir "$output"
           python -m liquid_gas_transient.u3_b1_critical_state_reference \
             --contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
             --output-dir "$output" \
@@ -84,6 +88,7 @@ jobs:
               "back_pressure_response.png",
               "report.md",
               "artifact_sha256.txt",
+              "raw_reference_diagnostic.json",
           }
           assert {path.name for path in target.iterdir()} == expected
           summary = json.loads((target / "summary.json").read_text(encoding="utf-8"))
