@@ -8,6 +8,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
+from .u3_b1_critical_state_authoritative import install_authoritative_interpretation
 from .u3_b1_critical_state_reference import (
     CoolPropProvider,
     evaluate_contract,
@@ -79,6 +80,7 @@ def main() -> None:
     parser.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args()
 
+    install_authoritative_interpretation()
     contract = load_contract(args.contract)
     results, candidates, criticals = evaluate_contract(contract, CoolPropProvider())
     args.output_dir.mkdir(parents=True, exist_ok=True)
