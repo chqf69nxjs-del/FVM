@@ -1,34 +1,41 @@
 # Stage 7 Current Gate Snapshot
 
-## Status — 2026-08-04
+## Status — 2026-08-05
 
 ```text
 Stage 1–6:                              COMPLETE
 Stage 7:                                IN_PROGRESS
-recorded substantive main:              5f0099101cbc9e9694297394a4c424904260ba94
+recorded substantive main:              3937a276f8fefb62f297caa0e679660ec0d4c421
 Gate 3 cross-runtime checkpoint:        NUMERICALLY_EQUIVALENT
 Gate 4 low-CFL execution:               CFL_SENSITIVITY_OBSERVED
 Gate 5 acoustic execution:              COMPLETE; approval withheld
 Gate 6 propagation execution:           COMPLETE; approval withheld
 Gate 7 chatter diagnosis:               COMPLETE; root cause unapproved
 Gate 8 three-CFL execution:             COMPLETE
-Gate 9 D0-D6 diagnosis:                 COMPLETE; PR #122; Issue #110 CLOSED
+Gate 9 D0-D6 diagnosis:                 COMPLETE; Issue #110 CLOSED
 crossing-depth CFL sensitivity:          CHARACTERIZED
 crossing-depth root cause:               NOT APPROVED
 Application Track A1:                   COMPLETE
 selected first pilot:                   U3 pipeline depressurization / blowdown
-active primary implementation:          Issue #109 U3 B0 discharge benchmark
+U3 B0 component benchmark:              COMPLETE; Issue #109 closeout pending central sync
+active primary implementation:          U3 B1 single-phase compressible critical-state contract
+parallel application candidates:        gravity/high-point benchmark; prescribed-head pump-trip pilot
 active documentation track:             Issue #114 technical report
 physical validation:                    NOT ESTABLISHED
 design-use acceptance:                  NOT ESTABLISHED
 production HEM activation:              NOT APPROVED
 ```
 
-Detailed historical evidence remains in the gate closeout records, execution log, and master verification index. Gate 9 is summarized in [`stage7_gate9_closeout.md`](stage7_gate9_closeout.md).
+Detailed historical evidence remains in the gate closeout records, execution log, and master verification index.
+
+Primary closeout records:
+
+- [`stage7_gate9_closeout.md`](stage7_gate9_closeout.md)
+- [`stage7_u3_b0_closeout.md`](stage7_u3_b0_closeout.md)
 
 ## Project-level current conclusion
 
-The first-order pure-CO2 HEM verification path now supports:
+The first-order pure-CO2 HEM verification path supports:
 
 - direct liquid-to-open-two-phase crossing from an all-liquid initial state;
 - equilibrium-quality projection and accepted mixed-state recovery;
@@ -38,7 +45,8 @@ The first-order pure-CO2 HEM verification path now supports:
 - one fixed 64-step post-crossing continuation;
 - conservative and vapor-budget closure in retained successful states;
 - event-aligned diagnosis of localized boundary-adjacent phase chatter;
-- full three-CFL event integration and temporal / correlation classification.
+- full three-CFL event integration and temporal / correlation classification;
+- an accepted verification-only B0 single-phase discharge component benchmark with independent reference and adapter paths.
 
 The evidence also establishes the following limitations:
 
@@ -46,9 +54,9 @@ The evidence also establishes the following limitations:
 - accepted / guard classification changes across the fixed CFL sequence;
 - candidate time and position remain stable, but crossing depth does not converge monotonically;
 - raw thermodynamic crossing precedes quality projection;
-- the fixed threshold discretizes a continuous crossing-depth difference;
 - candidate `dt`, Rusanov dissipation, boundary net flux, and acoustic branch do not individually explain the complete depth ordering;
-- strict near-saturation acoustic continuity, chatter root cause, physical phase-front speed, mesh / CFL independence, physical validation, and design use remain unapproved.
+- B0 is a subcooled-liquid limiting component only;
+- static pressure-force mapping, FVM face coupling, compressible critical-state search, two-phase choking, rotating-inertia pump coupling, gravity/elevation in the Stage 7 evidence chain, physical validation, and design use remain unapproved.
 
 ## Gate 9 authoritative closeout
 
@@ -77,16 +85,6 @@ THRESHOLD_CLASSIFICATION_DISCONTINUITY_OBSERVED
 CROSSING_DEPTH_REVIEW_INCONCLUSIVE
 ```
 
-Not assigned:
-
-```text
-CANDIDATE_STEP_OVERSHOOT_CORRELATED
-RUSANOV_DISSIPATION_CORRELATED
-BOUNDARY_FLUX_IMBALANCE_CORRELATED
-ACOUSTIC_BRANCH_SELECTION_CORRELATED
-MULTI_FACTOR_CROSSING_DEPTH
-```
-
 ```text
 D6_temporal_correlation_classification_complete = true
 Gate_9_execution_complete = true
@@ -94,40 +92,88 @@ crossing_depth_CFL_sensitivity_characterized = true
 crossing_depth_root_cause_approved = false
 ```
 
-## Active next controlled work — U3 B0
+## U3 B0 authoritative closeout
 
-Issue #109 implements the first independently benchmarkable physical-discharge component: the subcooled-liquid orifice limit.
-
-```text
-Delta_p  = p0 - pb
-Aeff     = Aref * f_open
-m_dot    = Cd * Aeff * sqrt(2 * rho0 * Delta_p)
-E_dot    = m_dot * h0
-```
-
-Required benchmark families:
+Independent reference:
 
 ```text
-B0-01 CLOSED_ELEMENT
-B0-02 ZERO_PRESSURE_DROP
-B0-03 SUBCOOLED_LIQUID_LIMIT
-B0-04 AREA_SCALING
-B0-05 DISCHARGE_COEFFICIENT_SCALING
-G-01 REVERSE_PRESSURE_NOT_SUPPORTED
-G-02 INPUT_OR_PROPERTY_FAILURE
-G-03 SINGLE_PHASE_SCOPE_FAILURE
+PR / main merge SHA:                   #124 / b4442d3df1a7517539520f79d82b85ef1c5aaec0
+workflow / artifact:                   30898882922 / 8890056064
+artifact ZIP SHA256:                   7005055beb8b0722dd035f37c0fa6d10f46ddd121d6ead5906a8d941fb6c23a6
+dedicated / related / full:            6 / 12 / 909 passed
 ```
 
-B0 remains component-only and verification-only. B1 choking, two-phase critical discharge, pipe coupling, receiver dynamics, physical validation, design use, and production activation remain out of scope.
+Verification adapter comparison:
+
+```text
+PR / source head:                      #125 / 42f9bd8384ebc06604924fc34ba05b45813e6b48
+main merge SHA:                        3937a276f8fefb62f297caa0e679660ec0d4c421
+workflow / artifact:                   30954035596 / 8912067053
+artifact ZIP SHA256:                   4d7848ad06afd4765f37e102d155bc73df5663b3efb47a77513aa61410f6d7b2
+dedicated / related / full:            7 / 13 / 916 passed
+skips / failures / errors:             0 / 0 / 0
+final-head workflows:                  15 / 15 SUCCESS
+```
+
+Fixed B0 result:
+
+```text
+10 cases
+7 success / 3 guard
+30 mass-momentum-energy comparisons
+30 comparison passes
+all formal outcomes match
+exact-zero identities retained
+```
+
+```text
+u3_b0_contract_locked = true
+u3_b0_reference_implemented = true
+u3_b0_adapter_implemented = true
+u3_b0_component_benchmark_execution_complete = true
+u3_component_benchmark_accepted = true
+```
+
+## Active next controlled work
+
+### Primary — U3 B1
+
+Define and lock the single-phase compressible / critical-state reference before two-phase choking or pipe coupling is attempted.
+
+Required decisions include:
+
+```text
+upstream stagnation-state definition
+isentropic expansion path
+mass-flux construction
+critical-state search interval and algorithm
+unchoked / choked transition
+known-limit comparisons
+formal guards and predeclared tolerances
+reference / adapter independence
+```
+
+### Parallel application-oriented specifications
+
+These may proceed at specification and simplified numerical-verification level without waiting for the full two-phase discharge model:
+
+```text
+gravity/elevation benchmark for static head and high-point pressure minima
+prescribed pump-head decay for negative-pressure wave propagation
+high-point first-crossing pilot after gravity verification
+```
+
+They do not authorize rotating-inertia pump claims, reverse-flow/turbine-region treatment, integrated high-point flashing design use, or physical validation.
 
 ## Parallel documentation track
 
-Issue #114 retains the controlled technical-report structure. It must now be updated from its pre-Gate-9 scope to include:
+Issue #114 should now advance the report workspace to v0.3 by incorporating:
 
-- Gate 9 execution and closeout;
-- the final CFL sensitivity disposition;
-- explicit root-cause and approval boundaries;
-- U3 B0 as the active next implementation track.
+- Gate 9 closeout;
+- U3 B0 reference and adapter evidence;
+- the CI isolation disposition;
+- explicit B0 supported and prohibited claims;
+- U3 B1 and parallel high-point / pump-trip pilot roadmap.
 
 ## Approval boundary
 
@@ -137,6 +183,11 @@ real_problem_pilot_selected = true
 Gate_8_execution_complete = true
 Gate_9_execution_complete = true
 crossing_depth_CFL_sensitivity_characterized = true
+u3_b0_contract_locked = true
+u3_b0_reference_implemented = true
+u3_b0_adapter_implemented = true
+u3_b0_component_benchmark_execution_complete = true
+u3_component_benchmark_accepted = true
 
 crossing_depth_root_cause_approved = false
 CFL_independent_crossing_verified = false
@@ -147,7 +198,10 @@ chatter_mitigation_authorized = false
 near_saturation_acoustic_continuity_approved = false
 two_phase_acoustic_accuracy_band_approved = false
 physical_discharge_boundary_approved = false
+two_phase_critical_discharge_accuracy_approved = false
 integrated_blowdown_model_approved = false
+high_point_flashing_design_use_approved = false
+pump_trip_design_use_approved = false
 physical_validation = false
 design_use_acceptance = false
 production_hem_activation_approved = false
