@@ -1,0 +1,57 @@
+name: Apply U3 B1 adapter archive
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/apply-u3-b1-adapter-archive.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-adapter:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout adapter head
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Verify and extract adapter archive
+        shell: bash
+        run: |
+          echo "0711e34cc26dbeb17792f6e38ec142063600a0b3d507205a7ccd3b7357e34084  .github/u3_b1_adapter_payload.tgz" | sha256sum --check
+          tar -xzf .github/u3_b1_adapter_payload.tgz -C .
+          sed -i \
+            -e 's/__REF_ID__/8935468847/g' \
+            -e 's/__REF_SHA__/5ad0a5d692de01325c3dff64d069ecb8873bdaf3927ff40a4ad11af342895125/g' \
+            .github/workflows/stage7-u3-b1-adapter-comparison.yml
+
+      - name: Validate staged implementation
+        shell: bash
+        env:
+          PYTHONPATH: src
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          python -m compileall -q src tests
+          python -m pytest -q tests/test_stage7_u3_b1_critical_state_adapter.py --strict-markers
+          git diff --check
+          ! grep -R '__REF_' .github/workflows/stage7-u3-b1-adapter-comparison.yml
+          ! grep -R 'u3_b1_critical_state_reference' src/liquid_gas_transient/u3_b1_critical_state_adapter.py
+
+      - name: Remove staging material and commit implementation
+        shell: bash
+        run: |
+          git rm -f \
+            .github/u3_b1_adapter_payload.tgz \
+            .github/workflows/apply-u3-b1-adapter-payload.yml \
+            .github/workflows/apply-u3-b1-adapter-payload-on-pr.yml \
+            .github/workflows/apply-u3-b1-adapter-payload-ubuntu22.yml \
+            .github/workflows/apply-u3-b1-adapter-archive.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Add U3 B1 verification adapter comparison"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
