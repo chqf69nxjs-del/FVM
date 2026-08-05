@@ -20,4 +20,5 @@ where = ["src"]
 markers = [
     "coolprop_installed: tests requiring the optional CoolProp package",
     "numerical_regression: lightweight numerical regression tests that run solver paths",
+    "u3_b0_reference_artifact: tests requiring the authoritative U3 B0 reference artifact",
 ]
