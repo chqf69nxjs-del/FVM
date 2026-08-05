@@ -1,30 +1,54 @@
 from __future__ import annotations
 
 import os
+from dataclasses import dataclass
 
 import pytest
+
+
+@dataclass(frozen=True)
+class OptionalArtifactSuite:
+    marker: str
+    directory_environment: str
+    required_environment: str
+
+
+OPTIONAL_ARTIFACT_SUITES = (
+    OptionalArtifactSuite(
+        marker="u3_b0_reference_artifact",
+        directory_environment="U3_B0_REFERENCE_ARTIFACT_DIR",
+        required_environment="U3_B0_REQUIRE_REFERENCE_ARTIFACT",
+    ),
+    OptionalArtifactSuite(
+        marker="u3_b1_reference_artifact",
+        directory_environment="U3_B1_REFERENCE_ARTIFACT_DIR",
+        required_environment="U3_B1_REQUIRE_REFERENCE_ARTIFACT",
+    ),
+)
 
 
 def pytest_collection_modifyitems(
     config: pytest.Config,
     items: list[pytest.Item],
 ) -> None:
-    """Deselect optional artifact-backed tests outside their authoritative CI.
+    """Deselect artifact-backed tests outside their authoritative workflow."""
 
-    The U3 B0 adapter workflow supplies both the authoritative reference
-    artifact directory and a required flag. Other workflows should not report
-    these tests as skipped merely because they do not download that artifact.
-    """
-
-    artifact_dir = os.environ.get("U3_B0_REFERENCE_ARTIFACT_DIR")
-    artifact_required = os.environ.get("U3_B0_REQUIRE_REFERENCE_ARTIFACT") == "1"
-    if artifact_dir or artifact_required:
+    unavailable_markers = {
+        suite.marker
+        for suite in OPTIONAL_ARTIFACT_SUITES
+        if not os.environ.get(suite.directory_environment)
+        and os.environ.get(suite.required_environment) != "1"
+    }
+    if not unavailable_markers:
         return
 
     selected: list[pytest.Item] = []
     deselected: list[pytest.Item] = []
     for item in items:
-        if item.get_closest_marker("u3_b0_reference_artifact") is not None:
+        if any(
+            item.get_closest_marker(marker) is not None
+            for marker in unavailable_markers
+        ):
             deselected.append(item)
         else:
             selected.append(item)
