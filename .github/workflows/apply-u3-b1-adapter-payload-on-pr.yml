@@ -1,0 +1,50 @@
+name: Apply U3 B1 adapter payload on PR
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/apply-u3-b1-adapter-payload-on-pr.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-payload:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout adapter head
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Extract embedded payload
+        shell: bash
+        run: |
+          source_workflow=.github/workflows/apply-u3-b1-adapter-payload.yml
+          sed -n "/cat > .*u3-b1-adapter-payload.b64.*<<'PAYLOAD'/,/^PAYLOAD$/p" "$source_workflow" \
+            | sed '1d;$d' \
+            > "${RUNNER_TEMP}/u3-b1-adapter-payload.b64"
+          base64 --decode "${RUNNER_TEMP}/u3-b1-adapter-payload.b64" \
+            > "${RUNNER_TEMP}/u3-b1-adapter-payload.tgz"
+          echo "0711e34cc26dbeb17792f6e38ec142063600a0b3d507205a7ccd3b7357e34084  ${RUNNER_TEMP}/u3-b1-adapter-payload.tgz" \
+            | sha256sum --check
+          tar -xzf "${RUNNER_TEMP}/u3-b1-adapter-payload.tgz" -C .
+
+      - name: Validate and commit implementation
+        shell: bash
+        run: |
+          python -m compileall -q src tests
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/liquid_gas_transient/u3_b1_critical_state_adapter.py \
+            tests/test_stage7_u3_b1_critical_state_adapter.py \
+            tests/conftest.py \
+            pyproject.toml \
+            docs/verification/stage7_u3_b1_adapter_comparison.md \
+            .github/workflows/stage7-u3-b1-adapter-comparison.yml
+          git commit -m "Add U3 B1 verification adapter comparison"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
