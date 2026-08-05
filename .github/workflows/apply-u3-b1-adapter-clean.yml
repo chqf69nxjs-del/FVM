@@ -1,0 +1,109 @@
+name: Apply clean U3 B1 adapter recovery
+
+on:
+  push:
+    branches:
+      - agent/u3-b1-critical-state-adapter-clean
+    paths:
+      - .github/workflows/apply-u3-b1-adapter-clean.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: u3-b1-adapter-clean-recovery
+  cancel-in-progress: true
+
+jobs:
+  recover-adapter:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout clean stacked branch
+        uses: actions/checkout@v7
+        with:
+          ref: agent/u3-b1-critical-state-adapter-clean
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Recover only intended adapter files
+        shell: bash
+        run: |
+          git fetch origin \
+            agent/u3-b1-critical-state-adapter:refs/remotes/origin/agent/u3-b1-critical-state-adapter
+          payload="${RUNNER_TEMP}/u3-b1-adapter-payload.tgz"
+          git show \
+            origin/agent/u3-b1-critical-state-adapter:.github/u3_b1_adapter_payload.tgz \
+            > "$payload"
+          echo "0711e34cc26dbeb17792f6e38ec142063600a0b3d507205a7ccd3b7357e34084  $payload" \
+            | sha256sum --check
+          tar -xzf "$payload" -C .
+
+          test -f src/liquid_gas_transient/u3_b1_critical_state_adapter.py
+          test -f tests/test_stage7_u3_b1_critical_state_adapter.py
+          test -f tests/conftest.py
+          test -f pyproject.toml
+          test -f docs/verification/stage7_u3_b1_adapter_comparison.md
+
+          # The authoritative comparison workflow is added separately after the
+          # final Reference artifact ID and ZIP digest are known.
+          rm -f .github/workflows/stage7-u3-b1-adapter-comparison.yml
+
+          ! grep -E \
+            'from .*u3_b1_critical_state_reference|import .*u3_b1_critical_state_reference' \
+            src/liquid_gas_transient/u3_b1_critical_state_adapter.py
+
+      - name: Run provisional adapter tests
+        env:
+          PYTHONPATH: src
+          PYTHONDONTWRITEBYTECODE: "1"
+          MPLBACKEND: Agg
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy matplotlib pytest 'CoolProp==8.0.0'
+          python -m pytest -q \
+            tests/test_stage7_u3_b1_critical_state_adapter.py \
+            --strict-markers
+          git diff --check
+
+      - name: Assert minimal staged scope and commit
+        shell: bash
+        run: |
+          find src tests -type d -name __pycache__ -prune -exec rm -rf {} +
+          find src tests -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete
+
+          git add \
+            src/liquid_gas_transient/u3_b1_critical_state_adapter.py \
+            tests/test_stage7_u3_b1_critical_state_adapter.py \
+            tests/conftest.py \
+            pyproject.toml \
+            docs/verification/stage7_u3_b1_adapter_comparison.md
+
+          python - <<'PY'
+          import subprocess
+
+          expected = {
+              "src/liquid_gas_transient/u3_b1_critical_state_adapter.py",
+              "tests/test_stage7_u3_b1_critical_state_adapter.py",
+              "tests/conftest.py",
+              "pyproject.toml",
+              "docs/verification/stage7_u3_b1_adapter_comparison.md",
+          }
+          staged = {
+              line
+              for line in subprocess.check_output(
+                  ["git", "diff", "--cached", "--name-only"], text=True
+              ).splitlines()
+              if line
+          }
+          assert staged == expected, (staged, expected)
+          PY
+
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Recover clean U3 B1 verification adapter"
+          git push origin HEAD:agent/u3-b1-critical-state-adapter-clean
