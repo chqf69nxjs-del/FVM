@@ -6,6 +6,9 @@ on:
       - agent/u3-b1-critical-state-adapter-clean
     paths:
       - .github/workflows/apply-u3-b1-adapter-clean.yml
+  pull_request:
+    paths:
+      - .github/workflows/apply-u3-b1-adapter-clean.yml
 
 permissions:
   contents: write
@@ -16,6 +19,7 @@ concurrency:
 
 jobs:
   recover-adapter:
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout clean stacked branch
@@ -69,7 +73,7 @@ jobs:
             --strict-markers
           git diff --check
 
-      - name: Assert minimal staged scope and commit
+      - name: Assert minimal staged scope and commit when needed
         shell: bash
         run: |
           find src tests -type d -name __pycache__ -prune -exec rm -rf {} +
@@ -99,10 +103,15 @@ jobs:
               ).splitlines()
               if line
           }
-          assert staged == expected, (staged, expected)
+          assert staged in (set(), expected), (staged, expected)
           PY
 
           git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "Adapter files already recovered; no source commit required."
+            exit 0
+          fi
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "Recover clean U3 B1 verification adapter"
