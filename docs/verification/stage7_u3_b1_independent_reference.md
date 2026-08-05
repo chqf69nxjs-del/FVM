@@ -78,6 +78,24 @@ guard cases:     5
 - critical pressureのCd独立性
 - reverse pressure / invalid input / phase scope / kinetic-head / unbracketed-search guards
 
+## 最終レビューhardening
+
+Ready化後のP2レビューに基づき、contractや許容値を変更せず、次を強化した。
+
+```text
+candidate phase classification:
+  derived (P,T)ではなく、候補状態そのものの(P,s0)でPhaseSIを評価
+
+fail-safe evidence:
+  locked metric構築が例外になっても、
+  B0 comparison placeholderとaggregate checkを必ず残す
+
+plot provenance:
+  case / model / backend / version / source SHAをPNG内へ明記
+```
+
+これらを固定する回帰テストを追加した。修正は物性経路、証跡保存、追跡可能性の整合を高めるものであり、結果を見てcontractを調整するものではない。
+
 ## Artifact
 
 Reference実行は次を生成する。
