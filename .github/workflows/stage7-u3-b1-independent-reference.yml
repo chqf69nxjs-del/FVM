@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "src/liquid_gas_transient/u3_b1_critical_state_reference.py"
+      - "src/liquid_gas_transient/u3_b1_critical_state_authoritative.py"
       - "src/liquid_gas_transient/u3_b1_critical_state_diagnostic.py"
       - "tests/test_stage7_u3_b1_critical_state_reference.py"
       - "docs/verification/stage7_u3_b1_critical_state_contract_v1.json"
@@ -56,7 +57,7 @@ jobs:
           python -m liquid_gas_transient.u3_b1_critical_state_diagnostic \
             --contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
             --output-dir "$output"
-          python -m liquid_gas_transient.u3_b1_critical_state_reference \
+          python -m liquid_gas_transient.u3_b1_critical_state_authoritative \
             --contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
             --output-dir "$output" \
             --source-git-sha "$ANALYSIS_SOURCE_GIT_SHA"
