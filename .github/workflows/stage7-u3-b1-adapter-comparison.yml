@@ -14,7 +14,6 @@ on:
 
 permissions:
   contents: read
-  actions: read
 
 concurrency:
   group: stage7-u3-b1-adapter-${{ github.event.pull_request.number || github.ref }}
@@ -25,9 +24,11 @@ env:
   PYTHONDONTWRITEBYTECODE: "1"
   MPLBACKEND: Agg
   ANALYSIS_SOURCE_GIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  REFERENCE_RESOLUTION_MODE: "recomputed_from_pinned_source_sha"
+  REFERENCE_SOURCE_GIT_SHA: "c7c25efae0e53a8b5f5ed164f9135238c6e005e0"
+  REFERENCE_WORKFLOW_RUN_ID: "31051697864"
   REFERENCE_ARTIFACT_ID: "8951665941"
   REFERENCE_ARTIFACT_ZIP_SHA256: "b3ba4ed848c9d01a9c1232efa8fa97b46e80bf61185c151f2f6acde6440a4f94"
-  REFERENCE_SOURCE_GIT_SHA: "c7c25efae0e53a8b5f5ed164f9135238c6e005e0"
   U3_B1_REQUIRE_REFERENCE_ARTIFACT: "1"
 
 jobs:
@@ -41,12 +42,16 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: "3.12.13"
 
       - name: Install fixed dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install numpy matplotlib pytest 'CoolProp==8.0.0'
+          python -m pip install \
+            'numpy==2.5.1' \
+            'matplotlib==3.11.1' \
+            'pytest==9.1.1' \
+            'CoolProp==8.0.0'
 
       - name: Assert pristine checkout
         run: |
@@ -55,26 +60,120 @@ jobs:
           printf 'pre_execution_git_status=%s\n' "$status"
           test -z "$status"
 
-      - name: Download and verify authoritative B1 reference artifact
+      - name: Recreate and verify authoritative B1 reference from pinned source
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          reference_zip="${RUNNER_TEMP}/u3-b1-reference-${REFERENCE_ARTIFACT_ID}.zip"
-          reference_root="${RUNNER_TEMP}/u3-b1-reference"
-          rm -rf "$reference_zip" "$reference_root"
+          reference_archive="${RUNNER_TEMP}/u3-b1-reference-source-${REFERENCE_SOURCE_GIT_SHA}.tar.gz"
+          reference_source_root="${RUNNER_TEMP}/u3-b1-reference-source"
+          reference_dir="${RUNNER_TEMP}/u3-b1-reference-artifact"
+          rm -rf "$reference_archive" "$reference_source_root" "$reference_dir"
+
           gh api \
             -H "Accept: application/vnd.github+json" \
-            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${REFERENCE_ARTIFACT_ID}/zip" \
-            > "$reference_zip"
-          actual_sha="$(sha256sum "$reference_zip" | awk '{print $1}')"
-          printf 'reference_artifact_zip_sha256=%s\n' "$actual_sha"
-          test "$actual_sha" = "$REFERENCE_ARTIFACT_ZIP_SHA256"
-          mkdir -p "$reference_root"
-          unzip -q "$reference_zip" -d "$reference_root"
-          reference_dir="$reference_root/artifacts/stage7-u3-b1-independent-reference"
-          test -d "$reference_dir"
-          test -f "$reference_dir/summary.json"
-          test -f "$reference_dir/conservative_transfer_table.csv"
+            "/repos/${GITHUB_REPOSITORY}/tarball/${REFERENCE_SOURCE_GIT_SHA}" \
+            > "$reference_archive"
+          mkdir -p "$reference_source_root"
+          tar -xzf "$reference_archive" -C "$reference_source_root"
+          reference_source="$(
+            find "$reference_source_root" \
+              -mindepth 1 -maxdepth 1 -type d -print -quit
+          )"
+          test -n "$reference_source"
+          test -f "$reference_source/src/liquid_gas_transient/u3_b1_critical_state_authoritative.py"
+          test -f "$reference_source/docs/verification/stage7_u3_b1_critical_state_contract_v1.json"
+
+          (
+            cd "$reference_source"
+            GITHUB_SHA="$REFERENCE_SOURCE_GIT_SHA" \
+            PYTHONPATH=src \
+            PYTHONDONTWRITEBYTECODE=1 \
+            MPLBACKEND=Agg \
+              python -m liquid_gas_transient.u3_b1_critical_state_authoritative \
+                --contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
+                --output-dir "$reference_dir" \
+                --source-git-sha "$REFERENCE_SOURCE_GIT_SHA"
+          )
+
+          REFERENCE_DIR="$reference_dir" python - <<'PY'
+          import hashlib
+          import json
+          import math
+          import os
+          from pathlib import Path
+
+          target = Path(os.environ["REFERENCE_DIR"])
+          required = {
+              "summary.json",
+              "benchmark_contract.json",
+              "conservative_transfer_table.csv",
+              "critical_state_summary.json",
+              "artifact_sha256.txt",
+          }
+          assert required <= {path.name for path in target.iterdir()}
+
+          summary = json.loads((target / "summary.json").read_text(encoding="utf-8"))
+          assert summary["schema_version"] == "stage7_u3_b1_independent_reference_v1"
+          assert summary["case_count"] == 17
+          assert summary["physical_case_count"] == 12
+          assert summary["guard_case_count"] == 5
+          assert summary["success_count"] == 12
+          assert summary["guard_count"] == 5
+          assert summary["all_expected_outcomes_match"] is True
+          assert summary["all_locked_checks_passed"] is True
+          assert summary["provenance"]["source_git_sha"] == os.environ["REFERENCE_SOURCE_GIT_SHA"]
+          assert summary["provenance"]["checkout_git_sha"] == os.environ["REFERENCE_SOURCE_GIT_SHA"]
+          assert summary["provenance"]["property_backend"] == "CoolProp"
+          assert summary["provenance"]["property_backend_version"] == "8.0.0"
+
+          critical = json.loads(
+              (target / "critical_state_summary.json").read_text(encoding="utf-8")
+          )
+          assert set(critical) == {"GAS_CRITICAL|Cd=0.4", "GAS_CRITICAL|Cd=0.8"}
+          for row in critical.values():
+              assert math.isclose(
+                  float(row["pressure_ratio"]),
+                  0.5468849014513074,
+                  rel_tol=0.0,
+                  abs_tol=1.0e-13,
+              )
+              assert math.isclose(
+                  float(row["pressure_pa"]),
+                  546884.9014513075,
+                  rel_tol=0.0,
+                  abs_tol=1.0e-7,
+              )
+              assert math.isclose(
+                  float(row["ideal_mass_flux_kg_m2_s"]),
+                  2757.298423561355,
+                  rel_tol=0.0,
+                  abs_tol=1.0e-9,
+              )
+              assert float(row["final_bracket_width_pa"]) <= 1.0
+              assert float(row["peak_prominence_relative"]) >= 1.0e-8
+          assert math.isclose(
+              float(critical["GAS_CRITICAL|Cd=0.8"]["effective_mass_flux_kg_m2_s"]),
+              2205.838738849084,
+              rel_tol=0.0,
+              abs_tol=1.0e-9,
+          )
+          assert math.isclose(
+              float(critical["GAS_CRITICAL|Cd=0.4"]["effective_mass_flux_kg_m2_s"]),
+              1102.919369424542,
+              rel_tol=0.0,
+              abs_tol=1.0e-9,
+          )
+
+          manifest = {}
+          for line in (target / "artifact_sha256.txt").read_text(encoding="utf-8").splitlines():
+              digest, name = line.split("  ", 1)
+              manifest[name] = digest
+          for name, expected in manifest.items():
+              path = target / name
+              assert path.is_file(), name
+              assert hashlib.sha256(path.read_bytes()).hexdigest() == expected, name
+          PY
+
           echo "U3_B1_REFERENCE_ARTIFACT_DIR=$reference_dir" >> "$GITHUB_ENV"
 
       - name: Assert adapter-reference implementation independence
@@ -92,6 +191,8 @@ jobs:
             --reference-artifact-dir "$U3_B1_REFERENCE_ARTIFACT_DIR" \
             --reference-artifact-id "$REFERENCE_ARTIFACT_ID" \
             --reference-artifact-zip-sha256 "$REFERENCE_ARTIFACT_ZIP_SHA256" \
+            --reference-resolution-mode "$REFERENCE_RESOLUTION_MODE" \
+            --reference-source-git-sha "$REFERENCE_SOURCE_GIT_SHA" \
             --output-dir "$output" \
             --source-git-sha "$ANALYSIS_SOURCE_GIT_SHA"
           tracked_status="$(git status --porcelain=v1 --untracked-files=no)"
@@ -127,9 +228,11 @@ jobs:
 
           summary = json.loads((target / "summary.json").read_text(encoding="utf-8"))
           assert summary["schema_version"] == "stage7_u3_b1_critical_state_adapter_comparison_v1"
+          assert summary["reference_resolution_mode"] == os.environ["REFERENCE_RESOLUTION_MODE"]
+          assert summary["reference_source_git_sha"] == os.environ["REFERENCE_SOURCE_GIT_SHA"]
+          assert summary["reference_artifact_provenance_role"] == "historical_authoritative_evidence"
           assert summary["reference_artifact_id"] == int(os.environ["REFERENCE_ARTIFACT_ID"])
           assert summary["reference_artifact_zip_sha256"] == os.environ["REFERENCE_ARTIFACT_ZIP_SHA256"]
-          assert summary["reference_source_git_sha"] == os.environ["REFERENCE_SOURCE_GIT_SHA"]
           assert summary["case_count"] == 17
           assert summary["success_count"] == 12
           assert summary["guard_count"] == 5
@@ -160,7 +263,13 @@ jobs:
           assert summary["design_use_acceptance"] is False
           assert summary["production_hem_activation_approved"] is False
           assert summary["provenance"]["source_git_sha"] == os.environ["ANALYSIS_SOURCE_GIT_SHA"]
+          assert summary["provenance"]["property_backend"] == "CoolProp"
           assert summary["provenance"]["property_backend_version"] == "8.0.0"
+
+          report = (target / "report.md").read_text(encoding="utf-8")
+          assert "property backend: CoolProp 8.0.0" in report
+          assert "reference resolution: recomputed_from_pinned_source_sha" in report
+          assert f"pinned reference source SHA: {os.environ['REFERENCE_SOURCE_GIT_SHA']}" in report
 
           with (target / "reference_adapter_comparison.csv").open(
               newline="", encoding="utf-8"
