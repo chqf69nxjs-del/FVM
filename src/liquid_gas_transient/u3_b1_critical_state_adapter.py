@@ -1443,6 +1443,7 @@ def write_artifact(
         "## Result",
         "",
         f"- property backend: CoolProp {property_provider.version}",
+        f"- adapter source SHA: {source_git_sha}",
         f"- reference resolution: {reference_resolution_mode}",
         f"- pinned reference source SHA: {reference_source_git_sha}",
         (
