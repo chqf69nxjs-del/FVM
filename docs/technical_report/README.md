@@ -35,6 +35,16 @@ why each verification layer was needed
 - [`lco2_fvm_hem_technical_report_skeleton_v0p4.md`](lco2_fvm_hem_technical_report_skeleton_v0p4.md)
 - [`chapters/chapter12_u3_b1_single_phase_critical_state_benchmark.md`](chapters/chapter12_u3_b1_single_phase_critical_state_benchmark.md)
 
+## Historical v0.1 compatibility records
+
+The existing structure workflow still verifies that the original v0.1 workspace remains present and discoverable. These files are retained as historical records and are not the active v0.4 contract:
+
+- [`lco2_fvm_hem_technical_report_contract_v0p1.json`](lco2_fvm_hem_technical_report_contract_v0p1.json)
+- [`lco2_fvm_hem_writing_design_v0p1.md`](lco2_fvm_hem_writing_design_v0p1.md)
+- [`lco2_fvm_hem_evidence_matrix_v0p1.md`](lco2_fvm_hem_evidence_matrix_v0p1.md)
+- [`lco2_fvm_hem_figure_table_register_v0p1.md`](lco2_fvm_hem_figure_table_register_v0p1.md)
+- [`lco2_fvm_hem_technical_report_skeleton_v0p1.md`](lco2_fvm_hem_technical_report_skeleton_v0p1.md)
+
 v0.1 files are retained as historical structure records and are not silently rewritten.
 
 ## Evidence levels
