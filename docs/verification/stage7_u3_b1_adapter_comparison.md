@@ -66,3 +66,26 @@ physical_validation = false
 design_use_acceptance = false
 production_hem_activation_approved = false
 ```
+
+
+## Durable reference resolution
+
+The comparison does not depend on the continued availability of a retention-limited
+GitHub Actions artifact.  Each authoritative run resolves the immutable Reference
+through the reviewed source commit and fixed runtime instead:
+
+```text
+reference_resolution_mode:  recomputed_from_pinned_source_sha
+reference source SHA:        c7c25efae0e53a8b5f5ed164f9135238c6e005e0
+Python:                      3.12.13
+CoolProp:                    8.0.0
+NumPy:                       2.5.1
+Matplotlib:                  3.11.1
+Pytest:                      9.1.1
+```
+
+The historical workflow run, Artifact ID, and ZIP SHA256 remain recorded as the
+original authoritative evidence, but are not a runtime availability dependency.
+The regenerated Reference is checked against the pinned source SHA, fixed outcomes,
+locked checks, critical-state values, contract, and internal SHA256 manifest before
+the Adapter is evaluated.

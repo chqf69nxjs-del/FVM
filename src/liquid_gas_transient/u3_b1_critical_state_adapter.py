@@ -1308,12 +1308,18 @@ def write_artifact(
     source_git_sha: str,
     reference_artifact_id: int,
     reference_artifact_zip_sha256: str,
+    reference_resolution_mode: str,
+    reference_source_git_sha: str,
     provider: PropertyProvider | None = None,
 ) -> dict[str, Any]:
     contract = load_contract(contract_path)
     reference_summary, reference_rows, reference_critical = verify_reference_artifact(
         reference_dir
     )
+    if reference_resolution_mode != "recomputed_from_pinned_source_sha":
+        raise ValueError("Unsupported B1 reference resolution mode")
+    if reference_summary["provenance"]["source_git_sha"] != reference_source_git_sha:
+        raise ValueError("Resolved reference source SHA does not match the pin")
     reference_contract = json.loads(
         (reference_dir / "benchmark_contract.json").read_text(encoding="utf-8")
     )
@@ -1384,9 +1390,11 @@ def write_artifact(
         "issue": 127,
         "contract_schema_version": contract["schema_version"],
         "reference_schema_version": reference_summary["schema_version"],
+        "reference_resolution_mode": reference_resolution_mode,
+        "reference_source_git_sha": reference_source_git_sha,
+        "reference_artifact_provenance_role": "historical_authoritative_evidence",
         "reference_artifact_id": int(reference_artifact_id),
         "reference_artifact_zip_sha256": reference_artifact_zip_sha256,
-        "reference_source_git_sha": reference_summary["provenance"]["source_git_sha"],
         "case_count": len(results),
         "success_count": success_count,
         "guard_count": guard_count,
@@ -1434,6 +1442,13 @@ def write_artifact(
         "",
         "## Result",
         "",
+        f"- property backend: CoolProp {property_provider.version}",
+        f"- reference resolution: {reference_resolution_mode}",
+        f"- pinned reference source SHA: {reference_source_git_sha}",
+        (
+            "- historical authoritative artifact: "
+            f"ID {reference_artifact_id} / ZIP SHA256 {reference_artifact_zip_sha256}"
+        ),
         f"- fixed cases: {len(results)} ({success_count} success / {guard_count} guards)",
         f"- comparison rows: {len(comparisons)}",
         f"- comparison passes: {sum(bool(row['comparison_passed']) for row in comparisons)}",
@@ -1477,6 +1492,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--reference-artifact-id", type=int, required=True)
     parser.add_argument("--reference-artifact-zip-sha256", required=True)
+    parser.add_argument("--reference-resolution-mode", required=True)
+    parser.add_argument("--reference-source-git-sha", required=True)
     parser.add_argument(
         "--source-git-sha",
         default=os.environ.get("ANALYSIS_SOURCE_GIT_SHA", "UNKNOWN"),
@@ -1493,6 +1510,8 @@ def main() -> None:
         source_git_sha=str(args.source_git_sha),
         reference_artifact_id=int(args.reference_artifact_id),
         reference_artifact_zip_sha256=str(args.reference_artifact_zip_sha256),
+        reference_resolution_mode=str(args.reference_resolution_mode),
+        reference_source_git_sha=str(args.reference_source_git_sha),
     )
 
 
