@@ -202,7 +202,15 @@ class CoolPropStateProvider:
             density_kg_m3=float(state.rhomass()),
             enthalpy_J_kg=float(state.hmass()),
             entropy_J_kg_K=float(state.smass()),
-            phase=str(self._phase_si("P", pressure_pa, "T", temperature, "CO2")),
+            phase=str(
+                self._phase_si(
+                    "P",
+                    pressure_pa,
+                    "SMASS",
+                    entropy_J_kg_K,
+                    "CO2",
+                )
+            ),
         )
 
 
@@ -1194,11 +1202,27 @@ def _write_csv(path: Path, rows: Iterable[dict[str, Any]]) -> None:
         writer.writerows(payload)
 
 
+def plot_provenance_text(
+    case_name: str,
+    backend_version: str,
+    source_git_sha: str,
+) -> str:
+    return (
+        f"case={case_name} | "
+        "model=U3 B1 verification adapter comparison | "
+        f"backend=CoolProp | version={backend_version} | "
+        f"source={source_git_sha[:12]}"
+    )
+
+
 def _write_plots(
     output_dir: Path,
     results: list[AdapterResult],
     reference_rows: list[dict[str, str]],
     comparisons: list[dict[str, Any]],
+    *,
+    backend_version: str,
+    source_git_sha: str,
 ) -> None:
     import matplotlib.pyplot as plt
 
@@ -1216,7 +1240,13 @@ def _write_plots(
         ax.plot([lower, upper], [lower, upper])
     ax.set_xlabel("Reference effective mass flux [kg/(m² s)]")
     ax.set_ylabel("Adapter effective mass flux [kg/(m² s)]")
-    ax.set_title("U3 B1 effective mass-flux comparison")
+    ax.set_title(
+        "U3 B1 effective mass-flux comparison\n"
+        + plot_provenance_text(
+            "17-case mass-flux matrix", backend_version, source_git_sha
+        ),
+        fontsize=9,
+    )
     fig.tight_layout()
     fig.savefig(output_dir / "mass_flux_reference_vs_adapter.png", dpi=160)
     plt.close(fig)
@@ -1235,7 +1265,13 @@ def _write_plots(
         ax.plot([lower, upper], [lower, upper])
     ax.set_xlabel("Reference critical pressure [Pa]")
     ax.set_ylabel("Adapter critical pressure [Pa]")
-    ax.set_title("U3 B1 critical-pressure comparison")
+    ax.set_title(
+        "U3 B1 critical-pressure comparison\n"
+        + plot_provenance_text(
+            "9-case critical-pressure matrix", backend_version, source_git_sha
+        ),
+        fontsize=9,
+    )
     fig.tight_layout()
     fig.savefig(output_dir / "critical_pressure_reference_vs_adapter.png", dpi=160)
     plt.close(fig)
@@ -1248,7 +1284,13 @@ def _write_plots(
     )
     ax.set_xlabel("Comparison row")
     ax.set_ylabel("Absolute error")
-    ax.set_title("U3 B1 reference-adapter residuals")
+    ax.set_title(
+        "U3 B1 reference-adapter residuals\n"
+        + plot_provenance_text(
+            "77-row comparison matrix", backend_version, source_git_sha
+        ),
+        fontsize=9,
+    )
     fig.tight_layout()
     fig.savefig(output_dir / "reference_adapter_residuals.png", dpi=160)
     plt.close(fig)
@@ -1325,7 +1367,14 @@ def write_artifact(
         + "\n",
         encoding="utf-8",
     )
-    _write_plots(output_dir, results, reference_rows, comparisons)
+    _write_plots(
+        output_dir,
+        results,
+        reference_rows,
+        comparisons,
+        backend_version=property_provider.version,
+        source_git_sha=source_git_sha,
+    )
 
     success_count = sum(row.succeeded for row in results)
     guard_count = len(results) - success_count

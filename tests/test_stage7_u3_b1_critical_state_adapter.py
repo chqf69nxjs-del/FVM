@@ -30,6 +30,11 @@ from liquid_gas_transient.u3_b1_critical_state_adapter import (
     write_artifact,
 )
 
+from liquid_gas_transient.u3_b1_critical_state_adapter import (
+    CoolPropStateProvider,
+    plot_provenance_text,
+)
+
 CONTRACT = Path("docs/verification/stage7_u3_b1_critical_state_contract_v1.json")
 
 
@@ -328,3 +333,51 @@ def test_adapter_comparison_artifact_contract(tmp_path: Path) -> None:
 
     saved = json.loads((output / "summary.json").read_text(encoding="utf-8"))
     assert saved == summary
+
+
+class FakeCandidateAbstractState:
+    def __init__(self) -> None:
+        self.updates: list[tuple[object, ...]] = []
+
+    def update(self, *args: object) -> None:
+        self.updates.append(args)
+
+    def T(self) -> float:
+        return 280.0
+
+    def rhomass(self) -> float:
+        return 12.0
+
+    def hmass(self) -> float:
+        return 190000.0
+
+    def smass(self) -> float:
+        return 1000.0
+
+
+def test_adapter_candidate_phase_uses_pressure_entropy_coordinates() -> None:
+    provider = object.__new__(CoolPropStateProvider)
+    candidate_state = FakeCandidateAbstractState()
+    phase_calls: list[tuple[object, ...]] = []
+    provider._candidate = candidate_state
+    provider._PSmass_INPUTS = "PSMASS_INPUT"
+    provider._phase_si = lambda *args: phase_calls.append(args) or "gas"
+
+    candidate = provider.isentropic_state(8.0e5, 1000.0)
+
+    assert candidate.phase == "gas"
+    assert candidate_state.updates == [("PSMASS_INPUT", 8.0e5, 1000.0)]
+    assert phase_calls == [("P", 8.0e5, "SMASS", 1000.0, "CO2")]
+
+
+def test_adapter_plot_provenance_contains_required_fields() -> None:
+    text = plot_provenance_text(
+        "77-row comparison matrix",
+        "8.0.0",
+        "0123456789abcdef",
+    )
+    assert "case=77-row comparison matrix" in text
+    assert "model=U3 B1 verification adapter comparison" in text
+    assert "backend=CoolProp" in text
+    assert "version=8.0.0" in text
+    assert "source=0123456789ab" in text
