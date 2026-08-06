@@ -54,11 +54,11 @@ jobs:
 
           tests = Path("tests/test_stage7_u3_b1_critical_state_adapter.py")
           text = tests.read_text(encoding="utf-8")
-          if 'assert "adapter source SHA: test-adapter-sha" in report' not in text:
+          if 'assert "adapter source SHA: test-sha" in report' not in text:
               replace_once(
                   tests,
                   '''    assert "property backend: CoolProp analytic" in report\n    assert "reference resolution: recomputed_from_pinned_source_sha" in report\n''',
-                  '''    assert "property backend: CoolProp analytic" in report\n    assert "adapter source SHA: test-adapter-sha" in report\n    assert "reference resolution: recomputed_from_pinned_source_sha" in report\n''',
+                  '''    assert "property backend: CoolProp analytic" in report\n    assert "adapter source SHA: test-sha" in report\n    assert "reference resolution: recomputed_from_pinned_source_sha" in report\n''',
               )
           PY
 
