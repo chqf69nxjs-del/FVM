@@ -282,6 +282,7 @@ def test_adapter_comparison_artifact_contract(tmp_path: Path) -> None:
     output = tmp_path / "artifact"
     artifact_id = int(os.environ.get("REFERENCE_ARTIFACT_ID", "0"))
     artifact_sha = os.environ.get("REFERENCE_ARTIFACT_ZIP_SHA256", "test-sha")
+    reference_source_sha = os.environ.get("REFERENCE_SOURCE_GIT_SHA", "test-sha")
     summary = write_artifact(
         CONTRACT,
         Path(reference_dir_text),
@@ -290,7 +291,7 @@ def test_adapter_comparison_artifact_contract(tmp_path: Path) -> None:
         reference_artifact_id=artifact_id,
         reference_artifact_zip_sha256=artifact_sha,
         reference_resolution_mode="recomputed_from_pinned_source_sha",
-        reference_source_git_sha="test-sha",
+        reference_source_git_sha=reference_source_sha,
     )
     expected_files = {
         "summary.json",
@@ -314,7 +315,7 @@ def test_adapter_comparison_artifact_contract(tmp_path: Path) -> None:
     assert summary["comparison_count"] == 77
     assert summary["comparison_pass_count"] == 77
     assert summary["reference_resolution_mode"] == "recomputed_from_pinned_source_sha"
-    assert summary["reference_source_git_sha"] == "test-sha"
+    assert summary["reference_source_git_sha"] == reference_source_sha
     assert summary["reference_artifact_provenance_role"] == "historical_authoritative_evidence"
     assert summary["all_formal_outcomes_match"] is True
     assert summary["all_reference_adapter_comparisons_passed"] is True
@@ -340,7 +341,7 @@ def test_adapter_comparison_artifact_contract(tmp_path: Path) -> None:
     assert "property backend: CoolProp analytic" in report
     assert "adapter source SHA: test-sha" in report
     assert "reference resolution: recomputed_from_pinned_source_sha" in report
-    assert "pinned reference source SHA: test-sha" in report
+    assert f"pinned reference source SHA: {reference_source_sha}" in report
 
     saved = json.loads((output / "summary.json").read_text(encoding="utf-8"))
     assert saved == summary
