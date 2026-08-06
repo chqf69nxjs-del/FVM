@@ -1,0 +1,133 @@
+name: Apply U3 B1 adapter P1 review fixes
+
+on:
+  push:
+    branches:
+      - agent/u3-b1-critical-state-adapter-clean
+    paths:
+      - .github/workflows/apply-u3-b1-adapter-p1-review-fixes.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: u3-b1-adapter-p1-review-fixes
+  cancel-in-progress: true
+
+jobs:
+  apply-p1-review-fixes:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Adapter branch
+        uses: actions/checkout@v7
+        with:
+          ref: agent/u3-b1-critical-state-adapter-clean
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Add durable reference resolution and report provenance
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: Path, old: str, new: str) -> None:
+              text = path.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != 1:
+                  raise RuntimeError(f"{path}: expected one match, found {count}")
+              path.write_text(text.replace(old, new), encoding="utf-8")
+
+          adapter = Path("src/liquid_gas_transient/u3_b1_critical_state_adapter.py")
+          source = adapter.read_text(encoding="utf-8")
+          if "reference_resolution_mode: str" not in source:
+              replace_once(
+                  adapter,
+                  '''    reference_artifact_id: int,\n    reference_artifact_zip_sha256: str,\n    provider: PropertyProvider | None = None,\n''',
+                  '''    reference_artifact_id: int,\n    reference_artifact_zip_sha256: str,\n    reference_resolution_mode: str,\n    reference_source_git_sha: str,\n    provider: PropertyProvider | None = None,\n''',
+              )
+              replace_once(
+                  adapter,
+                  '''    reference_summary, reference_rows, reference_critical = verify_reference_artifact(\n        reference_dir\n    )\n    reference_contract = json.loads(\n''',
+                  '''    reference_summary, reference_rows, reference_critical = verify_reference_artifact(\n        reference_dir\n    )\n    if reference_resolution_mode != "recomputed_from_pinned_source_sha":\n        raise ValueError("Unsupported B1 reference resolution mode")\n    if reference_summary["provenance"]["source_git_sha"] != reference_source_git_sha:\n        raise ValueError("Resolved reference source SHA does not match the pin")\n    reference_contract = json.loads(\n''',
+              )
+              replace_once(
+                  adapter,
+                  '''        "reference_artifact_id": int(reference_artifact_id),\n        "reference_artifact_zip_sha256": reference_artifact_zip_sha256,\n        "reference_source_git_sha": reference_summary["provenance"]["source_git_sha"],\n''',
+                  '''        "reference_resolution_mode": reference_resolution_mode,\n        "reference_source_git_sha": reference_source_git_sha,\n        "reference_artifact_provenance_role": "historical_authoritative_evidence",\n        "reference_artifact_id": int(reference_artifact_id),\n        "reference_artifact_zip_sha256": reference_artifact_zip_sha256,\n''',
+              )
+              replace_once(
+                  adapter,
+                  '''        "## Result",\n        "",\n        f"- fixed cases: {len(results)} ({success_count} success / {guard_count} guards)",\n''',
+                  '''        "## Result",\n        "",\n        f"- property backend: CoolProp {property_provider.version}",\n        f"- reference resolution: {reference_resolution_mode}",\n        f"- pinned reference source SHA: {reference_source_git_sha}",\n        (\n            "- historical authoritative artifact: "\n            f"ID {reference_artifact_id} / ZIP SHA256 {reference_artifact_zip_sha256}"\n        ),\n        f"- fixed cases: {len(results)} ({success_count} success / {guard_count} guards)",\n''',
+              )
+              replace_once(
+                  adapter,
+                  '''    parser.add_argument("--reference-artifact-id", type=int, required=True)\n    parser.add_argument("--reference-artifact-zip-sha256", required=True)\n    parser.add_argument(\n''',
+                  '''    parser.add_argument("--reference-artifact-id", type=int, required=True)\n    parser.add_argument("--reference-artifact-zip-sha256", required=True)\n    parser.add_argument("--reference-resolution-mode", required=True)\n    parser.add_argument("--reference-source-git-sha", required=True)\n    parser.add_argument(\n''',
+              )
+              replace_once(
+                  adapter,
+                  '''        reference_artifact_id=int(args.reference_artifact_id),\n        reference_artifact_zip_sha256=str(args.reference_artifact_zip_sha256),\n    )\n''',
+                  '''        reference_artifact_id=int(args.reference_artifact_id),\n        reference_artifact_zip_sha256=str(args.reference_artifact_zip_sha256),\n        reference_resolution_mode=str(args.reference_resolution_mode),\n        reference_source_git_sha=str(args.reference_source_git_sha),\n    )\n''',
+              )
+
+          tests = Path("tests/test_stage7_u3_b1_critical_state_adapter.py")
+          test_text = tests.read_text(encoding="utf-8")
+          if 'reference_resolution_mode="recomputed_from_pinned_source_sha"' not in test_text:
+              replace_once(
+                  tests,
+                  '''        reference_artifact_id=artifact_id,\n        reference_artifact_zip_sha256=artifact_sha,\n    )\n''',
+                  '''        reference_artifact_id=artifact_id,\n        reference_artifact_zip_sha256=artifact_sha,\n        reference_resolution_mode="recomputed_from_pinned_source_sha",\n        reference_source_git_sha="test-sha",\n    )\n''',
+              )
+              replace_once(
+                  tests,
+                  '''    assert summary["comparison_pass_count"] == 77\n    assert summary["all_formal_outcomes_match"] is True\n''',
+                  '''    assert summary["comparison_pass_count"] == 77\n    assert summary["reference_resolution_mode"] == "recomputed_from_pinned_source_sha"\n    assert summary["reference_source_git_sha"] == "test-sha"\n    assert summary["reference_artifact_provenance_role"] == "historical_authoritative_evidence"\n    assert summary["all_formal_outcomes_match"] is True\n''',
+              )
+              replace_once(
+                  tests,
+                  '''    saved = json.loads((output / "summary.json").read_text(encoding="utf-8"))\n    assert saved == summary\n''',
+                  '''    report = (output / "report.md").read_text(encoding="utf-8")\n    assert "property backend: CoolProp analytic" in report\n    assert "reference resolution: recomputed_from_pinned_source_sha" in report\n    assert "pinned reference source SHA: test-sha" in report\n\n    saved = json.loads((output / "summary.json").read_text(encoding="utf-8"))\n    assert saved == summary\n''',
+              )
+
+          doc = Path("docs/verification/stage7_u3_b1_adapter_comparison.md")
+          doc_text = doc.read_text(encoding="utf-8")
+          if "recomputed_from_pinned_source_sha" not in doc_text:
+              doc_text += '''\n\n## Durable reference resolution\n\nThe comparison does not depend on the continued availability of a retention-limited\nGitHub Actions artifact.  Each authoritative run resolves the immutable Reference\nthrough the reviewed source commit and fixed runtime instead:\n\n```text\nreference_resolution_mode:  recomputed_from_pinned_source_sha\nreference source SHA:        c7c25efae0e53a8b5f5ed164f9135238c6e005e0\nPython:                      3.12.13\nCoolProp:                    8.0.0\nNumPy:                       2.5.1\nMatplotlib:                  3.11.1\nPytest:                      9.1.1\n```\n\nThe historical workflow run, Artifact ID, and ZIP SHA256 remain recorded as the\noriginal authoritative evidence, but are not a runtime availability dependency.\nThe regenerated Reference is checked against the pinned source SHA, fixed outcomes,\nlocked checks, critical-state values, contract, and internal SHA256 manifest before\nthe Adapter is evaluated.\n'''
+              doc.write_text(doc_text, encoding="utf-8")
+          PY
+
+      - name: Run targeted review regressions
+        env:
+          PYTHONPATH: src
+          PYTHONDONTWRITEBYTECODE: "1"
+          MPLBACKEND: Agg
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install 'pytest==9.1.1'
+          python -m pytest -q \
+            tests/test_stage7_u3_b1_critical_state_adapter.py \
+            --strict-markers
+          git diff --check
+          test -z "$(find src tests -type d -name __pycache__ -print -quit)"
+
+      - name: Commit source, tests, and documentation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/liquid_gas_transient/u3_b1_critical_state_adapter.py \
+            tests/test_stage7_u3_b1_critical_state_adapter.py \
+            docs/verification/stage7_u3_b1_adapter_comparison.md
+          if git diff --cached --quiet; then
+            echo "P1 review fixes already present."
+            exit 0
+          fi
+          git commit -m "Address U3 B1 adapter P1 review feedback"
+          git push origin HEAD:agent/u3-b1-critical-state-adapter-clean
