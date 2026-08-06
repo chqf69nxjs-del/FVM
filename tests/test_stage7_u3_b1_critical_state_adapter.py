@@ -338,7 +338,7 @@ def test_adapter_comparison_artifact_contract(tmp_path: Path) -> None:
     assert all(row["comparison_passed"] == "True" for row in rows)
 
     report = (output / "report.md").read_text(encoding="utf-8")
-    assert "property backend: CoolProp analytic" in report
+    assert "property backend: CoolProp 8.0.0" in report
     assert "adapter source SHA: test-sha" in report
     assert "reference resolution: recomputed_from_pinned_source_sha" in report
     assert f"pinned reference source SHA: {reference_source_sha}" in report
