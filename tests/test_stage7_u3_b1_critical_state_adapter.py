@@ -338,6 +338,7 @@ def test_adapter_comparison_artifact_contract(tmp_path: Path) -> None:
 
     report = (output / "report.md").read_text(encoding="utf-8")
     assert "property backend: CoolProp analytic" in report
+    assert "adapter source SHA: test-sha" in report
     assert "reference resolution: recomputed_from_pinned_source_sha" in report
     assert "pinned reference source SHA: test-sha" in report
 
