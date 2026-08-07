@@ -19,7 +19,7 @@ env:
   PYTHONPATH: src
   PYTHONDONTWRITEBYTECODE: "1"
   MPLBACKEND: Agg
-  ANALYSIS_SOURCE_GIT_SHA: cba708696587069f0639adeea941718ba8bce16c
+  ANALYSIS_SOURCE_GIT_SHA: 9eaa48669dc1cc17d44eb1ea45e494facd78bddf
 
 jobs:
   zero-drop-diagnostic:
@@ -29,7 +29,7 @@ jobs:
       - name: Checkout exact corrected Reference source
         uses: actions/checkout@v7
         with:
-          ref: cba708696587069f0639adeea941718ba8bce16c
+          ref: 9eaa48669dc1cc17d44eb1ea45e494facd78bddf
           fetch-depth: 1
 
       - name: Assert exact clean checkout
@@ -37,10 +37,10 @@ jobs:
           test "$(git rev-parse HEAD)" = "$ANALYSIS_SOURCE_GIT_SHA"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
-      - name: Set up Python
+      - name: Set up diagnostic Python
         uses: actions/setup-python@v6
         with:
-          python-version: "3.12.13"
+          python-version: "3.12"
 
       - name: Install fixed dependencies
         run: |
@@ -55,6 +55,7 @@ jobs:
         run: |
           python - <<'PY'
           import json
+          import platform
           from pathlib import Path
 
           from liquid_gas_transient import u3_b1_critical_state_reference as b1
@@ -97,7 +98,8 @@ jobs:
           assert "raw B1 outcome" in row.formal_message
 
           print(json.dumps({
-              "source_git_sha": "cba708696587069f0639adeea941718ba8bce16c",
+              "source_git_sha": "9eaa48669dc1cc17d44eb1ea45e494facd78bddf",
+              "diagnostic_python": platform.python_version(),
               "case_id": row.case_id,
               "B2_formal_outcome": row.formal_outcome,
               "raw_B1_formal_outcome": row.b1_formal_outcome,
