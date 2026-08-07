@@ -1,0 +1,161 @@
+name: Stage 7 U3 B2 FVM Discharge Coupling Contract
+
+on:
+  pull_request:
+    paths:
+      - "docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json"
+      - "docs/verification/stage7_u3_b2_fvm_discharge_coupling_specification.md"
+      - "tests/test_stage7_u3_b2_fvm_discharge_coupling_contract.py"
+      - ".github/workflows/stage7-u3-b2-fvm-discharge-coupling-contract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage7-u3-b2-contract-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  validate-u3-b2-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Install fixed dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install \
+            'numpy==2.5.1' \
+            'matplotlib==3.11.1' \
+            'pytest==9.1.1' \
+            'CoolProp==8.0.0'
+
+      - name: Assert pristine checkout
+        run: |
+          status="$(git status --porcelain=v1 --untracked-files=all)"
+          printf 'pre_execution_git_status=%s\n' "$status"
+          test -z "$status"
+
+      - name: Validate locked contract JSON
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path(
+              "docs/verification/"
+              "stage7_u3_b2_fvm_discharge_coupling_contract_v1.json"
+          )
+          contract = json.loads(path.read_text(encoding="utf-8"))
+          assert contract["schema_version"] == (
+              "stage7_u3_b2_fvm_discharge_coupling_contract_v1"
+          )
+          assert contract["status"] == "LOCKED_BEFORE_RESULTS"
+          assert contract["issue"] == 135
+          assert len(contract["benchmark_cases"]) == 26
+          assert contract["approval_boundary"]["u3_b2_contract_locked"] is True
+          assert contract["approval_boundary"]["u3_b2_reference_implemented"] is False
+          assert contract["fvm_baseline"]["right_boundary_mode"] == (
+              "direct_external_face_flux_override"
+          )
+          print(json.dumps({
+              "schema_version": contract["schema_version"],
+              "case_count": len(contract["benchmark_cases"]),
+              "right_boundary_mode": contract["fvm_baseline"]["right_boundary_mode"],
+              "reference_implemented": contract["approval_boundary"][
+                  "u3_b2_reference_implemented"
+              ],
+          }, indent=2))
+          PY
+
+      - name: Compile and diff checks
+        run: |
+          python -m compileall -q tests
+          git diff --check
+
+      - name: Run dedicated B2 contract tests
+        run: |
+          python -m pytest -q \
+            tests/test_stage7_u3_b2_fvm_discharge_coupling_contract.py \
+            --strict-markers \
+            --junitxml=u3-b2-contract-dedicated.xml
+
+      - name: Run related B1 and B2 contract tests
+        run: |
+          python -m pytest -q \
+            tests/test_stage7_u3_b1_critical_state_contract.py \
+            tests/test_stage7_u3_b2_fvm_discharge_coupling_contract.py \
+            --strict-markers \
+            --junitxml=u3-b2-contract-related.xml
+
+      - name: Run full repository tests
+        run: |
+          python -m pytest -q \
+            --strict-markers \
+            --junitxml=full-repository.xml
+
+      - name: Assert authoritative JUnit is clean
+        run: |
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          expected_tests = {
+              "u3-b2-contract-dedicated.xml": 8,
+              "u3-b2-contract-related.xml": 13,
+          }
+          for name in (
+              "u3-b2-contract-dedicated.xml",
+              "u3-b2-contract-related.xml",
+              "full-repository.xml",
+          ):
+              root = ET.parse(Path(name)).getroot()
+              suites = (
+                  [root]
+                  if root.tag == "testsuite"
+                  else list(root.findall("testsuite"))
+              )
+              totals = {
+                  key: sum(int(suite.attrib.get(key, 0)) for suite in suites)
+                  for key in ("tests", "skipped", "failures", "errors")
+              }
+              print(name, totals)
+              if name in expected_tests:
+                  assert totals["tests"] == expected_tests[name]
+              else:
+                  assert totals["tests"] >= 900
+              assert totals["skipped"] == 0
+              assert totals["failures"] == 0
+              assert totals["errors"] == 0
+          PY
+
+      - name: Assert checkout remains clean
+        run: |
+          tracked_status="$(git status --porcelain=v1 --untracked-files=no)"
+          printf 'post_execution_tracked_git_status=%s\n' "$tracked_status"
+          test -z "$tracked_status"
+
+      - name: Upload B2 contract evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: stage7-u3-b2-contract-${{ github.run_id }}
+          path: |
+            docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json
+            docs/verification/stage7_u3_b2_fvm_discharge_coupling_specification.md
+            u3-b2-contract-dedicated.xml
+            u3-b2-contract-related.xml
+            full-repository.xml
+          if-no-files-found: error
