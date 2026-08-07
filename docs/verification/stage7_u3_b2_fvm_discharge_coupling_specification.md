@@ -55,6 +55,11 @@ phase change:         none
 
 右端流出fluxは、ghost stateから間接的に生成しない。
 
+既存solverのarray形状と物理状態checkを維持するため、right ghost cellsは
+`TransmissiveBoundary`で有限状態として構築する。ただし、そのghost stateから
+得たexternal numerical fluxは、budget記録およびconservative updateの前に必ず
+B2 direct face fluxで置換し、流出計算には使用しない。
+
 理由は、B1 contractが、
 
 \[
@@ -503,6 +508,50 @@ velocity reflection: incident velocity perturbationと逆符号
 
 これはsingle-phase acoustic verificationであり、実配管の波高Validationではない。
 
+### 11.1 Event extraction rule
+
+probe historyは**accepted time stepごと**に保存する。各probeの直接波および反射波について、
+解析的基準時刻を中心とする、
+
+$$
+\pm 0.20\frac{L}{c_0}
+$$
+
+の固定windowを使用する。
+
+window内で、前後sampleを持つindex $k$についてcentered pressure slope、
+
+$$
+\left.\frac{dp}{dt}\right|_k
+=
+\frac{p_{k+1}-p_{k-1}}{t_{k+1}-t_{k-1}}
+$$
+
+を計算し、最も負のslopeを持つindexをarrival eventとする。同値の場合は最も早い
+indexを採用する。
+
+直接rarefactionでは、
+
+```text
+p[k+1] - p[k-1] < 0
+u[k+1] - u[k-1] > 0
+```
+
+反射rarefactionでは、
+
+```text
+p[k+1] - p[k-1] < 0
+u[k+1] - u[k-1] < 0
+```
+
+を要求する。固定window内に条件を満たすeventがない場合は、
+
+```text
+ACOUSTIC_EVENT_NOT_RESOLVED
+```
+
+とし、結果を見てwindow、slope ruleまたはsign ruleを変更しない。
+
 ---
 
 ## 12. Fixed state families
@@ -582,6 +631,24 @@ positivity failure after 12 halvings
 inventory sign/orientation mismatch
 ```
 
+### 13.1 Mesh / CFL matrix metrics
+
+各固定runでは、少なくとも次を記録する。
+
+```text
+formal outcome
+cumulative discharged mass and energy
+mass and energy inventory residuals
+direct and reflected arrival times
+event signs and probe order
+minimum pressure
+maximum outward velocity
+```
+
+各runは、個別のidentity、inventory、event signおよびarrival toleranceを満たす必要がある。
+mesh／CFL系列からformal convergence orderを推定せず、mesh independenceまたはCFL
+independenceを承認しない。
+
 ---
 
 ## 14. Independent Reference
@@ -608,7 +675,47 @@ B1 componentは上流component authorityとして共有可能である。ただ�
 
 ---
 
-## 15. Acceptance boundary
+## 15. Runtime and provenance contract
+
+Authoritative Reference、Adapterおよびcoupled executionでは、次を固定・記録する。
+
+```text
+runner:                Ubuntu 24.04
+Python:                3.12.13
+NumPy:                 2.5.1
+Matplotlib:            3.11.1
+Pytest:                9.1.1
+property backend:      CoolProp 8.0.0
+```
+
+`analysis source SHA`はpull request head SHA、またはpull request外では`github.sha`とする。
+`checkout SHA`は`git rev-parse HEAD`から別項目として記録する。PR merge-ref checkoutと
+source headを混同しない。
+
+実行前のgit statusはuntrackedを含めて空、実行後のtracked statusも空でなければならない。
+Reference source SHAとAdapter source SHAは別fieldとして保持する。
+
+`artifact_sha256.txt`は自身を除く全retained evidence fileをcoverし、contract file自体の
+SHA256も記録する。
+
+reportには、
+
+```text
+case / matrix identifier
+model and face-mapping mode
+backend and version
+analysis source SHA
+Reference source SHA
+Adapter source SHA when implemented
+workflow run ID
+```
+
+を残す。解析結果figureにも、case、model、backend/version、analysis source SHAおよび
+workflow run IDを表示する。
+
+---
+
+## 16. Acceptance boundary
 
 B2完了時にtrue候補となるのは、
 
@@ -637,7 +744,7 @@ production_hem_activation_approved
 
 ---
 
-## 16. Out of scope
+## 17. Out of scope
 
 ```text
 two-phase equilibrium choking
@@ -656,7 +763,7 @@ production activation
 
 ---
 
-## 17. Planned increment order
+## 18. Planned increment order
 
 ```text
 1. contract-only increment
