@@ -86,16 +86,40 @@ def test_face_mapping_outcomes_and_exact_wall_identities() -> None:
     one_step_face = by_id["B2-09_ONE_STEP_UNCHOKED_CONSERVATIVE_UPDATE"]
     assert one_step_face.formal_outcome == reference.SUCCESS_UNCHOKED_FACE_MAPPING
     assert one_step_face.expected_outcome == reference.SUCCESS_UNCHOKED_FACE_MAPPING
-    for case_id in (
+
+    identity_ids = {
         "B2-01_CLOSED_LIQUID_WALL_IDENTITY",
         "B2-02_ZERO_DROP_LIQUID_WALL_IDENTITY",
         "B2-03_CLOSED_GAS_WALL_IDENTITY",
-    ):
+    }
+    for case_id in sorted(identity_ids):
         row = by_id[case_id]
         assert row.F_rho_kg_m2_s == 0.0
         assert row.F_rho_u_pa == row.upstream_static_pressure_pa
         assert row.F_rho_E_W_m2 == 0.0
         assert row.F_rho_xv_kg_m2_s == 0.0
+
+    zero_drop = by_id["B2-02_ZERO_DROP_LIQUID_WALL_IDENTITY"]
+    assert zero_drop.formal_outcome == reference.SUCCESS_ZERO_DROP_WALL_IDENTITY
+    assert zero_drop.expected_outcome == reference.SUCCESS_ZERO_DROP_WALL_IDENTITY
+    assert zero_drop.b1_formal_outcome
+    assert zero_drop.b1_formal_outcome in zero_drop.formal_message
+    assert "raw B1 outcome" in zero_drop.formal_message
+    assert "No B1 law, contract value, or tolerance was changed" in (
+        zero_drop.formal_message
+    )
+
+    assert {
+        row.case_id
+        for row in package.face_rows
+        if row.mass_transfer_outward_kg_s == 0.0
+        and row.energy_transfer_outward_W == 0.0
+    } == identity_ids
+    for row in package.face_rows:
+        if row.case_id == "B2-02_ZERO_DROP_LIQUID_WALL_IDENTITY":
+            continue
+        assert reference.map_b1_outcome(row.b1_formal_outcome) == row.formal_outcome
+
     assert max(
         abs(row.pressure_decomposition_residual_pa)
         for row in package.face_rows
