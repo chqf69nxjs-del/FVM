@@ -34,6 +34,7 @@ jobs:
             31202672846
             31202672954
             31202672765
+            31202674732
             31196897626
             31196898157
             31196896570
@@ -64,6 +65,28 @@ jobs:
             31203277205
             31203277164
             31203277868
+            31203548510
+            31203548737
+            31203547692
+            31203547697
+            31203547790
+            31203547387
+            31203547565
+            31203547651
+            31203547678
+            31203547653
+            31203547881
+            31203547736
+            31203547892
+            31203547922
+            31203547758
+            31203989762
+            31203989756
+            31203989722
+            31203989758
+            31203989780
+            31203989908
+            31203990002
           )
 
           : > /tmp/cancelled.txt
@@ -93,9 +116,9 @@ jobs:
           cat /tmp/cancelled.txt
           echo 'not_cancelled_or_already_terminal:'
           cat /tmp/not_cancelled.txt
-          echo 'retained_authority_run=31202674732'
+          echo 'retained_authority_run=31203989733'
 
       - name: Assert retained authority run was not targeted
         run: |
-          ! grep -Fx '31202674732' /tmp/cancelled.txt
-          echo 'retained_authority_run=31202674732'
+          ! grep -Fx '31203989733' /tmp/cancelled.txt
+          echo 'retained_authority_run=31203989733'
