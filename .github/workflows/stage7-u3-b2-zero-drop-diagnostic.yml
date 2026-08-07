@@ -11,6 +11,10 @@ permissions:
   contents: read
   issues: write
 
+concurrency:
+  group: temporary-stage7-u3-b2-zero-drop-diagnostic
+  cancel-in-progress: true
+
 env:
   PYTHONPATH: src
   PYTHONDONTWRITEBYTECODE: "1"
@@ -19,7 +23,7 @@ env:
 
 jobs:
   zero-drop-diagnostic:
-    runs-on: ubuntu-24.04
+    runs-on: macos-15
     timeout-minutes: 30
     steps:
       - name: Announce diagnostic run
@@ -28,7 +32,7 @@ jobs:
         run: |
           gh issue comment 135 \
             --repo "$GITHUB_REPOSITORY" \
-            --body "U3 B2 B2-02 diagnostic started: run $GITHUB_RUN_ID, exact source $ANALYSIS_SOURCE_GIT_SHA."
+            --body "U3 B2 B2-02 macOS diagnostic started: run $GITHUB_RUN_ID, exact source $ANALYSIS_SOURCE_GIT_SHA. This is a logic preflight; Ubuntu 24.04 remains authoritative."
 
       - name: Checkout exact corrected Reference head
         uses: actions/checkout@v7
@@ -138,7 +142,7 @@ jobs:
         run: |
           gh issue comment 135 \
             --repo "$GITHUB_REPOSITORY" \
-            --body "U3 B2 B2-02 diagnostic completed: run $GITHUB_RUN_ID, source $ANALYSIS_SOURCE_GIT_SHA, outcome $DIAGNOSTIC_OUTCOME. No contract, B1 law, or accepted tolerance was changed."
+            --body "U3 B2 B2-02 macOS diagnostic completed: run $GITHUB_RUN_ID, source $ANALYSIS_SOURCE_GIT_SHA, outcome $DIAGNOSTIC_OUTCOME. Ubuntu 24.04 authority remains required; no contract, B1 law, or accepted tolerance was changed."
 
       - name: Enforce diagnostic success
         if: always()
