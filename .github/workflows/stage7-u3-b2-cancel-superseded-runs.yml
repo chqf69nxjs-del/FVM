@@ -1,0 +1,119 @@
+name: Temporary U3 B2 Cancel Superseded Runs
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/stage7-u3-b2-cancel-superseded-runs.yml"
+
+permissions:
+  actions: write
+  contents: read
+  issues: write
+
+concurrency:
+  group: temporary-u3-b2-cancel-superseded-runs
+  cancel-in-progress: true
+
+jobs:
+  cancel-superseded-runs:
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - name: Cancel explicit superseded and duplicate runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -u
+          targets=(
+            31196895738
+            31196895668
+            31196895251
+            31196895722
+            31169415081
+            31202674533
+            31202673443
+            31202672846
+            31202672954
+            31202672765
+            31196897626
+            31196898157
+            31196896570
+            31196896629
+            31196895955
+            31202674654
+            31202674699
+            31202674967
+            31202674664
+            31202674674
+            31202675079
+            31202674912
+            31202675493
+            31202675250
+            31202674682
+            31202675501
+            31202674822
+            31202675049
+            31202674605
+          )
+
+          cancelled=()
+          already_terminal=()
+          unavailable=()
+          for run_id in "${targets[@]}"; do
+            status="$(
+              gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" \
+                --jq '.status' 2>/dev/null || true
+            )"
+            case "$status" in
+              queued|in_progress|waiting|pending|requested)
+                if gh api \
+                  --method POST \
+                  "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/cancel" \
+                  >/dev/null 2>&1; then
+                  cancelled+=("$run_id")
+                else
+                  unavailable+=("$run_id:$status")
+                fi
+                ;;
+              completed)
+                already_terminal+=("$run_id")
+                ;;
+              *)
+                unavailable+=("$run_id:${status:-missing}")
+                ;;
+            esac
+          done
+
+          # Opening the temporary control PR can itself fan out repository-wide
+          # pull-request workflows. Cancel every nonterminal run for this
+          # temporary head branch except this control run.
+          while IFS= read -r run_id; do
+            test -n "$run_id" || continue
+            test "$run_id" = "$GITHUB_RUN_ID" && continue
+            if gh api \
+              --method POST \
+              "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/cancel" \
+              >/dev/null 2>&1; then
+              cancelled+=("$run_id")
+            fi
+          done < <(
+            gh api \
+              "repos/$GITHUB_REPOSITORY/actions/runs?event=pull_request&branch=agent/u3-b2-reference-authority-trigger&per_page=100" \
+              --jq '.workflow_runs[] | select(.status != "completed") | .id'
+          )
+
+          {
+            echo "cancelled=${cancelled[*]:-none}"
+            echo "already_terminal=${already_terminal[*]:-none}"
+            echo "unavailable=${unavailable[*]:-none}"
+            echo "retained_authority_run=31202674732"
+          } | tee /tmp/cancel-summary.txt
+
+          gh issue comment 135 \
+            --repo "$GITHUB_REPOSITORY" \
+            --body-file /tmp/cancel-summary.txt
+
+      - name: Assert retained authority run was not targeted
+        run: |
+          ! grep -Eq 'cancelled=.*(^| )31202674732($| )' /tmp/cancel-summary.txt
+          grep -F 'retained_authority_run=31202674732' /tmp/cancel-summary.txt
