@@ -8,7 +8,6 @@ on:
 permissions:
   actions: write
   contents: read
-  issues: write
 
 concurrency:
   group: temporary-u3-b2-cancel-superseded-runs
@@ -16,7 +15,7 @@ concurrency:
 
 jobs:
   cancel-superseded-runs:
-    runs-on: macos-15
+    runs-on: ubuntu-slim
     timeout-minutes: 15
     steps:
       - name: Cancel explicit superseded and duplicate runs
@@ -54,66 +53,49 @@ jobs:
             31202674822
             31202675049
             31202674605
+            31203278768
+            31203278834
+            31203278640
+            31203277191
+            31203277169
+            31203277224
+            31203277261
+            31203277226
+            31203277205
+            31203277164
+            31203277868
           )
 
-          cancelled=()
-          already_terminal=()
-          unavailable=()
+          : > /tmp/cancelled.txt
+          : > /tmp/not_cancelled.txt
           for run_id in "${targets[@]}"; do
-            status="$(
-              gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" \
-                --jq '.status' 2>/dev/null || true
+            code="$(
+              curl -sS \
+                -o /tmp/cancel-response.json \
+                -w '%{http_code}' \
+                -X POST \
+                -H "Authorization: Bearer $GH_TOKEN" \
+                -H 'Accept: application/vnd.github+json' \
+                -H 'X-GitHub-Api-Version: 2022-11-28' \
+                "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs/$run_id/cancel"
             )"
-            case "$status" in
-              queued|in_progress|waiting|pending|requested)
-                if gh api \
-                  --method POST \
-                  "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/cancel" \
-                  >/dev/null 2>&1; then
-                  cancelled+=("$run_id")
-                else
-                  unavailable+=("$run_id:$status")
-                fi
-                ;;
-              completed)
-                already_terminal+=("$run_id")
+            case "$code" in
+              202)
+                echo "$run_id" | tee -a /tmp/cancelled.txt
                 ;;
               *)
-                unavailable+=("$run_id:${status:-missing}")
+                echo "$run_id:$code" | tee -a /tmp/not_cancelled.txt
                 ;;
             esac
           done
 
-          # Opening the temporary control PR can itself fan out repository-wide
-          # pull-request workflows. Cancel every nonterminal run for this
-          # temporary head branch except this control run.
-          while IFS= read -r run_id; do
-            test -n "$run_id" || continue
-            test "$run_id" = "$GITHUB_RUN_ID" && continue
-            if gh api \
-              --method POST \
-              "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/cancel" \
-              >/dev/null 2>&1; then
-              cancelled+=("$run_id")
-            fi
-          done < <(
-            gh api \
-              "repos/$GITHUB_REPOSITORY/actions/runs?event=pull_request&branch=agent/u3-b2-reference-authority-trigger&per_page=100" \
-              --jq '.workflow_runs[] | select(.status != "completed") | .id'
-          )
-
-          {
-            echo "cancelled=${cancelled[*]:-none}"
-            echo "already_terminal=${already_terminal[*]:-none}"
-            echo "unavailable=${unavailable[*]:-none}"
-            echo "retained_authority_run=31202674732"
-          } | tee /tmp/cancel-summary.txt
-
-          gh issue comment 135 \
-            --repo "$GITHUB_REPOSITORY" \
-            --body-file /tmp/cancel-summary.txt
+          echo 'cancelled:'
+          cat /tmp/cancelled.txt
+          echo 'not_cancelled_or_already_terminal:'
+          cat /tmp/not_cancelled.txt
+          echo 'retained_authority_run=31202674732'
 
       - name: Assert retained authority run was not targeted
         run: |
-          ! grep -Eq 'cancelled=.*(^| )31202674732($| )' /tmp/cancel-summary.txt
-          grep -F 'retained_authority_run=31202674732' /tmp/cancel-summary.txt
+          ! grep -Fx '31202674732' /tmp/cancelled.txt
+          echo 'retained_authority_run=31202674732'
