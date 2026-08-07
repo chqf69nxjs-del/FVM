@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 concurrency:
   group: temporary-stage7-u3-b2-reference-authority
@@ -25,6 +26,14 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 300
     steps:
+      - name: Announce authoritative run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue comment 135 \
+            --repo "$GITHUB_REPOSITORY" \
+            --body "U3 B2 corrected Reference authority started: run $GITHUB_RUN_ID, exact source $ANALYSIS_SOURCE_GIT_SHA, Ubuntu 24.04 / Python 3.12.13."
+
       - name: Checkout exact Reference source head
         uses: actions/checkout@v7
         with:
@@ -305,3 +314,13 @@ jobs:
             related_junit.xml
             full_repository_junit.xml
           if-no-files-found: warn
+
+      - name: Record authority job status
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUTHORITY_STATUS: ${{ job.status }}
+        run: |
+          gh issue comment 135 \
+            --repo "$GITHUB_REPOSITORY" \
+            --body "U3 B2 corrected Reference authority completed: run $GITHUB_RUN_ID, exact source $ANALYSIS_SOURCE_GIT_SHA, job status $AUTHORITY_STATUS. No Adapter, finite-pipe, physical-validation, design-use, or production flag is promoted by this execution alone."
