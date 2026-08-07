@@ -18,7 +18,7 @@ env:
   PYTHONPATH: src
   PYTHONDONTWRITEBYTECODE: "1"
   MPLBACKEND: Agg
-  ANALYSIS_SOURCE_GIT_SHA: cba708696587069f0639adeea941718ba8bce16c
+  ANALYSIS_SOURCE_GIT_SHA: 1fd247273f7ecdbe21a50eccea721097aceee897
 
 jobs:
   authoritative-u3-b2-reference:
@@ -28,7 +28,7 @@ jobs:
       - name: Checkout exact Reference source head
         uses: actions/checkout@v7
         with:
-          ref: cba708696587069f0639adeea941718ba8bce16c
+          ref: 1fd247273f7ecdbe21a50eccea721097aceee897
           fetch-depth: 1
 
       - name: Assert exact checkout
