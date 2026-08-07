@@ -1,0 +1,209 @@
+{
+  "schema_version": "stage7_u3_b2_fvm_discharge_coupling_event_provenance_contract_v1",
+  "status": "LOCKED_BEFORE_RESULTS",
+  "issue": 135,
+  "parent_contract": {
+    "path": "docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json",
+    "schema_version": "stage7_u3_b2_fvm_discharge_coupling_contract_v1",
+    "combined_interpretation": "the parent mapping contract and this event/provenance extension together form the locked U3 B2 contract"
+  },
+  "fvm_extension": {
+    "right_boundary_scaffold": "TransmissiveBoundary used only to construct finite ghost states; its external numerical flux is discarded and replaced before all budgets and updates"
+  },
+  "inherited_B1_acceptance_tolerances": {
+    "source_contract": "docs/verification/stage7_u3_b1_critical_state_contract_v1.json",
+    "inheritance_rule": "exact B1 values are reused without relaxation or result-driven modification",
+    "B0_limit_mass_flow_relative": 0.01,
+    "B0_limit_effective_velocity_relative": 0.01,
+    "B0_limit_momentum_transfer_relative": 0.02,
+    "B0_limit_energy_transfer_relative": 0.01,
+    "critical_pressure_Cd_independence_relative": 5e-06,
+    "minimum_unchoked_mass_flow_ordering_margin_relative": 0.001
+  },
+  "acoustic_event_detection": {
+    "history_sampling": "every accepted time step",
+    "spatial_probe_sampling": {
+      "coordinate_system": "normalized physical coordinate xi=x/L on zero-based internal-cell centers; ghost cells are excluded",
+      "requested_normalized_positions": [
+        0.25,
+        0.5,
+        0.75
+      ],
+      "cell_center_coordinate": "xi_i=(i+0.5)/N for zero-based internal cell index i",
+      "sampled_primitive_quantities": [
+        "pressure_pa",
+        "axial_velocity_m_s"
+      ],
+      "accepted_state_rule": "derive p_i and u_i from the same accepted internal-cell primitive state at each retained time before spatial interpolation",
+      "exact_cell_center_rule": "if xi_probe exactly equals an internal cell center, use that cell value without interpolation",
+      "bracketing_rule": "otherwise choose the unique adjacent internal cell centers xi_j<xi_probe<xi_(j+1); nearest-cell sampling and distance-tie selection are prohibited",
+      "interpolation_weight": "lambda=(xi_probe-xi_j)/(xi_(j+1)-xi_j)",
+      "linear_interpolation": "q_probe=(1-lambda)*q_j+lambda*q_(j+1), applied separately to pressure and axial velocity",
+      "arrival_reference_coordinate": "use the requested xi_probe in t_direct=(1-xi_probe)*L/c0 and t_reflected=(1+xi_probe)*L/c0; do not substitute either bracketing center or an effective sampled coordinate",
+      "outside_internal_center_envelope_rule": "contract error before execution; every fixed probe must be bracketed by two internal cell centers for every fixed mesh",
+      "fixed_mesh_probe_map": [
+        {
+          "cells": 16,
+          "entries": [
+            {
+              "xi_probe": 0.25,
+              "left_internal_index": 3,
+              "left_center_xi": 0.21875,
+              "right_internal_index": 4,
+              "right_center_xi": 0.28125,
+              "lambda": 0.5
+            },
+            {
+              "xi_probe": 0.5,
+              "left_internal_index": 7,
+              "left_center_xi": 0.46875,
+              "right_internal_index": 8,
+              "right_center_xi": 0.53125,
+              "lambda": 0.5
+            },
+            {
+              "xi_probe": 0.75,
+              "left_internal_index": 11,
+              "left_center_xi": 0.71875,
+              "right_internal_index": 12,
+              "right_center_xi": 0.78125,
+              "lambda": 0.5
+            }
+          ]
+        },
+        {
+          "cells": 32,
+          "entries": [
+            {
+              "xi_probe": 0.25,
+              "left_internal_index": 7,
+              "left_center_xi": 0.234375,
+              "right_internal_index": 8,
+              "right_center_xi": 0.265625,
+              "lambda": 0.5
+            },
+            {
+              "xi_probe": 0.5,
+              "left_internal_index": 15,
+              "left_center_xi": 0.484375,
+              "right_internal_index": 16,
+              "right_center_xi": 0.515625,
+              "lambda": 0.5
+            },
+            {
+              "xi_probe": 0.75,
+              "left_internal_index": 23,
+              "left_center_xi": 0.734375,
+              "right_internal_index": 24,
+              "right_center_xi": 0.765625,
+              "lambda": 0.5
+            }
+          ]
+        },
+        {
+          "cells": 64,
+          "entries": [
+            {
+              "xi_probe": 0.25,
+              "left_internal_index": 15,
+              "left_center_xi": 0.2421875,
+              "right_internal_index": 16,
+              "right_center_xi": 0.2578125,
+              "lambda": 0.5
+            },
+            {
+              "xi_probe": 0.5,
+              "left_internal_index": 31,
+              "left_center_xi": 0.4921875,
+              "right_internal_index": 32,
+              "right_center_xi": 0.5078125,
+              "lambda": 0.5
+            },
+            {
+              "xi_probe": 0.75,
+              "left_internal_index": 47,
+              "left_center_xi": 0.7421875,
+              "right_internal_index": 48,
+              "right_center_xi": 0.7578125,
+              "lambda": 0.5
+            }
+          ]
+        }
+      ],
+      "no_post_result_spatial_rule_change": true
+    },
+    "expected_window_half_width_L_over_c0": 0.2,
+    "candidate_index_rule": "among samples k with k-1 and k+1 inside the expected-time window, select the minimum centered pressure slope; ties select the earliest k",
+    "centered_pressure_slope": "(p[k+1]-p[k-1])/(t[k+1]-t[k-1])",
+    "direct_sign_check": "p[k+1]-p[k-1] < 0 and u[k+1]-u[k-1] > 0",
+    "direct_arrival_order": "probe 0.75, then 0.50, then 0.25",
+    "reflected_sign_check": "p[k+1]-p[k-1] < 0 and u[k+1]-u[k-1] < 0",
+    "reflected_arrival_order": "probe 0.25, then 0.50, then 0.75",
+    "unresolved_outcome": "ACOUSTIC_EVENT_NOT_RESOLVED",
+    "no_post_result_window_or_threshold_change": true
+  },
+  "mesh_cfl_characterization": {
+    "fixed_horizon": "2.0*L/c0 for LIQUID_SMALL_DROP",
+    "required_metrics": [
+      "formal_outcome",
+      "cumulative_mass_out_kg",
+      "cumulative_energy_out_J",
+      "mass_inventory_residual",
+      "energy_inventory_residual",
+      "direct_rarefaction_arrival_times",
+      "reflected_rarefaction_arrival_times",
+      "event_signs_and_probe_order",
+      "minimum_pressure_pa",
+      "maximum_outward_velocity_m_s"
+    ],
+    "acceptance_rule": "every fixed run must satisfy its predeclared identity, inventory, event-sign, and event-arrival tolerances",
+    "claim_limit": "characterization only; no formal convergence order, mesh independence, or CFL independence is approved"
+  },
+  "runtime_and_provenance": {
+    "authoritative_runner": "ubuntu-24.04",
+    "python_version": "3.12.13",
+    "numpy_version": "2.5.1",
+    "matplotlib_version": "3.11.1",
+    "pytest_version": "9.1.1",
+    "property_backend": "CoolProp",
+    "property_backend_version": "8.0.0",
+    "analysis_source_git_sha_rule": "record github.event.pull_request.head.sha when present, otherwise github.sha",
+    "checkout_git_sha_rule": "record git rev-parse HEAD separately from analysis source SHA",
+    "pre_execution_git_status": "empty including untracked files",
+    "post_execution_tracked_git_status": "empty",
+    "reference_and_adapter_source_shas_separate": true,
+    "parent_and_extension_contract_sha256_required": true,
+    "artifact_manifest_rule": "artifact_sha256.txt covers every retained evidence file except itself",
+    "report_provenance_required": [
+      "case or matrix identifier",
+      "model and mapping mode",
+      "property backend and version",
+      "analysis source SHA",
+      "Reference source SHA",
+      "Adapter source SHA when implemented",
+      "workflow run ID"
+    ],
+    "figure_provenance_required": [
+      "case or matrix identifier",
+      "model",
+      "property backend and version",
+      "analysis source SHA",
+      "workflow run ID"
+    ]
+  },
+  "required_artifact_additions": [
+    "event_provenance_contract.json",
+    "runtime_and_git_provenance.json"
+  ],
+  "approval_boundary": {
+    "u3_b2_contract_locked": true,
+    "u3_b2_reference_implemented": false,
+    "u3_b2_fvm_adapter_implemented": false,
+    "u3_b2_finite_pipe_execution_complete": false,
+    "u3_b2_verification_benchmark_accepted": false,
+    "physical_discharge_boundary_approved": false,
+    "physical_validation": false,
+    "design_use_acceptance": false,
+    "production_hem_activation_approved": false
+  }
+}
