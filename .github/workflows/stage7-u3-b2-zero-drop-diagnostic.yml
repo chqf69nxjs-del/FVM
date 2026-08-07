@@ -32,7 +32,7 @@ jobs:
         run: |
           gh issue comment 135 \
             --repo "$GITHUB_REPOSITORY" \
-            --body "U3 B2 B2-02 macOS diagnostic started: run $GITHUB_RUN_ID, exact source $ANALYSIS_SOURCE_GIT_SHA. This is a logic preflight; Ubuntu 24.04 remains authoritative."
+            --body "U3 B2 B2-02 macOS diagnostic started: run $GITHUB_RUN_ID, exact source $ANALYSIS_SOURCE_GIT_SHA. This is a logic preflight; Ubuntu 24.04 / Python 3.12.13 remains authoritative."
 
       - name: Checkout exact corrected Reference head
         uses: actions/checkout@v7
@@ -45,10 +45,10 @@ jobs:
           test "$(git rev-parse HEAD)" = "$ANALYSIS_SOURCE_GIT_SHA"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
-      - name: Set up Python
+      - name: Set up diagnostic Python
         uses: actions/setup-python@v6
         with:
-          python-version: "3.12.13"
+          python-version: "3.12"
 
       - name: Install fixed dependencies
         run: |
@@ -65,6 +65,7 @@ jobs:
         run: |
           python - <<'PY'
           import json
+          import platform
           from pathlib import Path
 
           from liquid_gas_transient import u3_b1_critical_state_reference as b1
@@ -105,6 +106,7 @@ jobs:
           assert "raw B1 outcome" in row.formal_message
 
           print(json.dumps({
+              "diagnostic_python": platform.python_version(),
               "case_id": row.case_id,
               "B2_formal_outcome": row.formal_outcome,
               "raw_B1_formal_outcome": row.b1_formal_outcome,
@@ -142,7 +144,7 @@ jobs:
         run: |
           gh issue comment 135 \
             --repo "$GITHUB_REPOSITORY" \
-            --body "U3 B2 B2-02 macOS diagnostic completed: run $GITHUB_RUN_ID, source $ANALYSIS_SOURCE_GIT_SHA, outcome $DIAGNOSTIC_OUTCOME. Ubuntu 24.04 authority remains required; no contract, B1 law, or accepted tolerance was changed."
+            --body "U3 B2 B2-02 macOS diagnostic completed: run $GITHUB_RUN_ID, source $ANALYSIS_SOURCE_GIT_SHA, outcome $DIAGNOSTIC_OUTCOME. Ubuntu 24.04 / Python 3.12.13 authority remains required; no contract, B1 law, or accepted tolerance was changed."
 
       - name: Enforce diagnostic success
         if: always()
