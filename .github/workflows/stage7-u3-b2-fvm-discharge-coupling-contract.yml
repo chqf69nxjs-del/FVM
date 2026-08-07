@@ -19,6 +19,8 @@ concurrency:
 env:
   PYTHONPATH: src
   PYTHONDONTWRITEBYTECODE: "1"
+  MPLBACKEND: Agg
+  ANALYSIS_SOURCE_GIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
 jobs:
   validate-u3-b2-contract:
@@ -141,6 +143,147 @@ jobs:
               assert totals["errors"] == 0
           PY
 
+      - name: Generate contract provenance and SHA256 evidence
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import platform
+          import shutil
+          import subprocess
+          from importlib.metadata import version
+          from pathlib import Path
+
+          target = Path("artifacts/stage7-u3-b2-contract")
+          target.mkdir(parents=True, exist_ok=False)
+
+          retained_sources = {
+              "benchmark_contract.json": Path(
+                  "docs/verification/"
+                  "stage7_u3_b2_fvm_discharge_coupling_contract_v1.json"
+              ),
+              "specification.md": Path(
+                  "docs/verification/"
+                  "stage7_u3_b2_fvm_discharge_coupling_specification.md"
+              ),
+              "contract_tests.py": Path(
+                  "tests/test_stage7_u3_b2_fvm_discharge_coupling_contract.py"
+              ),
+              "contract_workflow.yml": Path(
+                  ".github/workflows/"
+                  "stage7-u3-b2-fvm-discharge-coupling-contract.yml"
+              ),
+              "dedicated_junit.xml": Path("u3-b2-contract-dedicated.xml"),
+              "related_junit.xml": Path("u3-b2-contract-related.xml"),
+              "full_repository_junit.xml": Path("full-repository.xml"),
+          }
+          for destination, source in retained_sources.items():
+              assert source.is_file(), source
+              shutil.copy2(source, target / destination)
+
+          analysis_source_sha = os.environ["ANALYSIS_SOURCE_GIT_SHA"]
+          assert len(analysis_source_sha) == 40
+          assert all(character in "0123456789abcdef" for character in analysis_source_sha)
+          checkout_sha = subprocess.check_output(
+              ["git", "rev-parse", "HEAD"], text=True
+          ).strip()
+          pre_status = subprocess.check_output(
+              ["git", "status", "--porcelain=v1", "--untracked-files=no"],
+              text=True,
+          ).strip()
+          assert pre_status == ""
+
+          contract_bytes = (target / "benchmark_contract.json").read_bytes()
+          contract_sha256 = hashlib.sha256(contract_bytes).hexdigest()
+          provenance = {
+              "schema_version": "stage7_u3_b2_contract_provenance_v1",
+              "analysis_source_git_sha": analysis_source_sha,
+              "checkout_git_sha": checkout_sha,
+              "workflow_run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "workflow_run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+              "runner_os": "ubuntu-24.04",
+              "python_version": platform.python_version(),
+              "numpy_version": version("numpy"),
+              "matplotlib_version": version("matplotlib"),
+              "pytest_version": version("pytest"),
+              "property_backend": "CoolProp",
+              "property_backend_version": version("CoolProp"),
+              "contract_sha256": contract_sha256,
+              "tracked_git_status": pre_status,
+          }
+          assert provenance["python_version"] == "3.12.13"
+          assert provenance["numpy_version"] == "2.5.1"
+          assert provenance["matplotlib_version"] == "3.11.1"
+          assert provenance["pytest_version"] == "9.1.1"
+          assert provenance["property_backend_version"] == "8.0.0"
+          (target / "runtime_and_git_provenance.json").write_text(
+              json.dumps(provenance, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+
+          contract = json.loads(contract_bytes.decode("utf-8"))
+          summary = {
+              "schema_version": "stage7_u3_b2_contract_evidence_v1",
+              "issue": contract["issue"],
+              "contract_schema_version": contract["schema_version"],
+              "contract_status": contract["status"],
+              "case_count": len(contract["benchmark_cases"]),
+              "physical_case_count": sum(
+                  not row["case_id"].startswith("G-")
+                  for row in contract["benchmark_cases"]
+              ),
+              "guard_case_count": sum(
+                  row["case_id"].startswith("G-")
+                  for row in contract["benchmark_cases"]
+              ),
+              "right_boundary_mode": contract["fvm_baseline"][
+                  "right_boundary_mode"
+              ],
+              "analysis_source_git_sha": analysis_source_sha,
+              "checkout_git_sha": checkout_sha,
+              "contract_sha256": contract_sha256,
+              **contract["approval_boundary"],
+          }
+          assert summary["case_count"] == 26
+          assert summary["physical_case_count"] == 19
+          assert summary["guard_case_count"] == 7
+          assert summary["u3_b2_contract_locked"] is True
+          assert summary["u3_b2_reference_implemented"] is False
+          (target / "summary.json").write_text(
+              json.dumps(summary, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+
+          manifest_lines = []
+          for path in sorted(target.iterdir(), key=lambda item: item.name):
+              if path.name == "artifact_sha256.txt":
+                  continue
+              assert path.is_file()
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              manifest_lines.append(f"{digest}  {path.name}")
+          (target / "artifact_sha256.txt").write_text(
+              "\n".join(manifest_lines) + "\n",
+              encoding="utf-8",
+          )
+
+          manifest = {}
+          for line in (target / "artifact_sha256.txt").read_text(
+              encoding="utf-8"
+          ).splitlines():
+              digest, name = line.split("  ", 1)
+              manifest[name] = digest
+          assert set(manifest) == {
+              path.name
+              for path in target.iterdir()
+              if path.name != "artifact_sha256.txt"
+          }
+          for name, expected in manifest.items():
+              assert hashlib.sha256((target / name).read_bytes()).hexdigest() == expected
+          print(json.dumps(summary, indent=2, sort_keys=True))
+          print(json.dumps(provenance, indent=2, sort_keys=True))
+          PY
+
       - name: Assert checkout remains clean
         run: |
           tracked_status="$(git status --porcelain=v1 --untracked-files=no)"
@@ -152,10 +295,5 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: stage7-u3-b2-contract-${{ github.run_id }}
-          path: |
-            docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json
-            docs/verification/stage7_u3_b2_fvm_discharge_coupling_specification.md
-            u3-b2-contract-dedicated.xml
-            u3-b2-contract-related.xml
-            full-repository.xml
+          path: artifacts/stage7-u3-b2-contract
           if-no-files-found: error
