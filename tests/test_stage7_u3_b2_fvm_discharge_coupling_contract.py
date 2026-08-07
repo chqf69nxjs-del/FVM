@@ -11,10 +11,18 @@ CONTRACT = Path(
 SPECIFICATION = Path(
     "docs/verification/stage7_u3_b2_fvm_discharge_coupling_specification.md"
 )
+EVENT_PROVENANCE_CONTRACT = Path(
+    "docs/verification/"
+    "stage7_u3_b2_fvm_discharge_coupling_event_provenance_contract_v1.json"
+)
 
 
 def _load() -> dict[str, object]:
     return json.loads(CONTRACT.read_text(encoding="utf-8"))
+
+
+def _load_event_provenance() -> dict[str, object]:
+    return json.loads(EVENT_PROVENANCE_CONTRACT.read_text(encoding="utf-8"))
 
 
 def test_contract_identity_preconditions_and_lock_state() -> None:
@@ -64,8 +72,10 @@ def test_b1_component_is_immutable_and_direct_flux_mapping_is_locked() -> None:
     assert fvm["time_integrator"] == "explicit_forward_euler"
     assert fvm["right_boundary_mode"] == "direct_external_face_flux_override"
     assert fvm["discharge_ghost_state_synthesis"] is False
-    assert fvm["right_boundary_scaffold"].startswith("TransmissiveBoundary")
-    assert "external numerical flux is discarded" in fvm["right_boundary_scaffold"]
+    extension = _load_event_provenance()
+    scaffold = extension["fvm_extension"]["right_boundary_scaffold"]
+    assert scaffold.startswith("TransmissiveBoundary")
+    assert "external numerical flux is discarded" in scaffold
     assert "before boundary-budget recording" in (
         fvm["right_boundary_application_order"]
     )
@@ -176,7 +186,11 @@ def test_update_inventory_and_acoustic_rules_are_predeclared() -> None:
         "velocity_perturbation": "positive_outward",
         "arrival_order": "probe 0.75, then 0.50, then 0.25",
     }
-    detection = acoustic["event_detection"]
+    extension = _load_event_provenance()
+    assert extension["parent_contract"]["schema_version"] == (
+        "stage7_u3_b2_fvm_discharge_coupling_contract_v1"
+    )
+    detection = extension["acoustic_event_detection"]
     assert detection["history_sampling"] == "every accepted time step"
     assert detection["expected_window_half_width_L_over_c0"] == 0.20
     assert detection["centered_pressure_slope"] == (
@@ -187,7 +201,7 @@ def test_update_inventory_and_acoustic_rules_are_predeclared() -> None:
     assert detection["unresolved_outcome"] == "ACOUSTIC_EVENT_NOT_RESOLVED"
     assert detection["no_post_result_window_or_threshold_change"] is True
 
-    matrix = contract["mesh_cfl_characterization"]
+    matrix = extension["mesh_cfl_characterization"]
     assert matrix["fixed_horizon"] == "2.0*L/c0 for LIQUID_SMALL_DROP"
     assert {
         "formal_outcome",
@@ -273,7 +287,10 @@ def test_tolerances_independence_artifacts_and_approval_boundary() -> None:
         ):
             assert value is False, key
 
-    required = set(contract["required_artifacts"])
+    extension = _load_event_provenance()
+    required = set(contract["required_artifacts"]) | set(
+        extension["required_artifact_additions"]
+    )
     assert {
         "runtime_and_git_provenance.json",
         "face_flux_decomposition.csv",
@@ -286,7 +303,7 @@ def test_tolerances_independence_artifacts_and_approval_boundary() -> None:
         "full_repository_junit.xml",
     } <= required
 
-    provenance = contract["runtime_and_provenance"]
+    provenance = extension["runtime_and_provenance"]
     assert provenance["authoritative_runner"] == "ubuntu-24.04"
     assert provenance["python_version"] == "3.12.13"
     assert provenance["numpy_version"] == "2.5.1"
@@ -295,10 +312,15 @@ def test_tolerances_independence_artifacts_and_approval_boundary() -> None:
     assert provenance["property_backend"] == "CoolProp"
     assert provenance["property_backend_version"] == "8.0.0"
     assert provenance["reference_and_adapter_source_shas_separate"] is True
-    assert provenance["contract_sha256_required"] is True
+    assert provenance["parent_and_extension_contract_sha256_required"] is True
     assert provenance["artifact_manifest_rule"].startswith("artifact_sha256.txt covers")
     assert "analysis source SHA" in provenance["report_provenance_required"]
     assert "workflow run ID" in provenance["figure_provenance_required"]
+    extension_approval = extension["approval_boundary"]
+    assert extension_approval["u3_b2_contract_locked"] is True
+    for key, value in extension_approval.items():
+        if key != "u3_b2_contract_locked":
+            assert value is False, key
 
     assert all(value is False for value in contract["immutable_scope"].values())
 
