@@ -64,6 +64,8 @@ def test_b1_component_is_immutable_and_direct_flux_mapping_is_locked() -> None:
     assert fvm["time_integrator"] == "explicit_forward_euler"
     assert fvm["right_boundary_mode"] == "direct_external_face_flux_override"
     assert fvm["discharge_ghost_state_synthesis"] is False
+    assert fvm["right_boundary_scaffold"].startswith("TransmissiveBoundary")
+    assert "external numerical flux is discarded" in fvm["right_boundary_scaffold"]
     assert "before boundary-budget recording" in (
         fvm["right_boundary_application_order"]
     )
@@ -174,6 +176,32 @@ def test_update_inventory_and_acoustic_rules_are_predeclared() -> None:
         "velocity_perturbation": "positive_outward",
         "arrival_order": "probe 0.75, then 0.50, then 0.25",
     }
+    detection = acoustic["event_detection"]
+    assert detection["history_sampling"] == "every accepted time step"
+    assert detection["expected_window_half_width_L_over_c0"] == 0.20
+    assert detection["centered_pressure_slope"] == (
+        "(p[k+1]-p[k-1])/(t[k+1]-t[k-1])"
+    )
+    assert detection["direct_sign_check"].endswith("u[k+1]-u[k-1] > 0")
+    assert detection["reflected_sign_check"].endswith("u[k+1]-u[k-1] < 0")
+    assert detection["unresolved_outcome"] == "ACOUSTIC_EVENT_NOT_RESOLVED"
+    assert detection["no_post_result_window_or_threshold_change"] is True
+
+    matrix = contract["mesh_cfl_characterization"]
+    assert matrix["fixed_horizon"] == "2.0*L/c0 for LIQUID_SMALL_DROP"
+    assert {
+        "formal_outcome",
+        "cumulative_mass_out_kg",
+        "cumulative_energy_out_J",
+        "mass_inventory_residual",
+        "energy_inventory_residual",
+        "direct_rarefaction_arrival_times",
+        "reflected_rarefaction_arrival_times",
+        "event_signs_and_probe_order",
+        "minimum_pressure_pa",
+        "maximum_outward_velocity_m_s",
+    } == set(matrix["required_metrics"])
+    assert "no formal convergence order" in matrix["claim_limit"]
 
 
 def test_fixed_case_matrix_and_guard_matrix_are_complete() -> None:
@@ -247,6 +275,7 @@ def test_tolerances_independence_artifacts_and_approval_boundary() -> None:
 
     required = set(contract["required_artifacts"])
     assert {
+        "runtime_and_git_provenance.json",
         "face_flux_decomposition.csv",
         "one_step_conservative_update_comparison.csv",
         "cumulative_discharge_and_inventory.csv",
@@ -256,6 +285,20 @@ def test_tolerances_independence_artifacts_and_approval_boundary() -> None:
         "artifact_sha256.txt",
         "full_repository_junit.xml",
     } <= required
+
+    provenance = contract["runtime_and_provenance"]
+    assert provenance["authoritative_runner"] == "ubuntu-24.04"
+    assert provenance["python_version"] == "3.12.13"
+    assert provenance["numpy_version"] == "2.5.1"
+    assert provenance["matplotlib_version"] == "3.11.1"
+    assert provenance["pytest_version"] == "9.1.1"
+    assert provenance["property_backend"] == "CoolProp"
+    assert provenance["property_backend_version"] == "8.0.0"
+    assert provenance["reference_and_adapter_source_shas_separate"] is True
+    assert provenance["contract_sha256_required"] is True
+    assert provenance["artifact_manifest_rule"].startswith("artifact_sha256.txt covers")
+    assert "analysis source SHA" in provenance["report_provenance_required"]
+    assert "workflow run ID" in provenance["figure_provenance_required"]
 
     assert all(value is False for value in contract["immutable_scope"].values())
 
@@ -268,5 +311,7 @@ def test_tolerances_independence_artifacts_and_approval_boundary() -> None:
     specification = SPECIFICATION.read_text(encoding="utf-8")
     assert "LOCKED_BEFORE_RESULTS" in specification
     assert "direct external-face flux override" in specification
+    assert "ACOUSTIC_EVENT_NOT_RESOLVED" in specification
+    assert "Runtime and provenance contract" in specification
     assert "physical_discharge_boundary_approved" in specification
     assert "two-phase critical-discharge workを開始しない" in specification
