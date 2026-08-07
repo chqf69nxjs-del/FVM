@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
 
@@ -41,6 +42,90 @@ def test_extension_locks_direct_and_reflected_acoustic_event_order() -> None:
     )
     assert detection["unresolved_outcome"] == "ACOUSTIC_EVENT_NOT_RESOLVED"
     assert detection["no_post_result_window_or_threshold_change"] is True
+
+    sampling = detection["spatial_probe_sampling"]
+    assert sampling["requested_normalized_positions"] == [0.25, 0.50, 0.75]
+    assert sampling["sampled_primitive_quantities"] == [
+        "pressure_pa",
+        "axial_velocity_m_s",
+    ]
+    assert "nearest-cell sampling" in sampling["bracketing_rule"]
+    assert "requested xi_probe" in sampling["arrival_reference_coordinate"]
+    assert sampling["no_post_result_spatial_rule_change"] is True
+
+    expected_indices = {
+        16: [(3, 4), (7, 8), (11, 12)],
+        32: [(7, 8), (15, 16), (23, 24)],
+        64: [(15, 16), (31, 32), (47, 48)],
+    }
+    probe_map = {
+        int(row["cells"]): row["entries"]
+        for row in sampling["fixed_mesh_probe_map"]
+    }
+    assert set(probe_map) == {16, 32, 64}
+
+    for cells, expected_pairs in expected_indices.items():
+        entries = probe_map[cells]
+        assert len(entries) == 3
+        for entry, expected_pair in zip(entries, expected_pairs, strict=True):
+            xi_probe = float(entry["xi_probe"])
+            left_index = int(entry["left_internal_index"])
+            right_index = int(entry["right_internal_index"])
+            left_center = float(entry["left_center_xi"])
+            right_center = float(entry["right_center_xi"])
+            interpolation_weight = float(entry["lambda"])
+
+            assert (left_index, right_index) == expected_pair
+            assert math.isclose(
+                left_center,
+                (left_index + 0.5) / cells,
+                rel_tol=0.0,
+                abs_tol=0.0,
+            )
+            assert math.isclose(
+                right_center,
+                (right_index + 0.5) / cells,
+                rel_tol=0.0,
+                abs_tol=0.0,
+            )
+            assert left_center < xi_probe < right_center
+            expected_weight = (
+                (xi_probe - left_center) / (right_center - left_center)
+            )
+            assert math.isclose(
+                interpolation_weight,
+                expected_weight,
+                rel_tol=0.0,
+                abs_tol=0.0,
+            )
+            assert interpolation_weight == 0.5
+
+            # Linear interpolation must reproduce any affine primitive field
+            # exactly at the requested physical probe coordinate.
+            pressure_left = 2.0e6 + 3.0e5 * left_center
+            pressure_right = 2.0e6 + 3.0e5 * right_center
+            velocity_left = -4.0 + 5.0 * left_center
+            velocity_right = -4.0 + 5.0 * right_center
+            pressure_probe = (
+                (1.0 - interpolation_weight) * pressure_left
+                + interpolation_weight * pressure_right
+            )
+            velocity_probe = (
+                (1.0 - interpolation_weight) * velocity_left
+                + interpolation_weight * velocity_right
+            )
+            assert math.isclose(
+                pressure_probe,
+                2.0e6 + 3.0e5 * xi_probe,
+                rel_tol=0.0,
+                abs_tol=1.0e-9,
+            )
+            assert math.isclose(
+                velocity_probe,
+                -4.0 + 5.0 * xi_probe,
+                rel_tol=0.0,
+                abs_tol=1.0e-15,
+            )
 
 
 def test_extension_requires_self_and_runtime_provenance_in_artifact() -> None:
