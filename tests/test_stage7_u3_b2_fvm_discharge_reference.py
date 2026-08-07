@@ -102,7 +102,10 @@ def test_face_mapping_outcomes_and_exact_wall_identities() -> None:
     zero_drop = by_id["B2-02_ZERO_DROP_LIQUID_WALL_IDENTITY"]
     assert zero_drop.formal_outcome == reference.SUCCESS_ZERO_DROP_WALL_IDENTITY
     assert zero_drop.expected_outcome == reference.SUCCESS_ZERO_DROP_WALL_IDENTITY
-    assert zero_drop.b1_formal_outcome
+    assert zero_drop.b1_formal_outcome in {
+        b1_ref.SUCCESS_ZERO_PRESSURE_DROP,
+        b1_ref.SUCCESS_UNCHOKED,
+    }
     assert zero_drop.b1_formal_outcome in zero_drop.formal_message
     assert "raw B1 outcome" in zero_drop.formal_message
     assert "No B1 law, contract value, or tolerance was changed" in (
