@@ -1,0 +1,239 @@
+name: Stage 7 U3 B2 Independent FVM Discharge Coupling Reference
+
+on:
+  pull_request:
+    paths:
+      - "src/liquid_gas_transient/u3_b2_fvm_discharge_coupling_reference.py"
+      - "src/liquid_gas_transient/_u3_b2_reference_*.py"
+      - "tests/test_stage7_u3_b2_fvm_discharge_coupling_reference.py"
+      - "docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json"
+      - "docs/verification/stage7_u3_b2_fvm_discharge_coupling_event_provenance_contract_v1.json"
+      - "docs/verification/stage7_u3_b2_fvm_discharge_coupling_reference.md"
+      - ".github/workflows/stage7-u3-b2-fvm-discharge-coupling-reference.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage7-u3-b2-reference-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src
+  PYTHONDONTWRITEBYTECODE: "1"
+  MPLBACKEND: Agg
+  ANALYSIS_SOURCE_GIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  u3-b2-independent-reference:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Install fixed dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install \
+            'numpy==2.5.1' \
+            'matplotlib==3.11.1' \
+            'pytest==9.1.1' \
+            'CoolProp==8.0.0'
+
+      - name: Assert pristine checkout
+        run: |
+          echo "checkout_sha=$(git rev-parse HEAD)"
+          status="$(git status --porcelain=v1 --untracked-files=all)"
+          printf 'pre_execution_git_status=%s\n' "$status"
+          test -z "$status"
+
+      - name: Assert B2 Reference independence
+        run: |
+          ! grep -R -E \
+            'from .*u3_b2.*adapter|import .*u3_b2.*adapter' \
+            src/liquid_gas_transient/u3_b2_fvm_discharge_coupling_reference.py \
+            src/liquid_gas_transient/_u3_b2_reference_*.py
+
+      - name: Execute independent B2 Reference
+        run: |
+          output="artifacts/stage7-u3-b2-independent-reference"
+          rm -rf "$output"
+          python -m liquid_gas_transient.u3_b2_fvm_discharge_coupling_reference \
+            --contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json \
+            --extension-contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_event_provenance_contract_v1.json \
+            --b1-contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
+            --output-dir "$output" \
+            --source-git-sha "$ANALYSIS_SOURCE_GIT_SHA"
+          tracked_status="$(git status --porcelain=v1 --untracked-files=no)"
+          printf 'post_execution_tracked_git_status=%s\n' "$tracked_status"
+          test -z "$tracked_status"
+
+      - name: Inspect independent B2 Reference artifact
+        run: |
+          python - <<'PY'
+          import csv
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          target = Path("artifacts/stage7-u3-b2-independent-reference")
+          expected = {
+              "summary.json",
+              "benchmark_contract.json",
+              "event_provenance_contract.json",
+              "state_family_properties.csv",
+              "face_state_and_choking_adoption.csv",
+              "face_flux_reference.csv",
+              "one_step_balance_reference.csv",
+              "inventory_ledger_reference.csv",
+              "acoustic_arrival_reference.csv",
+              "probe_mapping_reference.csv",
+              "mesh_cfl_reference.csv",
+              "guard_outcomes.csv",
+              "locked_checks.csv",
+              "face_flux_reference.png",
+              "acoustic_arrival_reference.png",
+              "one_step_balance_reference.png",
+              "report.md",
+              "artifact_sha256.txt",
+          }
+          assert {path.name for path in target.iterdir()} == expected
+
+          summary = json.loads((target / "summary.json").read_text(encoding="utf-8"))
+          assert summary["schema_version"] == "stage7_u3_b2_independent_reference_v1"
+          assert summary["case_count"] == 26
+          assert summary["physical_case_count"] == 19
+          assert summary["guard_case_count"] == 7
+          assert summary["formal_outcome_match_count"] == 26
+          assert summary["all_expected_outcomes_match"] is True
+          assert summary["all_locked_checks_passed"] is True
+          assert summary["exact_zero_identities_passed"] is True
+          assert summary["pressure_decomposition_passed"] is True
+          assert summary["B0_limit_passed"] is True
+          assert summary["below_critical_plateau_passed"] is True
+          assert summary["area_scaling_passed"] is True
+          assert summary["Cd_scaling_passed"] is True
+          assert summary["one_step_reference_passed"] is True
+          assert summary["probe_mapping_passed"] is True
+          assert summary["acoustic_reference_passed"] is True
+          assert summary["u3_b2_contract_locked"] is True
+          assert summary["u3_b2_reference_implemented"] is True
+          assert summary["u3_b2_fvm_adapter_implemented"] is False
+          assert summary["u3_b2_finite_pipe_execution_complete"] is False
+          assert summary["u3_b2_verification_benchmark_accepted"] is False
+          assert summary["single_phase_fvm_discharge_mapping_verified"] is False
+          assert summary["single_phase_finite_pipe_coupling_verified"] is False
+          assert summary["physical_discharge_boundary_approved"] is False
+          assert summary["physical_validation"] is False
+          assert summary["design_use_acceptance"] is False
+          assert summary["production_hem_activation_approved"] is False
+          assert summary["provenance"]["analysis_source_git_sha"] == os.environ[
+              "ANALYSIS_SOURCE_GIT_SHA"
+          ]
+          assert summary["provenance"]["property_backend_version"] == "8.0.0"
+          assert summary["provenance"]["b1_reference_source_sha"] == (
+              "c7c25efae0e53a8b5f5ed164f9135238c6e005e0"
+          )
+
+          expected_counts = {
+              "state_family_properties.csv": 3,
+              "face_state_and_choking_adoption.csv": 26,
+              "face_flux_reference.csv": 26,
+              "one_step_balance_reference.csv": 1,
+              "inventory_ledger_reference.csv": 2,
+              "acoustic_arrival_reference.csv": 9,
+              "probe_mapping_reference.csv": 9,
+              "mesh_cfl_reference.csv": 27,
+              "guard_outcomes.csv": 7,
+              "locked_checks.csv": 10,
+          }
+          for name, expected_count in expected_counts.items():
+              with (target / name).open(newline="", encoding="utf-8") as handle:
+                  rows = list(csv.DictReader(handle))
+              assert len(rows) == expected_count, (name, len(rows))
+
+          manifest = {}
+          for line in (target / "artifact_sha256.txt").read_text(
+              encoding="utf-8"
+          ).splitlines():
+              digest, name = line.split("  ", 1)
+              manifest[name] = digest
+          assert set(manifest) == expected - {"artifact_sha256.txt"}
+          for name, digest in manifest.items():
+              assert hashlib.sha256((target / name).read_bytes()).hexdigest() == digest
+          PY
+
+      - name: Compile and diff checks
+        run: |
+          python -m compileall -q src tests
+          git diff --check
+
+      - name: Run dedicated B2 Reference tests
+        run: |
+          python -m pytest -q \
+            tests/test_stage7_u3_b2_fvm_discharge_coupling_reference.py \
+            --strict-markers \
+            --junitxml=dedicated_junit.xml
+
+      - name: Run related U3 regressions
+        run: |
+          python -m pytest -q \
+            tests/test_stage7_u3_b1_critical_state_contract.py \
+            tests/test_stage7_u3_b1_critical_state_reference.py \
+            tests/test_stage7_u3_b1_critical_state_authoritative.py \
+            tests/test_stage7_u3_b2_fvm_discharge_coupling_contract.py \
+            tests/test_stage7_u3_b2_fvm_discharge_coupling_extension_contract.py \
+            tests/test_stage7_u3_b2_fvm_discharge_coupling_reference.py \
+            --strict-markers \
+            --junitxml=related_junit.xml
+
+      - name: Run full repository tests
+        run: |
+          python -m pytest -q \
+            --strict-markers \
+            --junitxml=full_repository_junit.xml
+
+      - name: Assert authoritative JUnit is clean
+        run: |
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          expected_minimums = {
+              "dedicated_junit.xml": 10,
+              "related_junit.xml": 30,
+              "full_repository_junit.xml": 950,
+          }
+          for name, minimum in expected_minimums.items():
+              root = ET.parse(Path(name)).getroot()
+              suites = [root] if root.tag == "testsuite" else list(root.findall("testsuite"))
+              totals = {
+                  key: sum(int(s.attrib.get(key, 0)) for s in suites)
+                  for key in ("tests", "skipped", "failures", "errors")
+              }
+              print(name, totals)
+              assert totals["tests"] >= minimum
+              assert totals["skipped"] == 0
+              assert totals["failures"] == 0
+              assert totals["errors"] == 0
+          PY
+
+      - name: Upload B2 independent-reference evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: stage7-u3-b2-reference-${{ github.run_id }}
+          path: |
+            artifacts/stage7-u3-b2-independent-reference
+            dedicated_junit.xml
+            related_junit.xml
+            full_repository_junit.xml
+          if-no-files-found: error
