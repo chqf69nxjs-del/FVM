@@ -1,0 +1,86 @@
+{
+  "schema_version": "stage7_u3_b2_fvm_discharge_coupling_event_provenance_contract_v1",
+  "status": "LOCKED_BEFORE_RESULTS",
+  "issue": 135,
+  "parent_contract": {
+    "path": "docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json",
+    "schema_version": "stage7_u3_b2_fvm_discharge_coupling_contract_v1",
+    "combined_interpretation": "the parent mapping contract and this event/provenance extension together form the locked U3 B2 contract"
+  },
+  "fvm_extension": {
+    "right_boundary_scaffold": "TransmissiveBoundary used only to construct finite ghost states; its external numerical flux is discarded and replaced before all budgets and updates"
+  },
+  "acoustic_event_detection": {
+    "history_sampling": "every accepted time step",
+    "expected_window_half_width_L_over_c0": 0.2,
+    "candidate_index_rule": "among samples k with k-1 and k+1 inside the expected-time window, select the minimum centered pressure slope; ties select the earliest k",
+    "centered_pressure_slope": "(p[k+1]-p[k-1])/(t[k+1]-t[k-1])",
+    "direct_sign_check": "p[k+1]-p[k-1] < 0 and u[k+1]-u[k-1] > 0",
+    "reflected_sign_check": "p[k+1]-p[k-1] < 0 and u[k+1]-u[k-1] < 0",
+    "unresolved_outcome": "ACOUSTIC_EVENT_NOT_RESOLVED",
+    "no_post_result_window_or_threshold_change": true
+  },
+  "mesh_cfl_characterization": {
+    "fixed_horizon": "2.0*L/c0 for LIQUID_SMALL_DROP",
+    "required_metrics": [
+      "formal_outcome",
+      "cumulative_mass_out_kg",
+      "cumulative_energy_out_J",
+      "mass_inventory_residual",
+      "energy_inventory_residual",
+      "direct_rarefaction_arrival_times",
+      "reflected_rarefaction_arrival_times",
+      "event_signs_and_probe_order",
+      "minimum_pressure_pa",
+      "maximum_outward_velocity_m_s"
+    ],
+    "acceptance_rule": "every fixed run must satisfy its predeclared identity, inventory, event-sign, and event-arrival tolerances",
+    "claim_limit": "characterization only; no formal convergence order, mesh independence, or CFL independence is approved"
+  },
+  "runtime_and_provenance": {
+    "authoritative_runner": "ubuntu-24.04",
+    "python_version": "3.12.13",
+    "numpy_version": "2.5.1",
+    "matplotlib_version": "3.11.1",
+    "pytest_version": "9.1.1",
+    "property_backend": "CoolProp",
+    "property_backend_version": "8.0.0",
+    "analysis_source_git_sha_rule": "record github.event.pull_request.head.sha when present, otherwise github.sha",
+    "checkout_git_sha_rule": "record git rev-parse HEAD separately from analysis source SHA",
+    "pre_execution_git_status": "empty including untracked files",
+    "post_execution_tracked_git_status": "empty",
+    "reference_and_adapter_source_shas_separate": true,
+    "parent_and_extension_contract_sha256_required": true,
+    "artifact_manifest_rule": "artifact_sha256.txt covers every retained evidence file except itself",
+    "report_provenance_required": [
+      "case or matrix identifier",
+      "model and mapping mode",
+      "property backend and version",
+      "analysis source SHA",
+      "Reference source SHA",
+      "Adapter source SHA when implemented",
+      "workflow run ID"
+    ],
+    "figure_provenance_required": [
+      "case or matrix identifier",
+      "model",
+      "property backend and version",
+      "analysis source SHA",
+      "workflow run ID"
+    ]
+  },
+  "required_artifact_additions": [
+    "runtime_and_git_provenance.json"
+  ],
+  "approval_boundary": {
+    "u3_b2_contract_locked": true,
+    "u3_b2_reference_implemented": false,
+    "u3_b2_fvm_adapter_implemented": false,
+    "u3_b2_finite_pipe_execution_complete": false,
+    "u3_b2_verification_benchmark_accepted": false,
+    "physical_discharge_boundary_approved": false,
+    "physical_validation": false,
+    "design_use_acceptance": false,
+    "production_hem_activation_approved": false
+  }
+}
