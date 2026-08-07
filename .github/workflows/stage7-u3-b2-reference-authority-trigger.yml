@@ -1,7 +1,9 @@
 name: Temporary Stage 7 U3 B2 Reference Authority Trigger
 
 on:
-  pull_request:
+  push:
+    branches:
+      - "agent/u3-b2-reference-authority-trigger"
     paths:
       - ".github/workflows/stage7-u3-b2-reference-authority-trigger.yml"
 
