@@ -1,0 +1,163 @@
+name: Temporary Stage 7 U3 B2 Zero-Drop Slim Diagnostic
+
+on:
+  push:
+    branches:
+      - "agent/u3-b2-reference-authority-trigger"
+    paths:
+      - ".github/workflows/stage7-u3-b2-zero-drop-slim-diagnostic.yml"
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: temporary-stage7-u3-b2-zero-drop-slim-diagnostic
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src
+  PYTHONDONTWRITEBYTECODE: "1"
+  MPLBACKEND: Agg
+  ANALYSIS_SOURCE_GIT_SHA: 1fd247273f7ecdbe21a50eccea721097aceee897
+
+jobs:
+  zero-drop-slim-diagnostic:
+    runs-on: ubuntu-slim
+    timeout-minutes: 15
+    steps:
+      - name: Announce diagnostic run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue comment 135 \
+            --repo "$GITHUB_REPOSITORY" \
+            --body "U3 B2 B2-02 ubuntu-slim diagnostic started: run $GITHUB_RUN_ID, exact source $ANALYSIS_SOURCE_GIT_SHA. This is a lightweight logic preflight; Ubuntu 24.04 remains authoritative."
+
+      - name: Checkout exact corrected Reference head
+        uses: actions/checkout@v7
+        with:
+          ref: 1fd247273f7ecdbe21a50eccea721097aceee897
+          fetch-depth: 1
+
+      - name: Assert exact clean checkout
+        run: |
+          test "$(git rev-parse HEAD)" = "$ANALYSIS_SOURCE_GIT_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Set up fixed Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Install fixed dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install \
+            'numpy==2.5.1' \
+            'matplotlib==3.11.1' \
+            'pytest==9.1.1' \
+            'CoolProp==8.0.0'
+
+      - name: Evaluate locked B2-02 and complete Reference matrix
+        id: diagnostic
+        continue-on-error: true
+        run: |
+          python - <<'PY'
+          import json
+          import platform
+          from pathlib import Path
+
+          from liquid_gas_transient import u3_b1_critical_state_reference as b1
+          from liquid_gas_transient import u3_b2_fvm_discharge_reference as ref
+          from liquid_gas_transient import (
+              u3_b2_fvm_discharge_reference_authoritative as authority,
+          )
+
+          authority.install_authoritative_interpretation()
+          contract = ref.load_contract(Path(
+              "docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json"
+          ))
+          extension = ref.load_extension(Path(
+              "docs/verification/stage7_u3_b2_fvm_discharge_coupling_event_provenance_contract_v1.json"
+          ))
+          b1_contract = b1.load_contract(Path(
+              "docs/verification/stage7_u3_b1_critical_state_contract_v1.json"
+          ))
+          package = ref.evaluate_reference(contract, extension, b1_contract)
+          row = next(
+              item for item in package.face_rows
+              if item.case_id == "B2-02_ZERO_DROP_LIQUID_WALL_IDENTITY"
+          )
+
+          assert package.summary["all_face_outcomes_match"] is True
+          assert package.summary["all_guard_outcomes_match"] is True
+          assert package.summary["all_locked_reference_checks_passed"] is True
+          assert row.outcome_matches_contract is True
+          assert row.formal_outcome == ref.SUCCESS_ZERO_DROP_WALL_IDENTITY
+          assert (
+              row.F_rho_kg_m2_s,
+              row.F_rho_u_pa,
+              row.F_rho_E_W_m2,
+              row.F_rho_xv_kg_m2_s,
+          ) == (0.0, row.upstream_static_pressure_pa, 0.0, 0.0)
+          assert row.mass_transfer_outward_kg_s == 0.0
+          assert row.advective_momentum_rate_out_N == 0.0
+          assert row.energy_transfer_outward_W == 0.0
+          assert row.b1_formal_outcome
+          assert "raw B1 outcome" in row.formal_message
+
+          print(json.dumps({
+              "diagnostic_os": platform.platform(),
+              "diagnostic_python": platform.python_version(),
+              "case_id": row.case_id,
+              "B2_formal_outcome": row.formal_outcome,
+              "raw_B1_formal_outcome": row.b1_formal_outcome,
+              "nominal_back_pressure_pa": row.back_pressure_pa,
+              "static_pressure_pa": row.upstream_static_pressure_pa,
+              "stagnation_pressure_pa": row.stagnation_pressure_pa,
+              "static_minus_nominal_pa": (
+                  row.upstream_static_pressure_pa - row.back_pressure_pa
+              ),
+              "stagnation_minus_static_pa": (
+                  row.stagnation_pressure_pa - row.upstream_static_pressure_pa
+              ),
+              "face_flux": [
+                  row.F_rho_kg_m2_s,
+                  row.F_rho_u_pa,
+                  row.F_rho_E_W_m2,
+                  row.F_rho_xv_kg_m2_s,
+              ],
+              "case_count": package.summary["case_count"],
+              "face_reference_count": package.summary[
+                  "computed_face_reference_count"
+              ],
+              "guard_reference_count": package.summary[
+                  "computed_guard_reference_count"
+              ],
+              "all_locked_reference_checks_passed": package.summary[
+                  "all_locked_reference_checks_passed"
+              ],
+          }, indent=2, sort_keys=True))
+          PY
+
+          python -m pytest -q \
+            tests/test_stage7_u3_b2_fvm_discharge_reference.py \
+            --strict-markers \
+            --junitxml=zero_drop_slim_dedicated_junit.xml
+
+      - name: Record diagnostic result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DIAGNOSTIC_OUTCOME: ${{ steps.diagnostic.outcome }}
+        run: |
+          gh issue comment 135 \
+            --repo "$GITHUB_REPOSITORY" \
+            --body "U3 B2 B2-02 ubuntu-slim diagnostic completed: run $GITHUB_RUN_ID, source $ANALYSIS_SOURCE_GIT_SHA, outcome $DIAGNOSTIC_OUTCOME. Ubuntu 24.04 authority remains required; no contract, B1 law, or accepted tolerance was changed."
+
+      - name: Enforce diagnostic success
+        if: always()
+        env:
+          DIAGNOSTIC_OUTCOME: ${{ steps.diagnostic.outcome }}
+        run: test "$DIAGNOSTIC_OUTCOME" = "success"
