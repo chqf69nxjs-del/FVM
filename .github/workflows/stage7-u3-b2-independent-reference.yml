@@ -77,6 +77,8 @@ jobs:
           import os
           from pathlib import Path
 
+          from PIL import Image
+
           target = Path("artifacts/stage7-u3-b2-independent-reference")
           expected = {
               "summary.json",
@@ -126,12 +128,67 @@ jobs:
           assert summary["design_use_acceptance"] is False
           assert summary["production_hem_activation_approved"] is False
           assert summary["reference_imports_future_B2_adapter"] is False
-          provenance = summary["provenance"]
+
+          provenance = json.loads(
+              (target / "runtime_and_git_provenance.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          assert summary["provenance"] == provenance
           assert provenance["source_git_sha"] == os.environ[
               "ANALYSIS_SOURCE_GIT_SHA"
           ]
+          assert provenance["analysis_source_git_sha"] == os.environ[
+              "ANALYSIS_SOURCE_GIT_SHA"
+          ]
+          assert provenance["workflow_run_id"] == int(os.environ["GITHUB_RUN_ID"])
+          assert provenance["workflow_run_attempt"] == int(
+              os.environ["GITHUB_RUN_ATTEMPT"]
+          )
+          assert provenance["runner_os"] == "ubuntu-24.04"
           assert provenance["property_backend_version"] == "8.0.0"
           assert provenance["git_status_porcelain"] == ""
+          assert provenance["case_or_matrix_identifier"] == (
+              "U3_B2_26_CASE_REFERENCE_MATRIX"
+          )
+          assert provenance["model"] == (
+              "U3 B2 independent single-phase FVM-face reference"
+          )
+          assert provenance["mapping_mode"] == (
+              "direct_external_face_flux_override"
+          )
+          assert provenance["B1_reference_source_sha"] == (
+              "c7c25efae0e53a8b5f5ed164f9135238c6e005e0"
+          )
+          assert provenance["B2_adapter_source_sha"] is None
+
+          report = (target / "report.md").read_text(encoding="utf-8")
+          for token in (
+              "case / matrix: U3_B2_26_CASE_REFERENCE_MATRIX",
+              "model: U3 B2 independent single-phase FVM-face reference",
+              "mapping: direct_external_face_flux_override",
+              "property backend: CoolProp 8.0.0",
+              os.environ["ANALYSIS_SOURCE_GIT_SHA"],
+              os.environ["GITHUB_RUN_ID"],
+              "B2 Adapter source SHA: NOT_IMPLEMENTED",
+          ):
+              assert token in report
+
+          figure_requirements = {
+              "face_flux_reference.png": "B2_FACE_REFERENCE_MATRIX",
+              "acoustic_arrival_reference.png": (
+                  "B2_ACOUSTIC_REQUESTED_PROBES_N16"
+              ),
+          }
+          for name, identifier in figure_requirements.items():
+              with Image.open(target / name) as image:
+                  description = image.info.get("Description", "")
+              assert identifier in description
+              assert "model=U3 B2 independent single-phase FVM-face reference" in description
+              assert "mapping=direct_external_face_flux_override" in description
+              assert "backend=CoolProp 8.0.0" in description
+              assert os.environ["ANALYSIS_SOURCE_GIT_SHA"] in description
+              assert f"run={os.environ['GITHUB_RUN_ID']}" in description
 
           with (target / "reference_case_matrix.csv").open(
               newline="", encoding="utf-8"
