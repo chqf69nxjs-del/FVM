@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   cancel-superseded-runs:
-    runs-on: ubuntu-24.04
+    runs-on: macos-15
     timeout-minutes: 15
     steps:
       - name: Cancel explicit superseded and duplicate runs
@@ -102,16 +102,29 @@ jobs:
             31204071528
             31204071527
             31204071648
+            31204659524
+            31204659466
+            31204659549
+            31204659500
+            31204659619
+            31204659491
+            31204659511
+            31204659649
+            31204659596
+            31204659551
+            31204659494
+            31204659413
+            31204659487
+            31204659562
+            31204659447
           )
 
           : > /tmp/cancelled.txt
           : > /tmp/not_cancelled.txt
 
-          cancel_run() {
-            local run_id="$1"
-            test "$run_id" = "31203989733" && return 0
-            test "$run_id" = "$GITHUB_RUN_ID" && return 0
-            local code
+          for run_id in "${targets[@]}"; do
+            test "$run_id" = "31203989733" && continue
+            test "$run_id" = "$GITHUB_RUN_ID" && continue
             code="$(
               curl -sS \
                 -o /tmp/cancel-response.json \
@@ -130,26 +143,7 @@ jobs:
                 echo "$run_id:$code" | tee -a /tmp/not_cancelled.txt
                 ;;
             esac
-          }
-
-          for run_id in "${targets[@]}"; do
-            cancel_run "$run_id"
           done
-
-          # Opening this temporary control PR launches unrelated repository-wide
-          # pull-request workflows. Cancel every nonterminal run for this
-          # temporary head branch except this control run itself.
-          while IFS= read -r run_id; do
-            test -n "$run_id" || continue
-            cancel_run "$run_id"
-          done < <(
-            curl -sS \
-              -H "Authorization: Bearer $GH_TOKEN" \
-              -H 'Accept: application/vnd.github+json' \
-              -H 'X-GitHub-Api-Version: 2022-11-28' \
-              "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs?event=pull_request&branch=agent/u3-b2-reference-authority-trigger&per_page=100" \
-              | jq -r '.workflow_runs[] | select(.status != "completed") | .id'
-          )
 
           echo 'cancelled:'
           cat /tmp/cancelled.txt
