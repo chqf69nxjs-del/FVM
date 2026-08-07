@@ -8,6 +8,9 @@ from pathlib import Path
 
 from liquid_gas_transient import u3_b1_critical_state_reference as b1_ref
 from liquid_gas_transient import u3_b2_fvm_discharge_reference as reference
+from liquid_gas_transient import (
+    u3_b2_fvm_discharge_reference_authoritative as authoritative,
+)
 
 
 PARENT = Path(
@@ -24,6 +27,7 @@ B1_CONTRACT = Path(
 
 @lru_cache(maxsize=1)
 def _package() -> reference.ReferencePackage:
+    authoritative.install_authoritative_interpretation()
     return reference.evaluate_reference(
         reference.load_contract(PARENT),
         reference.load_extension(EXTENSION),
@@ -79,6 +83,9 @@ def test_face_mapping_outcomes_and_exact_wall_identities() -> None:
     assert len(package.face_rows) == 13
     by_id = {row.case_id: row for row in package.face_rows}
     assert all(row.outcome_matches_contract for row in package.face_rows)
+    one_step_face = by_id["B2-09_ONE_STEP_UNCHOKED_CONSERVATIVE_UPDATE"]
+    assert one_step_face.formal_outcome == reference.SUCCESS_UNCHOKED_FACE_MAPPING
+    assert one_step_face.expected_outcome == reference.SUCCESS_UNCHOKED_FACE_MAPPING
     for case_id in (
         "B2-01_CLOSED_LIQUID_WALL_IDENTITY",
         "B2-02_ZERO_DROP_LIQUID_WALL_IDENTITY",
