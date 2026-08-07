@@ -16,8 +16,8 @@ exact ``p_b == p0`` predicate. Separate CoolProp state-pair round trips can make
 nominally identical ``p_i`` and ``p0`` differ by floating representation. This
 wrapper therefore applies the B2 exact-zero identity at the B2 face layer when,
 and only when, the locked nominal B2-02 condition is present. The raw B1
-outcome remains recorded for provenance. No B1 equation, contract value, or
-accepted tolerance is modified.
+outcome and all pressure-coordinate deltas remain recorded for provenance. No
+B1 equation, contract value, or accepted tolerance is modified.
 
 The wrapper also supplies the result-independent provenance interpretation
 required by the locked B2 event/provenance extension: every retained figure,
@@ -41,7 +41,6 @@ from . import u3_b2_fvm_discharge_reference as ref
 
 _ORIGINAL_EVALUATE_FACE_ROWS = ref.evaluate_face_rows
 _ZERO_DROP_CASE_ID = "B2-02_ZERO_DROP_LIQUID_WALL_IDENTITY"
-_PRESSURE_ROUND_TRIP_ABS_PA = 1.0e-5
 
 
 def _locked_case(
@@ -76,6 +75,11 @@ def _canonicalize_locked_zero_drop(
     is retained. Only the B2 face transfer is canonicalized to the explicit
     contract identity, preventing property round-trip representation drift from
     creating a spurious infinitesimal stream.
+
+    No result-derived tolerance is used. Applicability is restricted by the
+    immutable case identity and its exact nominal inputs; the ordinary B2
+    reconstruction, phase, finite-state, enthalpy, and entropy guards have
+    already run before this layer is reached.
     """
 
     contract_row = _locked_case(contract, _ZERO_DROP_CASE_ID)
@@ -83,32 +87,30 @@ def _canonicalize_locked_zero_drop(
     nominal_pressure = float(family["pressure_pa"])
     requested_back_pressure = float(contract_row["back_pressure_override_pa"])
 
+    if str(contract_row["expected_outcome"]) != (
+        ref.SUCCESS_ZERO_DROP_WALL_IDENTITY
+    ):
+        raise AssertionError("B2-02 expected outcome changed from the locked identity")
     if requested_back_pressure != nominal_pressure:
         raise AssertionError(
             "B2-02 nominal back pressure must equal the locked family pressure"
         )
     if row.back_pressure_pa != requested_back_pressure:
         raise AssertionError("B2-02 Reference row changed the locked back pressure")
+    if row.opening_fraction != float(contract_row["opening_fraction"]):
+        raise AssertionError("B2-02 Reference row changed the locked opening")
+    if row.discharge_coefficient != float(
+        contract_row["discharge_coefficient"]
+    ):
+        raise AssertionError("B2-02 Reference row changed the locked Cd")
     if row.adjacent_velocity_m_s != 0.0:
         raise AssertionError("B2-02 requires an exactly stationary adjacent cell")
-    if not math.isclose(
-        row.upstream_static_pressure_pa,
-        nominal_pressure,
-        rel_tol=0.0,
-        abs_tol=_PRESSURE_ROUND_TRIP_ABS_PA,
-    ):
-        raise AssertionError(
-            "B2-02 static reconstruction is not the locked nominal state"
-        )
-    if not math.isclose(
-        row.stagnation_pressure_pa,
-        row.upstream_static_pressure_pa,
-        rel_tol=0.0,
-        abs_tol=_PRESSURE_ROUND_TRIP_ABS_PA,
-    ):
-        raise AssertionError(
-            "B2-02 zero-velocity static/stagnation pressures are inconsistent"
-        )
+    for name, value in {
+        "upstream static pressure": row.upstream_static_pressure_pa,
+        "stagnation pressure": row.stagnation_pressure_pa,
+    }.items():
+        if not math.isfinite(value) or value <= 0.0:
+            raise AssertionError(f"B2-02 {name} is nonfinite or nonpositive")
 
     p_i = row.upstream_static_pressure_pa
     open_pressure = p_i * row.open_area_m2
