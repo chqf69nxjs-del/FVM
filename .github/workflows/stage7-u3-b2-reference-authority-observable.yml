@@ -1,0 +1,317 @@
+name: Temporary Observable U3 B2 Reference Authority
+
+on:
+  push:
+    branches:
+      - "agent/u3-b2-reference-authority-trigger"
+    paths:
+      - ".github/workflows/stage7-u3-b2-reference-authority-observable.yml"
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+
+concurrency:
+  group: temporary-observable-u3-b2-reference-authority
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src
+  PYTHONDONTWRITEBYTECODE: "1"
+  MPLBACKEND: Agg
+  ANALYSIS_SOURCE_GIT_SHA: e0bf39185e5096a9f2838688efe03e14131b24cc
+
+jobs:
+  authoritative-u3-b2-reference:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    steps:
+      - name: Record authority run start
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue comment 135 \
+            --repo "$GITHUB_REPOSITORY" \
+            --body "## U3 B2 Reference isolated authority run started
+
+          \`\`\`text
+          workflow: Temporary Observable U3 B2 Reference Authority
+          run ID: ${GITHUB_RUN_ID}
+          run attempt: ${GITHUB_RUN_ATTEMPT}
+          trigger head: ${GITHUB_SHA}
+          exact Reference source: ${ANALYSIS_SOURCE_GIT_SHA}
+          status: IN_PROGRESS
+          \`\`\`
+
+          This temporary workflow is not merged to main."
+
+      - name: Checkout exact Reference source head
+        uses: actions/checkout@v7
+        with:
+          ref: e0bf39185e5096a9f2838688efe03e14131b24cc
+          fetch-depth: 1
+
+      - name: Assert exact clean checkout
+        run: |
+          test "$(git rev-parse HEAD)" = "$ANALYSIS_SOURCE_GIT_SHA"
+          status="$(git status --porcelain=v1 --untracked-files=all)"
+          printf 'pre_execution_git_status=%s\n' "$status"
+          test -z "$status"
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Install fixed dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install \
+            'numpy==2.5.1' \
+            'matplotlib==3.11.1' \
+            'pytest==9.1.1' \
+            'CoolProp==8.0.0'
+
+      - name: Execute authoritative independent Reference
+        run: |
+          output="artifacts/stage7-u3-b2-independent-reference"
+          rm -rf "$output"
+          python -m liquid_gas_transient.u3_b2_fvm_discharge_reference_authoritative \
+            --contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json \
+            --extension-contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_event_provenance_contract_v1.json \
+            --b1-contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
+            --output-dir "$output" \
+            --source-git-sha "$ANALYSIS_SOURCE_GIT_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=no)"
+
+      - name: Inspect authoritative Reference evidence
+        run: |
+          python - <<'PY'
+          import csv
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          from PIL import Image
+
+          target = Path("artifacts/stage7-u3-b2-independent-reference")
+          expected = {
+              "summary.json",
+              "runtime_and_git_provenance.json",
+              "benchmark_contract.json",
+              "event_provenance_contract.json",
+              "b1_component_contract.json",
+              "reference_case_matrix.csv",
+              "face_state_and_choking_adoption.csv",
+              "face_flux_decomposition.csv",
+              "one_step_conservative_update_reference.csv",
+              "cumulative_discharge_and_inventory_reference.csv",
+              "momentum_impulse_reference.csv",
+              "acoustic_arrival_reference.csv",
+              "guard_outcomes.csv",
+              "locked_checks.csv",
+              "face_flux_reference.png",
+              "acoustic_arrival_reference.png",
+              "report.md",
+              "artifact_sha256.txt",
+          }
+          assert {path.name for path in target.iterdir()} == expected
+          summary = json.loads((target / "summary.json").read_text())
+          assert summary["schema_version"] == "stage7_u3_b2_independent_reference_v1"
+          assert (summary["case_count"], summary["physical_case_count"], summary["guard_case_count"]) == (26, 19, 7)
+          assert summary["computed_face_reference_count"] == 13
+          assert summary["computed_guard_reference_count"] == 7
+          assert summary["inventory_ledger_count"] == 3
+          assert summary["inventory_ledger_row_count"] == 12
+          assert summary["acoustic_reference_row_count"] == 9
+          assert summary["all_face_outcomes_match"] is True
+          assert summary["all_guard_outcomes_match"] is True
+          assert summary["all_locked_reference_checks_passed"] is True
+          assert summary["u3_b2_contract_locked"] is True
+          assert summary["u3_b2_reference_implemented"] is True
+          for key in (
+              "u3_b2_fvm_adapter_implemented",
+              "u3_b2_finite_pipe_execution_complete",
+              "u3_b2_verification_benchmark_accepted",
+              "single_phase_fvm_discharge_mapping_verified",
+              "single_phase_finite_pipe_coupling_verified",
+              "physical_discharge_boundary_approved",
+              "two_phase_critical_discharge_accuracy_approved",
+              "integrated_blowdown_model_approved",
+              "physical_validation",
+              "design_use_acceptance",
+              "production_hem_activation_approved",
+          ):
+              assert summary[key] is False
+          assert summary["reference_imports_future_B2_adapter"] is False
+
+          provenance = json.loads((target / "runtime_and_git_provenance.json").read_text())
+          assert summary["provenance"] == provenance
+          assert provenance["source_git_sha"] == os.environ["ANALYSIS_SOURCE_GIT_SHA"]
+          assert provenance["analysis_source_git_sha"] == os.environ["ANALYSIS_SOURCE_GIT_SHA"]
+          assert provenance["checkout_git_sha"] == os.environ["ANALYSIS_SOURCE_GIT_SHA"]
+          assert provenance["workflow_run_id"] == int(os.environ["GITHUB_RUN_ID"])
+          assert provenance["workflow_run_attempt"] == int(os.environ["GITHUB_RUN_ATTEMPT"])
+          assert provenance["property_backend_version"] == "8.0.0"
+          assert provenance["git_status_porcelain"] == ""
+          assert provenance["case_or_matrix_identifier"] == "U3_B2_26_CASE_REFERENCE_MATRIX"
+          assert provenance["mapping_mode"] == "direct_external_face_flux_override"
+          assert provenance["B1_reference_source_sha"] == "c7c25efae0e53a8b5f5ed164f9135238c6e005e0"
+          assert provenance["B2_adapter_source_sha"] is None
+
+          report = (target / "report.md").read_text()
+          for token in (
+              "case / matrix: U3_B2_26_CASE_REFERENCE_MATRIX",
+              "model: U3 B2 independent single-phase FVM-face reference",
+              "mapping: direct_external_face_flux_override",
+              "property backend: CoolProp 8.0.0",
+              os.environ["ANALYSIS_SOURCE_GIT_SHA"],
+              os.environ["GITHUB_RUN_ID"],
+              "B2 Adapter source SHA: NOT_IMPLEMENTED",
+          ):
+              assert token in report
+
+          for name, identifier in {
+              "face_flux_reference.png": "B2_FACE_REFERENCE_MATRIX",
+              "acoustic_arrival_reference.png": "B2_ACOUSTIC_REQUESTED_PROBES_N16",
+          }.items():
+              with Image.open(target / name) as image:
+                  description = image.info.get("Description", "")
+              assert identifier in description
+              assert "mapping=direct_external_face_flux_override" in description
+              assert "backend=CoolProp 8.0.0" in description
+              assert os.environ["ANALYSIS_SOURCE_GIT_SHA"] in description
+              assert f"run={os.environ['GITHUB_RUN_ID']}" in description
+
+          for name, count in {
+              "reference_case_matrix.csv": 26,
+              "face_flux_decomposition.csv": 13,
+              "acoustic_arrival_reference.csv": 9,
+              "guard_outcomes.csv": 7,
+          }.items():
+              with (target / name).open(newline="", encoding="utf-8") as handle:
+                  assert len(list(csv.DictReader(handle))) == count
+
+          manifest = {}
+          for line in (target / "artifact_sha256.txt").read_text().splitlines():
+              digest, name = line.split("  ", 1)
+              manifest[name] = digest
+          assert set(manifest) == expected - {"artifact_sha256.txt"}
+          for name, digest in manifest.items():
+              assert hashlib.sha256((target / name).read_bytes()).hexdigest() == digest
+          PY
+
+      - name: Compile and diff checks
+        run: |
+          python -m compileall -q src tests
+          git diff --check
+
+      - name: Run dedicated B2 Reference tests
+        run: |
+          python -m pytest -q \
+            tests/test_stage7_u3_b2_fvm_discharge_reference.py \
+            --strict-markers \
+            --junitxml=dedicated_junit.xml
+
+      - name: Run related U3 regressions
+        run: |
+          python -m pytest -q \
+            tests/test_stage7_u3_b1_critical_state_contract.py \
+            tests/test_stage7_u3_b1_critical_state_reference.py \
+            tests/test_stage7_u3_b1_critical_state_authoritative.py \
+            tests/test_stage7_u3_b2_fvm_discharge_coupling_contract.py \
+            tests/test_stage7_u3_b2_fvm_discharge_coupling_extension_contract.py \
+            tests/test_stage7_u3_b2_fvm_discharge_reference.py \
+            --strict-markers \
+            --junitxml=related_junit.xml
+
+      - name: Run full repository tests
+        run: |
+          python -m pytest -q \
+            --strict-markers \
+            --junitxml=full_repository_junit.xml
+
+      - name: Assert JUnit is clean
+        run: |
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+          totals_by_name = {}
+          for name in (
+              "dedicated_junit.xml",
+              "related_junit.xml",
+              "full_repository_junit.xml",
+          ):
+              root = ET.parse(Path(name)).getroot()
+              suites = [root] if root.tag == "testsuite" else list(root.findall("testsuite"))
+              totals = {
+                  key: sum(int(suite.attrib.get(key, 0)) for suite in suites)
+                  for key in ("tests", "skipped", "failures", "errors")
+              }
+              totals_by_name[name] = totals
+              print(name, totals)
+              assert totals["skipped"] == 0
+              assert totals["failures"] == 0
+              assert totals["errors"] == 0
+          assert totals_by_name["dedicated_junit.xml"]["tests"] == 10
+          assert totals_by_name["related_junit.xml"]["tests"] >= 30
+          assert totals_by_name["full_repository_junit.xml"]["tests"] >= 950
+          PY
+
+      - name: Assert exact source checkout remains clean
+        run: |
+          test "$(git rev-parse HEAD)" = "$ANALYSIS_SOURCE_GIT_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=no)"
+
+      - name: Upload authoritative B2 Reference evidence
+        id: upload
+        uses: actions/upload-artifact@v7
+        with:
+          name: stage7-u3-b2-reference-authority-${{ github.run_id }}
+          path: |
+            artifacts/stage7-u3-b2-independent-reference
+            dedicated_junit.xml
+            related_junit.xml
+            full_repository_junit.xml
+          if-no-files-found: error
+
+      - name: Record authority run success
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+        run: |
+          gh issue comment 135 \
+            --repo "$GITHUB_REPOSITORY" \
+            --body "## U3 B2 Reference isolated authority run succeeded
+
+          \`\`\`text
+          run ID: ${GITHUB_RUN_ID}
+          run attempt: ${GITHUB_RUN_ATTEMPT}
+          exact Reference source: ${ANALYSIS_SOURCE_GIT_SHA}
+          status: SUCCESS
+          artifact ID: ${ARTIFACT_ID}
+          artifact digest: ${ARTIFACT_DIGEST}
+          \`\`\`
+
+          Detailed JUnit counts and ZIP digest will be recorded after connector audit."
+
+      - name: Record authority run failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue comment 135 \
+            --repo "$GITHUB_REPOSITORY" \
+            --body "## U3 B2 Reference isolated authority run failed
+
+          \`\`\`text
+          run ID: ${GITHUB_RUN_ID}
+          run attempt: ${GITHUB_RUN_ATTEMPT}
+          exact Reference source: ${ANALYSIS_SOURCE_GIT_SHA}
+          status: FAILURE
+          \`\`\`
+
+          No Reference promotion is authorized by this run."
