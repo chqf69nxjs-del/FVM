@@ -41,6 +41,10 @@ from . import u3_b2_fvm_discharge_reference as ref
 
 _ORIGINAL_EVALUATE_FACE_ROWS = ref.evaluate_face_rows
 _ZERO_DROP_CASE_ID = "B2-02_ZERO_DROP_LIQUID_WALL_IDENTITY"
+_ALLOWED_ZERO_DROP_RAW_B1_OUTCOMES = {
+    b1_ref.SUCCESS_ZERO_PRESSURE_DROP,
+    b1_ref.SUCCESS_UNCHOKED,
+}
 
 
 def _locked_case(
@@ -79,7 +83,9 @@ def _canonicalize_locked_zero_drop(
     No result-derived tolerance is used. Applicability is restricted by the
     immutable case identity and its exact nominal inputs; the ordinary B2
     reconstruction, phase, finite-state, enthalpy, and entropy guards have
-    already run before this layer is reached.
+    already run before this layer is reached. Any raw B1 Guard remains fatal;
+    only the exact B1 zero-drop result or a successful unchoked result caused by
+    coordinate round-trip representation may be interpreted at the B2 layer.
     """
 
     contract_row = _locked_case(contract, _ZERO_DROP_CASE_ID)
@@ -105,6 +111,11 @@ def _canonicalize_locked_zero_drop(
         raise AssertionError("B2-02 Reference row changed the locked Cd")
     if row.adjacent_velocity_m_s != 0.0:
         raise AssertionError("B2-02 requires an exactly stationary adjacent cell")
+    if row.b1_formal_outcome not in _ALLOWED_ZERO_DROP_RAW_B1_OUTCOMES:
+        raise AssertionError(
+            "B2-02 raw B1 result is not a successful zero-drop/unchoked outcome: "
+            f"{row.b1_formal_outcome}"
+        )
     for name, value in {
         "upstream static pressure": row.upstream_static_pressure_pa,
         "stagnation pressure": row.stagnation_pressure_pa,
