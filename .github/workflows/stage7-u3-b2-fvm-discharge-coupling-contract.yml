@@ -7,6 +7,7 @@ on:
       - "docs/verification/stage7_u3_b2_fvm_discharge_coupling_specification.md"
       - "docs/verification/stage7_u3_b2_fvm_discharge_coupling_event_provenance_contract_v1.json"
       - "tests/test_stage7_u3_b2_fvm_discharge_coupling_contract.py"
+      - "tests/test_stage7_u3_b2_fvm_discharge_coupling_extension_contract.py"
       - ".github/workflows/stage7-u3-b2-fvm-discharge-coupling-contract.yml"
   workflow_dispatch:
 
@@ -89,6 +90,9 @@ jobs:
           assert extension["acoustic_event_detection"]["unresolved_outcome"] == (
               "ACOUSTIC_EVENT_NOT_RESOLVED"
           )
+          assert extension["inherited_B1_acceptance_tolerances"][
+              "B0_limit_mass_flow_relative"
+          ] == 0.01
           assert extension["runtime_and_provenance"]["python_version"] == "3.12.13"
           print(json.dumps({
               "schema_version": contract["schema_version"],
@@ -110,6 +114,7 @@ jobs:
         run: |
           python -m pytest -q \
             tests/test_stage7_u3_b2_fvm_discharge_coupling_contract.py \
+            tests/test_stage7_u3_b2_fvm_discharge_coupling_extension_contract.py \
             --strict-markers \
             --junitxml=u3-b2-contract-dedicated.xml
 
@@ -118,6 +123,7 @@ jobs:
           python -m pytest -q \
             tests/test_stage7_u3_b1_critical_state_contract.py \
             tests/test_stage7_u3_b2_fvm_discharge_coupling_contract.py \
+            tests/test_stage7_u3_b2_fvm_discharge_coupling_extension_contract.py \
             --strict-markers \
             --junitxml=u3-b2-contract-related.xml
 
@@ -134,8 +140,8 @@ jobs:
           from pathlib import Path
 
           expected_tests = {
-              "u3-b2-contract-dedicated.xml": 8,
-              "u3-b2-contract-related.xml": 13,
+              "u3-b2-contract-dedicated.xml": 11,
+              "u3-b2-contract-related.xml": 16,
           }
           for name in (
               "u3-b2-contract-dedicated.xml",
@@ -193,6 +199,10 @@ jobs:
               ),
               "contract_tests.py": Path(
                   "tests/test_stage7_u3_b2_fvm_discharge_coupling_contract.py"
+              ),
+              "extension_contract_tests.py": Path(
+                  "tests/test_stage7_u3_b2_fvm_discharge_coupling_"
+                  "extension_contract.py"
               ),
               "contract_workflow.yml": Path(
                   ".github/workflows/"
@@ -256,6 +266,9 @@ jobs:
           assert extension["parent_contract"]["schema_version"] == contract[
               "schema_version"
           ]
+          assert extension["inherited_B1_acceptance_tolerances"][
+              "B0_limit_mass_flow_relative"
+          ] == 0.01
           summary = {
               "schema_version": "stage7_u3_b2_contract_evidence_v1",
               "issue": contract["issue"],
