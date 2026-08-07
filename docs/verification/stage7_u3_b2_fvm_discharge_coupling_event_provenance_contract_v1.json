@@ -10,13 +10,25 @@
   "fvm_extension": {
     "right_boundary_scaffold": "TransmissiveBoundary used only to construct finite ghost states; its external numerical flux is discarded and replaced before all budgets and updates"
   },
+  "inherited_B1_acceptance_tolerances": {
+    "source_contract": "docs/verification/stage7_u3_b1_critical_state_contract_v1.json",
+    "inheritance_rule": "exact B1 values are reused without relaxation or result-driven modification",
+    "B0_limit_mass_flow_relative": 0.01,
+    "B0_limit_effective_velocity_relative": 0.01,
+    "B0_limit_momentum_transfer_relative": 0.02,
+    "B0_limit_energy_transfer_relative": 0.01,
+    "critical_pressure_Cd_independence_relative": 0.000005,
+    "minimum_unchoked_mass_flow_ordering_margin_relative": 0.001
+  },
   "acoustic_event_detection": {
     "history_sampling": "every accepted time step",
     "expected_window_half_width_L_over_c0": 0.2,
     "candidate_index_rule": "among samples k with k-1 and k+1 inside the expected-time window, select the minimum centered pressure slope; ties select the earliest k",
     "centered_pressure_slope": "(p[k+1]-p[k-1])/(t[k+1]-t[k-1])",
     "direct_sign_check": "p[k+1]-p[k-1] < 0 and u[k+1]-u[k-1] > 0",
+    "direct_arrival_order": "probe 0.75, then 0.50, then 0.25",
     "reflected_sign_check": "p[k+1]-p[k-1] < 0 and u[k+1]-u[k-1] < 0",
+    "reflected_arrival_order": "probe 0.25, then 0.50, then 0.75",
     "unresolved_outcome": "ACOUSTIC_EVENT_NOT_RESOLVED",
     "no_post_result_window_or_threshold_change": true
   },
@@ -70,6 +82,7 @@
     ]
   },
   "required_artifact_additions": [
+    "event_provenance_contract.json",
     "runtime_and_git_provenance.json"
   ],
   "approval_boundary": {
