@@ -19,7 +19,7 @@ env:
   PYTHONPATH: src
   PYTHONDONTWRITEBYTECODE: "1"
   MPLBACKEND: Agg
-  ANALYSIS_SOURCE_GIT_SHA: 9eaa48669dc1cc17d44eb1ea45e494facd78bddf
+  ANALYSIS_SOURCE_GIT_SHA: 1fd247273f7ecdbe21a50eccea721097aceee897
 
 jobs:
   zero-drop-diagnostic:
@@ -37,7 +37,7 @@ jobs:
       - name: Checkout exact corrected Reference head
         uses: actions/checkout@v7
         with:
-          ref: 9eaa48669dc1cc17d44eb1ea45e494facd78bddf
+          ref: 1fd247273f7ecdbe21a50eccea721097aceee897
           fetch-depth: 1
 
       - name: Assert exact clean checkout
