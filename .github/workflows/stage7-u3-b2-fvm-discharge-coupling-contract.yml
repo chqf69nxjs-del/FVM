@@ -5,6 +5,7 @@ on:
     paths:
       - "docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json"
       - "docs/verification/stage7_u3_b2_fvm_discharge_coupling_specification.md"
+      - "docs/verification/stage7_u3_b2_fvm_discharge_coupling_event_provenance_contract_v1.json"
       - "tests/test_stage7_u3_b2_fvm_discharge_coupling_contract.py"
       - ".github/workflows/stage7-u3-b2-fvm-discharge-coupling-contract.yml"
   workflow_dispatch:
@@ -72,6 +73,23 @@ jobs:
           assert contract["fvm_baseline"]["right_boundary_mode"] == (
               "direct_external_face_flux_override"
           )
+          extension_path = Path(
+              "docs/verification/"
+              "stage7_u3_b2_fvm_discharge_coupling_event_provenance_contract_v1.json"
+          )
+          extension = json.loads(extension_path.read_text(encoding="utf-8"))
+          assert extension["schema_version"] == (
+              "stage7_u3_b2_fvm_discharge_coupling_"
+              "event_provenance_contract_v1"
+          )
+          assert extension["status"] == "LOCKED_BEFORE_RESULTS"
+          assert extension["parent_contract"]["schema_version"] == (
+              contract["schema_version"]
+          )
+          assert extension["acoustic_event_detection"]["unresolved_outcome"] == (
+              "ACOUSTIC_EVENT_NOT_RESOLVED"
+          )
+          assert extension["runtime_and_provenance"]["python_version"] == "3.12.13"
           print(json.dumps({
               "schema_version": contract["schema_version"],
               "case_count": len(contract["benchmark_cases"]),
@@ -79,6 +97,7 @@ jobs:
               "reference_implemented": contract["approval_boundary"][
                   "u3_b2_reference_implemented"
               ],
+              "extension_schema_version": extension["schema_version"],
           }, indent=2))
           PY
 
@@ -167,6 +186,11 @@ jobs:
                   "docs/verification/"
                   "stage7_u3_b2_fvm_discharge_coupling_specification.md"
               ),
+              "event_provenance_contract.json": Path(
+                  "docs/verification/"
+                  "stage7_u3_b2_fvm_discharge_coupling_"
+                  "event_provenance_contract_v1.json"
+              ),
               "contract_tests.py": Path(
                   "tests/test_stage7_u3_b2_fvm_discharge_coupling_contract.py"
               ),
@@ -195,7 +219,11 @@ jobs:
           assert pre_status == ""
 
           contract_bytes = (target / "benchmark_contract.json").read_bytes()
+          extension_bytes = (
+              target / "event_provenance_contract.json"
+          ).read_bytes()
           contract_sha256 = hashlib.sha256(contract_bytes).hexdigest()
+          extension_contract_sha256 = hashlib.sha256(extension_bytes).hexdigest()
           provenance = {
               "schema_version": "stage7_u3_b2_contract_provenance_v1",
               "analysis_source_git_sha": analysis_source_sha,
@@ -210,6 +238,7 @@ jobs:
               "property_backend": "CoolProp",
               "property_backend_version": version("CoolProp"),
               "contract_sha256": contract_sha256,
+              "event_provenance_contract_sha256": extension_contract_sha256,
               "tracked_git_status": pre_status,
           }
           assert provenance["python_version"] == "3.12.13"
@@ -223,6 +252,10 @@ jobs:
           )
 
           contract = json.loads(contract_bytes.decode("utf-8"))
+          extension = json.loads(extension_bytes.decode("utf-8"))
+          assert extension["parent_contract"]["schema_version"] == contract[
+              "schema_version"
+          ]
           summary = {
               "schema_version": "stage7_u3_b2_contract_evidence_v1",
               "issue": contract["issue"],
@@ -243,6 +276,10 @@ jobs:
               "analysis_source_git_sha": analysis_source_sha,
               "checkout_git_sha": checkout_sha,
               "contract_sha256": contract_sha256,
+              "event_provenance_contract_schema_version": extension[
+                  "schema_version"
+              ],
+              "event_provenance_contract_sha256": extension_contract_sha256,
               **contract["approval_boundary"],
           }
           assert summary["case_count"] == 26
