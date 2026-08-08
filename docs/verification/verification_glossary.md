@@ -12,6 +12,7 @@
 4. `Guard`のexpected outcomeは、正常に拒否できたことを示す場合があり、必ずしもtest failureではない。
 5. 本書は既存のlocked contract、equation、case condition、tolerance、formal flagまたはauthority resultを変更しない。
 6. 本書と個別のlocked contract／closeout recordが競合する場合は、対象範囲に固有のlocked contract／closeout recordを優先する。
+7. 本書制定前のlegacy compound statusは、単語だけで再解釈せず、明示された修飾語とretained evidenceに従って扱う。`VALIDATED`を含む旧表現の互換規則は3.2節に定める。
 
 ---
 
@@ -28,7 +29,7 @@
 | **U3 B1** | single-phase compressible／critical-state discharge component benchmark。 | physical discharge boundary、two-phase chokingまたはfinite-pipe coupling。 |
 | **U3 B2** | accepted B1 componentをconservative 1-D FVMの右端面へ接続し、face、one-stepおよびfinite-pipeを検証するbenchmark。 | B1そのものの再設計、two-phase dischargeまたはPhysical Validation。 |
 | **controlled increment** | scope、変更path、claimsおよびevidenceを限定した一つの実装・検証単位。 | 後続工程を含む包括的な承認。 |
-| **critical path** | 後続作業の開始条件となる、順番に成立させる必要がある主経路。現在のB2主経路は `Adapter → face parity → one-step parity → finite-pipe → closeout`。 | 並行研究課題の解決順序または全プロジェクトの固定日程。 |
+| **critical path** | 後続作業の開始条件となる、順番に成立させる必要がある主経路。現在のB2主経路は `Adapter → face parity → one-step parity → finite-pipe execution → inventory / momentum-impulse / acoustic verification → fixed mesh / CFL characterization → closeout`。 | 並行研究課題の解決順序または全プロジェクトの固定日程。 |
 
 ---
 
@@ -66,6 +67,26 @@ IMPLEMENTED
 ```
 
 例として、U3 B1がcomponent benchmarkとして`ACCEPTED`でも、physical discharge boundary、two-phase critical discharge、design useおよびproduction activationは別のapproval boundaryである。
+
+### 3.2 Legacy status compatibility
+
+本書制定前の一部文書には、次のようなcompound statusが存在する。
+
+```text
+VALIDATED IMPLEMENTATION DRAFT; VERIFICATION ONLY
+VALIDATED SPECIFICATION; PIPELINE RUN NOT EXECUTED
+```
+
+これらのlegacy表現における`VALIDATED`は、当時の文脈で「内部実装テスト済み」または「仕様レビュー済み」を表したものであり、本書が定義する実験・実測比較に基づく`VALIDATED`または`Physical Validation`を意味しない。
+
+Historical recordはその時点の表現として保持する。対象文書を次に実質更新するときは、retained evidenceに応じて、例えば次のようなより狭い表現へ移行する。
+
+```text
+VERIFIED IMPLEMENTATION DRAFT; VERIFICATION ONLY
+REVIEWED / LOCKED SPECIFICATION; EXECUTION NOT PERFORMED
+```
+
+移行前のlegacy文書を読む場合は、孤立した`VALIDATED`という語ではなく、compound status全体、limitationsおよび添付evidenceをauthoritative interpretationとする。
 
 ---
 
