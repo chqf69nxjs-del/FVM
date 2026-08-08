@@ -40,27 +40,78 @@ jobs:
 
           mkdir -p src/liquid_gas_transient tests docs/verification .github/workflows
 
-          gzip -dc .agent_payloads/u3_b2_fvm_discharge_adapter.py.gz \
-            > src/liquid_gas_transient/u3_b2_fvm_discharge_adapter.py
-          gzip -dc .agent_payloads/u3_b2_fvm_discharge_adapter_authoritative.py.gz \
-            > src/liquid_gas_transient/u3_b2_fvm_discharge_adapter_authoritative.py
-          gzip -dc .agent_payloads/solver.py.gz \
-            > src/liquid_gas_transient/solver.py
-          gzip -dc .agent_payloads/test_stage7_u3_b2_fvm_discharge_adapter.py.gz \
-            > tests/test_stage7_u3_b2_fvm_discharge_adapter.py
-          gzip -dc .agent_payloads/stage7_u3_b2_fvm_discharge_adapter.md.gz \
-            > docs/verification/stage7_u3_b2_fvm_discharge_adapter.md
-          gzip -dc .agent_payloads/stage7-u3-b2-fvm-adapter-face-one-step.yml.gz \
-            > .github/workflows/stage7-u3-b2-fvm-adapter-face-one-step.yml
+          python - <<'PY'
+          from __future__ import annotations
 
-          sha256sum -c <<'SHA256'
-          5c333c6c4ca035332276a16cbf05d4fa68f3ad99a2b9768ff3fee6a0a0b98d9a  src/liquid_gas_transient/u3_b2_fvm_discharge_adapter.py
-          ca51efdbea54ee09c012ba45dc702f39e175ecb5fdc03632db78f8bba267a7bc  src/liquid_gas_transient/u3_b2_fvm_discharge_adapter_authoritative.py
-          cb0b9745efcae9704edbba71b994ee77b6de4ca3935dc643e3dc9ba79b1282d8  src/liquid_gas_transient/solver.py
-          1f9df44251110115b7d76fd9c0602e6db4f85acc5791f68fc8bdc299e4c262e2  tests/test_stage7_u3_b2_fvm_discharge_adapter.py
-          ecb99efc4c44e13a683bd9046ba8a6e40cab79b320614654e8de225afb801c48  docs/verification/stage7_u3_b2_fvm_discharge_adapter.md
-          684157cdf137fac7bb50ce87d99b817eadc8aad28fd7079b8b1cdc3b5cb98ea8  .github/workflows/stage7-u3-b2-fvm-adapter-face-one-step.yml
-          SHA256
+          import base64
+          import gzip
+          import hashlib
+          from pathlib import Path
+
+          payloads = {
+              ".agent_payloads/u3_b2_fvm_discharge_adapter.py.gz": (
+                  "src/liquid_gas_transient/u3_b2_fvm_discharge_adapter.py",
+                  "5c333c6c4ca035332276a16cbf05d4fa68f3ad99a2b9768ff3fee6a0a0b98d9a",
+              ),
+              ".agent_payloads/u3_b2_fvm_discharge_adapter_authoritative.py.gz": (
+                  "src/liquid_gas_transient/u3_b2_fvm_discharge_adapter_authoritative.py",
+                  "ca51efdbea54ee09c012ba45dc702f39e175ecb5fdc03632db78f8bba267a7bc",
+              ),
+              ".agent_payloads/solver.py.gz": (
+                  "src/liquid_gas_transient/solver.py",
+                  "cb0b9745efcae9704edbba71b994ee77b6de4ca3935dc643e3dc9ba79b1282d8",
+              ),
+              ".agent_payloads/test_stage7_u3_b2_fvm_discharge_adapter.py.gz": (
+                  "tests/test_stage7_u3_b2_fvm_discharge_adapter.py",
+                  "1f9df44251110115b7d76fd9c0602e6db4f85acc5791f68fc8bdc299e4c262e2",
+              ),
+              ".agent_payloads/stage7_u3_b2_fvm_discharge_adapter.md.gz": (
+                  "docs/verification/stage7_u3_b2_fvm_discharge_adapter.md",
+                  "ecb99efc4c44e13a683bd9046ba8a6e40cab79b320614654e8de225afb801c48",
+              ),
+              ".agent_payloads/stage7-u3-b2-fvm-adapter-face-one-step.yml.gz": (
+                  ".github/workflows/stage7-u3-b2-fvm-adapter-face-one-step.yml",
+                  "684157cdf137fac7bb50ce87d99b817eadc8aad28fd7079b8b1cdc3b5cb98ea8",
+              ),
+          }
+
+          def decode_payload(source: Path) -> tuple[bytes, str]:
+              raw = source.read_bytes()
+              attempts: list[tuple[str, bytes]] = [("binary-gzip", raw)]
+              compact = b"".join(raw.split())
+              try:
+                  decoded = base64.b64decode(compact, validate=True)
+              except Exception:
+                  decoded = b""
+              if decoded:
+                  attempts.append(("base64-wrapped-gzip", decoded))
+              failures: list[str] = []
+              for mode, candidate in attempts:
+                  try:
+                      return gzip.decompress(candidate), mode
+                  except Exception as exc:
+                      failures.append(f"{mode}: {type(exc).__name__}: {exc}")
+              prefix = raw[:24].hex()
+              raise RuntimeError(
+                  f"cannot decode {source}; bytes={len(raw)} prefix={prefix}; "
+                  + " | ".join(failures)
+              )
+
+          for source_name, (target_name, expected_sha) in payloads.items():
+              source = Path(source_name)
+              target = Path(target_name)
+              content, mode = decode_payload(source)
+              actual_sha = hashlib.sha256(content).hexdigest()
+              if actual_sha != expected_sha:
+                  raise RuntimeError(
+                      f"SHA256 mismatch for {source}: {actual_sha} != {expected_sha}"
+                  )
+              target.write_bytes(content)
+              print(
+                  f"materialized {source} -> {target} via {mode}; "
+                  f"bytes={len(content)} sha256={actual_sha}"
+              )
+          PY
 
           python -m py_compile \
             src/liquid_gas_transient/u3_b2_fvm_discharge_adapter.py \
