@@ -7,22 +7,30 @@ on:
     paths:
       - ".agent_payloads/**"
       - ".github/workflows/agent-u3-b2-adapter-bootstrap.yml"
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [main]
+    paths:
+      - ".agent_payloads/**"
+      - ".github/workflows/agent-u3-b2-adapter-bootstrap.yml"
 
 permissions:
   contents: write
 
 concurrency:
-  group: agent-u3-b2-adapter-bootstrap-${{ github.ref }}
+  group: agent-u3-b2-adapter-bootstrap-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   materialize:
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - name: Checkout bootstrap commit
         uses: actions/checkout@v7
         with:
+          ref: ${{ github.head_ref || github.ref_name }}
           fetch-depth: 0
 
       - name: Materialize verified implementation
@@ -68,10 +76,12 @@ jobs:
 
       - name: Commit materialized implementation
         shell: bash
+        env:
+          TARGET_BRANCH: ${{ github.head_ref || github.ref_name }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -m "Implement U3 B2 FVM Adapter face and one-step verification"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git push origin "HEAD:${TARGET_BRANCH}"
