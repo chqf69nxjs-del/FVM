@@ -1,0 +1,77 @@
+name: Agent U3 B2 Adapter Bootstrap
+
+on:
+  push:
+    branches:
+      - agent/u3-b2-fvm-adapter-face-one-step
+    paths:
+      - ".agent_payloads/**"
+      - ".github/workflows/agent-u3-b2-adapter-bootstrap.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: agent-u3-b2-adapter-bootstrap-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  materialize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout bootstrap commit
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Materialize verified implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p src/liquid_gas_transient tests docs/verification .github/workflows
+
+          gzip -dc .agent_payloads/u3_b2_fvm_discharge_adapter.py.gz \
+            > src/liquid_gas_transient/u3_b2_fvm_discharge_adapter.py
+          gzip -dc .agent_payloads/u3_b2_fvm_discharge_adapter_authoritative.py.gz \
+            > src/liquid_gas_transient/u3_b2_fvm_discharge_adapter_authoritative.py
+          gzip -dc .agent_payloads/solver.py.gz \
+            > src/liquid_gas_transient/solver.py
+          gzip -dc .agent_payloads/test_stage7_u3_b2_fvm_discharge_adapter.py.gz \
+            > tests/test_stage7_u3_b2_fvm_discharge_adapter.py
+          gzip -dc .agent_payloads/stage7_u3_b2_fvm_discharge_adapter.md.gz \
+            > docs/verification/stage7_u3_b2_fvm_discharge_adapter.md
+          gzip -dc .agent_payloads/stage7-u3-b2-fvm-adapter-face-one-step.yml.gz \
+            > .github/workflows/stage7-u3-b2-fvm-adapter-face-one-step.yml
+
+          sha256sum -c <<'SHA256'
+          6802f3ceebe30ed1a941efa7b53c6daac80516e2338b53569972db72d22c1343  src/liquid_gas_transient/u3_b2_fvm_discharge_adapter.py
+          ca51efdbea54ee09c012ba45dc702f39e175ecb5fdc03632db78f8bba267a7bc  src/liquid_gas_transient/u3_b2_fvm_discharge_adapter_authoritative.py
+          cb0b9745efcae9704edbba71b994ee77b6de4ca3935dc643e3dc9ba79b1282d8  src/liquid_gas_transient/solver.py
+          1f9df44251110115b7d76fd9c0602e6db4f85acc5791f68fc8bdc299e4c262e2  tests/test_stage7_u3_b2_fvm_discharge_adapter.py
+          ecb99efc4c44e13a683bd9046ba8a6e40cab79b320614654e8de225afb801c48  docs/verification/stage7_u3_b2_fvm_discharge_adapter.md
+          684157cdf137fac7bb50ce87d99b817eadc8aad28fd7079b8b1cdc3b5cb98ea8  .github/workflows/stage7-u3-b2-fvm-adapter-face-one-step.yml
+          SHA256
+
+          python -m py_compile \
+            src/liquid_gas_transient/u3_b2_fvm_discharge_adapter.py \
+            src/liquid_gas_transient/u3_b2_fvm_discharge_adapter_authoritative.py \
+            src/liquid_gas_transient/solver.py \
+            tests/test_stage7_u3_b2_fvm_discharge_adapter.py
+
+          rm -rf .agent_payloads
+          rm -f .github/workflows/agent-u3-b2-adapter-bootstrap.yml
+
+          git diff --check
+          git status --short
+
+      - name: Commit materialized implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Implement U3 B2 FVM Adapter face and one-step verification"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
