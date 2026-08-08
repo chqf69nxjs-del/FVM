@@ -7,6 +7,12 @@ Detailed historical records are preserved in:
 - [`archive/MASTER_VERIFICATION_INDEX_through_v013_reference_core.md`](archive/MASTER_VERIFICATION_INDEX_through_v013_reference_core.md)
 - [`archive/MASTER_VERIFICATION_INDEX_before_u3_b1_central_sync.md`](archive/MASTER_VERIFICATION_INDEX_before_u3_b1_central_sync.md)
 
+Shared project terminology and claim boundaries are defined in:
+
+- [`verification_glossary.md`](verification_glossary.md)
+
+Status words such as `IMPLEMENTED`、`VERIFIED`、`ACCEPTED`、`VALIDATED`および`APPROVED`は、上記glossaryの定義に従い、相互に置換しない。
+
 このファイルは、現在のauthoritative stateと主要closeoutへの索引を保持する。個別Gateの詳細値は、各closeout／current recordとArtifactをsource of truthとする。
 
 ## Current state — 2026-08-09
