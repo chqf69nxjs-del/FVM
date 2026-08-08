@@ -1,0 +1,48 @@
+name: Agent U3 B2 Workspace Export
+
+on:
+  push:
+    branches:
+      - agent/u3-b2-local-workspace-export
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact branch
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Record source identity
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD > workspace_source_sha.txt
+          git status --porcelain=v1 --untracked-files=all > workspace_git_status.txt
+          test ! -s workspace_git_status.txt
+
+      - name: Build source archive
+        run: |
+          set -euo pipefail
+          tar \
+            --exclude=.git \
+            --exclude=workspace.tar.gz \
+            -czf workspace.tar.gz .
+          sha256sum workspace.tar.gz > workspace_tar_sha256.txt
+
+      - name: Upload exact workspace
+        uses: actions/upload-artifact@v4
+        with:
+          name: u3-b2-workspace-${{ github.run_id }}
+          path: |
+            workspace.tar.gz
+            workspace_tar_sha256.txt
+            workspace_source_sha.txt
+            workspace_git_status.txt
+          if-no-files-found: error
+          retention-days: 1
