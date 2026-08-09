@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import importlib.util
 import math
 from functools import lru_cache
 from pathlib import Path
@@ -17,6 +18,7 @@ from liquid_gas_transient import (
 from liquid_gas_transient.boundary import ReflectiveBoundary, TransmissiveBoundary
 from liquid_gas_transient.config import PipeGeometry
 from liquid_gas_transient.eos import LinearLiquidEOS
+from liquid_gas_transient.flux import rusanov_flux
 from liquid_gas_transient.grid import UniformGrid
 from liquid_gas_transient.solver import FvmSolver
 from liquid_gas_transient.state import IDX_RHO_XV, make_conserved
@@ -56,6 +58,11 @@ B1_CONTRACT = Path(
 )
 ADAPTER_SOURCE = Path(
     "src/liquid_gas_transient/u3_b2_fvm_discharge_adapter.py"
+)
+COOLPROP_AVAILABLE = importlib.util.find_spec("CoolProp") is not None
+requires_coolprop = pytest.mark.skipif(
+    not COOLPROP_AVAILABLE,
+    reason="CoolProp is not installed in this environment",
 )
 
 
@@ -122,6 +129,65 @@ def test_solver_without_hook_retains_historical_uniform_noop() -> None:
     assert solver.step_count == 1
 
 
+class _RejectFirstTrialHook:
+    maximum_halvings = 1
+    failure_outcome = BOUNDARY_UPDATE_POSITIVITY_FAILURE
+
+    def __init__(self) -> None:
+        self.validation_calls = 0
+
+    def limit_dt(self, *, candidate_dt: float, **kwargs) -> float:
+        return candidate_dt
+
+    def evaluate_flux(self, *, U, eos, **kwargs):
+        return np.asarray(rusanov_flux(U[-1:], U[-1:], eos)[0], dtype=float)
+
+    def validate_trial(self, **kwargs) -> None:
+        self.validation_calls += 1
+        if self.validation_calls == 1:
+            raise ValueError("synthetic first-trial rejection")
+
+
+def test_run_history_records_accepted_halved_dt() -> None:
+    grid = UniformGrid(PipeGeometry(length_m=1.0, diameter_m=0.1), 8)
+    eos = LinearLiquidEOS()
+    U = make_conserved(
+        np.full(grid.n_cells, eos.rho_ref),
+        np.zeros(grid.n_cells),
+        np.full(grid.n_cells, eos.e_ref),
+        np.zeros(grid.n_cells),
+    )
+    hook = _RejectFirstTrialHook()
+    solver = FvmSolver(
+        grid=grid,
+        eos=eos,
+        U=U,
+        cfl=0.2,
+        left_boundary=TransmissiveBoundary(),
+        right_boundary=TransmissiveBoundary(),
+        right_external_face_flux_override=hook,
+        enable_phase_budget=False,
+        enable_energy_budget=False,
+        enable_interface_budget=False,
+    )
+    candidate_dt = solver.compute_dt()
+    accepted_dt = 0.5 * candidate_dt
+    history = solver.run(t_end=candidate_dt, max_steps=3, sample_every=1)
+    assert hook.validation_calls == 3
+    assert len(history) == 3
+    first = history[1]
+    assert first["dt_s"] == pytest.approx(accepted_dt)
+    assert first["time_s"] == pytest.approx(accepted_dt)
+    prim = solver.eos.primitive_from_conserved(solver.U)
+    expected_cfl = float(
+        np.max((np.abs(prim.u) + prim.c) * accepted_dt / grid.dx)
+    )
+    assert first["cfl_max"] == pytest.approx(expected_cfl)
+    assert history[2]["dt_s"] == pytest.approx(accepted_dt)
+    assert history[2]["time_s"] == pytest.approx(candidate_dt)
+
+
+@requires_coolprop
 def test_face_matrix_matches_independent_reference() -> None:
     contract, _ = _contracts()
     tolerances = contract["acceptance_tolerances"]
@@ -168,6 +234,7 @@ def test_face_matrix_matches_independent_reference() -> None:
     assert comparison_count == 52
 
 
+@requires_coolprop
 def test_exact_closed_and_zero_drop_identities() -> None:
     rows = {row.case_id: row for row in _adapter_faces()}
     for case_id in (
@@ -192,6 +259,7 @@ def test_exact_closed_and_zero_drop_identities() -> None:
     assert "No B1 law" not in zero.formal_message or "no B1 law" in zero.formal_message.lower()
 
 
+@requires_coolprop
 def test_one_step_actual_solver_matches_independent_reference() -> None:
     contract, b1_contract = _contracts()
     actual = run_one_step_case(contract, b1_contract)
@@ -232,6 +300,7 @@ def test_one_step_actual_solver_matches_independent_reference() -> None:
     assert actual.U_after_rho_xv == 0.0
 
 
+@requires_coolprop
 def test_declared_face_guards_are_atomic_outcomes() -> None:
     contract, b1_contract = _contracts()
     cases = {row["case_id"]: row for row in contract["benchmark_cases"]}
@@ -268,6 +337,7 @@ class _FailingStagnationProvider:
         raise RuntimeError("synthetic HmassSmass inversion failure")
 
 
+@requires_coolprop
 def test_stagnation_reconstruction_guard_is_atomic() -> None:
     contract, b1_contract = _contracts()
     case = next(
@@ -293,6 +363,7 @@ class _AlwaysRejectTrialAdapter(U3B2FvmDischargeAdapter):
         raise ValueError("synthetic nonpositive internal energy")
 
 
+@requires_coolprop
 def test_twelve_halving_exhaustion_is_atomic() -> None:
     contract, b1_contract = _contracts()
     case = next(
@@ -368,6 +439,7 @@ def test_inventory_orientation_guard_is_explicit() -> None:
     assert result.guard_triggered_before_state_mutation
 
 
+@requires_coolprop
 def test_face_application_order_keeps_vapor_flux_exact_zero() -> None:
     rows = _adapter_faces()
     assert all(

@@ -417,12 +417,12 @@ class FvmSolver:
         for _ in range(max_steps):
             if self.t >= t_end:
                 break
-            dt = self.compute_dt(t_end)
-            if dt <= 0.0:
+            candidate_dt = self.compute_dt(t_end)
+            if candidate_dt <= 0.0:
                 break
-            self.step(dt)
+            accepted_dt = self.step(candidate_dt)
             if self.step_count % sample_every == 0 or self.t >= t_end:
-                history.append(self.diagnostics(dt=dt))
+                history.append(self.diagnostics(dt=accepted_dt))
         else:
             raise RuntimeError("max_steps reached before t_end")
         return history

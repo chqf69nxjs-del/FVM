@@ -869,14 +869,14 @@ def write_artifact(
     )
 
     report = [
-        "# Stage 7 U3 B2 — FVM discharge-face Adapter authority",
+        "# Stage 7 U3 B2 — FVM流出面Adapter authority",
         "",
-        "The production-side single-phase Adapter was compared with the pinned,",
-        "independently implemented U3 B2 Reference. The Adapter source does not",
-        "import the B2 Reference module. This authority covers face mapping and",
-        "one actual 32-cell conservative FVM step only.",
+        "production側の単相Adapterを、固定sourceから再生成した独立U3 B2 Referenceと比較した。",
+        "Adapter sourceはB2 Reference moduleをimportせず、B2固有のface mappingと",
+        "one-step更新を別経路で実装している。本authorityの対象はface mappingと、",
+        "32-cell配管における実際の保存形FVM 1 stepのみである。",
         "",
-        "## Result",
+        "## 結果",
         "",
         f"- Adapter source SHA: `{source_git_sha}`",
         f"- pinned Reference source SHA: `{reference_source_git_sha}`",
@@ -887,24 +887,26 @@ def write_artifact(
         ),
         f"- property backend: `{provider.backend_name} {provider.version}`",
         f"- face rows: `{len(face_rows)}`",
-        f"- conserved-flux comparisons: `{len(face_comparisons)}` / all pass",
+        f"- conserved-flux comparisons: `{len(face_comparisons)}` / 全件PASS",
         "- actual FvmSolver one-step comparison: `PASS`",
-        f"- Guard rows: `{len(guard_rows)}` / all outcomes and atomicity pass",
+        f"- Guard rows: `{len(guard_rows)}` / outcome・atomicityとも全件PASS",
         f"- dedicated JUnit: `{junit['dedicated_junit.xml']}`",
         f"- related JUnit: `{junit['related_junit.xml']}`",
         f"- full JUnit: `{junit['full_repository_junit.xml']}`",
         "",
-        "## Candidate promotion boundary",
+        "## merge後の昇格候補",
         "",
-        "After expected-head merge and central-record synchronization, this",
-        "authority can support:",
+        "expected-head mergeとcentral record synchronizationの完了後に限り、",
+        "本authorityは次のformal flag昇格を支持できる。",
         "",
         "```text",
         "u3_b2_fvm_adapter_implemented = true",
         "single_phase_fvm_discharge_mapping_verified = true",
         "```",
         "",
-        "The following remain false:",
+        "## 未承認の範囲",
+        "",
+        "次のformal flagはfalseのまま維持する。",
         "",
         "```text",
         "u3_b2_finite_pipe_execution_complete = false",
@@ -916,8 +918,12 @@ def write_artifact(
         "production_hem_activation_approved = false",
         "```",
         "",
+        "本結果はfinite-pipe応答、物理精度、設計利用またはproduction readinessを承認しない。",
+        "",
     ]
-    (output_dir / "report.md").write_text("\n".join(report), encoding="utf-8")
+    (output_dir / "report.md").write_text(
+        "\n".join(report), encoding="utf-8"
+    )
 
     names = sorted(
         path.name
