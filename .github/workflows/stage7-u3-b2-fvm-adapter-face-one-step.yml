@@ -151,7 +151,7 @@ jobs:
           from pathlib import Path
 
           expectations = {
-              "dedicated_junit.xml": (10, 10),
+              "dedicated_junit.xml": (11, 11),
               "related_junit.xml": (40, None),
               "full_repository_junit.xml": (960, None),
           }
@@ -275,7 +275,7 @@ jobs:
           report_path = target / "report.md"
           report = report_path.read_text(encoding="utf-8").rstrip()
           report += (
-              "\n\n## Authoritative workflow provenance\n\n"
+              "\n\n## 正式workflow provenance\n\n"
               "```text\n"
               "case / matrix: U3_B2_13_FACE_52_COMPARISON_AND_ONE_STEP\n"
               "model: U3 B2 production-side single-phase FVM discharge Adapter\n"
