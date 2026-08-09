@@ -5,6 +5,11 @@ on:
     branches: [agent/u3-b2-fvm-adapter-clean]
     paths:
       - ".github/workflows/agent-u3-b2-b1-adapter-pin-hardening.yml"
+  pull_request:
+    types: [synchronize, reopened]
+    branches: [main]
+    paths:
+      - ".github/workflows/agent-u3-b2-b1-adapter-pin-hardening.yml"
 
 permissions:
   contents: write
@@ -15,6 +20,7 @@ concurrency:
 
 jobs:
   harden:
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -90,7 +96,7 @@ jobs:
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.email "4189828+github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -m "Pin accepted B1 Adapter source in B2 authority provenance"
           git push origin HEAD:agent/u3-b2-fvm-adapter-clean
