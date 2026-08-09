@@ -25,6 +25,9 @@ B2 Contract PR / source / merge:
 B2 Reference PR / source / merge:
 #138 / 0e2c8188961175b3c2cd56836296e713735bf8d9 / 4a70a831bb317ea70218e93801c469a12d7e046e
 
+Accepted B1 Adapter source:
+5939f152180fbc6ce9a638eeca670b34e1a6650f
+
 Reference authority run / Artifact:
 31203989733 / 9007750537
 
@@ -33,7 +36,9 @@ Reference Artifact ZIP SHA256:
 ```
 
 The B1 equation, coefficient placement, critical-search rules, case conditions,
-Guard disposition and accepted tolerances remain unchanged.
+Guard disposition and accepted tolerances remain unchanged. The authority
+workflow requires the current B1 Adapter file blob to be identical to the blob
+at the accepted B1 Adapter source SHA.
 
 ## 3. Independence boundary
 
@@ -167,6 +172,8 @@ The provenance record must separately retain:
 analysis source Git SHA
 checkout Git SHA
 Reference source Git SHA
+accepted B1 Adapter source Git SHA
+accepted B1 Adapter pinned/current blob identity
 Adapter source Git SHA
 historical Reference Artifact ID and ZIP SHA256
 parent B2 contract source and retained-artifact SHA256
