@@ -53,6 +53,11 @@ jobs:
           script = "\n".join(
               line[10:] if line.startswith("          ") else line for line in lines
           ) + "\n"
+          old = "history = solver.run(t_end=candidate_dt, max_steps=2, sample_every=1)"
+          new = "history = solver.run(t_end=candidate_dt, max_steps=3, sample_every=1)"
+          if script.count(old) != 1:
+              raise RuntimeError("expected one max_steps=2 review-test occurrence")
+          script = script.replace(old, new, 1)
           Path("/tmp/u3_b2_review_fix.py").write_text(script, encoding="utf-8")
           compile(script, "/tmp/u3_b2_review_fix.py", "exec")
           print(f"extracted_lines={len(lines)}")
