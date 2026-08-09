@@ -17,7 +17,7 @@ concurrency:
 jobs:
   materialize:
     if: github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-24.04-arm
+    runs-on: macos-15
     timeout-minutes: 20
     env:
       PAYLOAD: .agent_payloads/u3_b2_finite_pipe_baseline.tar.gz.b64
@@ -31,25 +31,50 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
 
-      - name: Decode and verify payload
+      - name: Decode, verify, and extract payload
         shell: bash
         run: |
           set -euo pipefail
-          base64 --decode "${PAYLOAD}" > /tmp/u3-b2-finite-pipe-baseline.tar.gz
-          echo "${PAYLOAD_SHA256}  /tmp/u3-b2-finite-pipe-baseline.tar.gz" | sha256sum --check --strict
-          rm -rf /tmp/u3-b2-finite-pipe-baseline
-          mkdir -p /tmp/u3-b2-finite-pipe-baseline
-          tar -xzf /tmp/u3-b2-finite-pipe-baseline.tar.gz -C /tmp/u3-b2-finite-pipe-baseline
+          python - <<'PY'
+          import base64
+          import hashlib
+          import shutil
+          import tarfile
+          from pathlib import Path
+
+          payload_path = Path('.agent_payloads/u3_b2_finite_pipe_baseline.tar.gz.b64')
+          archive = Path('/tmp/u3-b2-finite-pipe-baseline.tar.gz')
+          extract_dir = Path('/tmp/u3-b2-finite-pipe-baseline')
+          raw = base64.b64decode(payload_path.read_text(encoding='utf-8'))
+          actual = hashlib.sha256(raw).hexdigest()
+          expected = '85772b5f9f4a50c167fd38b0285f50401bab82624a96758f100930e32c2408e6'
+          assert actual == expected, (actual, expected)
+          archive.write_bytes(raw)
+          shutil.rmtree(extract_dir, ignore_errors=True)
+          extract_dir.mkdir(parents=True)
+          with tarfile.open(archive, 'r:gz') as handle:
+              handle.extractall(extract_dir)
+          PY
 
       - name: Verify source payload hashes
         shell: bash
         run: |
           set -euo pipefail
-          cd /tmp/u3-b2-finite-pipe-baseline
-          echo 'faadb217d5bef87d4d073a394d6eb939f9e7a5613ab87081b457ec13acd907ff  u3_b2_fvm_discharge_finite_pipe.py' | sha256sum --check --strict
-          echo 'd37699ecb6a4090bd00b01415b13b86b867b831188c1ce071822a91d59be7179  test_stage7_u3_b2_finite_pipe.py' | sha256sum --check --strict
-          echo 'fae3eb757b9fd86c8b76d6fee9bc3f8c2079b3f6eabe3dd1f65d93f1737584bc  stage7_u3_b2_finite_pipe_baseline.md' | sha256sum --check --strict
-          echo '04945560f6ce64154dd4f50c954a94bf78b8d2a8f7f6437bd7cb48053a13d770  stage7-u3-b2-finite-pipe-baseline-preflight.yml' | sha256sum --check --strict
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+
+          root = Path('/tmp/u3-b2-finite-pipe-baseline')
+          expected = {
+              'u3_b2_fvm_discharge_finite_pipe.py': 'faadb217d5bef87d4d073a394d6eb939f9e7a5613ab87081b457ec13acd907ff',
+              'test_stage7_u3_b2_finite_pipe.py': 'd37699ecb6a4090bd00b01415b13b86b867b831188c1ce071822a91d59be7179',
+              'stage7_u3_b2_finite_pipe_baseline.md': 'fae3eb757b9fd86c8b76d6fee9bc3f8c2079b3f6eabe3dd1f65d93f1737584bc',
+              'stage7-u3-b2-finite-pipe-baseline-preflight.yml': '04945560f6ce64154dd4f50c954a94bf78b8d2a8f7f6437bd7cb48053a13d770',
+          }
+          for name, digest in expected.items():
+              actual = hashlib.sha256((root / name).read_bytes()).hexdigest()
+              assert actual == digest, (name, actual, digest)
+          PY
 
       - name: Materialize controlled files
         shell: bash
