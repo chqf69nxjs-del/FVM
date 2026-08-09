@@ -1,0 +1,195 @@
+name: Agent U3 B2 B1 Adapter Pin Hardening
+
+on:
+  push:
+    branches:
+      - agent/u3-b2-fvm-adapter-clean
+    paths:
+      - ".github/workflows/agent-u3-b2-b1-adapter-pin-hardening.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: agent-u3-b2-b1-adapter-pin-hardening
+  cancel-in-progress: true
+
+jobs:
+  harden:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact branch
+        uses: actions/checkout@v7
+        with:
+          ref: agent/u3-b2-fvm-adapter-clean
+          fetch-depth: 0
+
+      - name: Patch B1 Adapter pin and provenance checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          from pathlib import Path
+
+          workflow_path = Path(
+              ".github/workflows/stage7-u3-b2-fvm-adapter-face-one-step.yml"
+          )
+          text = workflow_path.read_text(encoding="utf-8")
+
+          def replace_once(source: str, old: str, new: str, label: str) -> str:
+              count = source.count(old)
+              if count != 1:
+                  raise RuntimeError(f"{label}: expected one match, found {count}")
+              return source.replace(old, new, 1)
+
+          text = replace_once(
+              text,
+              "  B1_REFERENCE_SOURCE_GIT_SHA: c7c25efae0e53a8b5f5ed164f9135238c6e005e0\n"
+              "  REFERENCE_ARTIFACT_ID: \"9007750537\"\n",
+              "  B1_REFERENCE_SOURCE_GIT_SHA: c7c25efae0e53a8b5f5ed164f9135238c6e005e0\n"
+              "  B1_ADAPTER_SOURCE_GIT_SHA: 5939f152180fbc6ce9a638eeca670b34e1a6650f\n"
+              "  REFERENCE_ARTIFACT_ID: \"9007750537\"\n",
+              "environment pin",
+          )
+
+          text = replace_once(
+              text,
+              "          done\n\n"
+              "      - name: Compile and diff checks outside repository cache\n",
+              "          done\n"
+              "          b1_adapter_path=src/liquid_gas_transient/u3_b1_critical_state_adapter.py\n"
+              "          pinned=\"$(git rev-parse \"$B1_ADAPTER_SOURCE_GIT_SHA:$b1_adapter_path\")\"\n"
+              "          current=\"$(git rev-parse \"HEAD:$b1_adapter_path\")\"\n"
+              "          echo \"$b1_adapter_path pinned=$pinned current=$current\"\n"
+              "          test \"$pinned\" = \"$current\"\n\n"
+              "      - name: Compile and diff checks outside repository cache\n",
+              "B1 Adapter blob verification",
+          )
+
+          text = replace_once(
+              text,
+              "          assert checkout_sha == os.environ[\"ANALYSIS_SOURCE_GIT_SHA\"]\n\n"
+              "          provenance_path = target / \"runtime_and_git_provenance.json\"\n",
+              "          assert checkout_sha == os.environ[\"ANALYSIS_SOURCE_GIT_SHA\"]\n"
+              "          b1_adapter_path = (\n"
+              "              \"src/liquid_gas_transient/u3_b1_critical_state_adapter.py\"\n"
+              "          )\n"
+              "          b1_adapter_pinned_blob_sha = subprocess.check_output(\n"
+              "              [\n"
+              "                  \"git\",\n"
+              "                  \"rev-parse\",\n"
+              "                  f\"{os.environ['B1_ADAPTER_SOURCE_GIT_SHA']}:{b1_adapter_path}\",\n"
+              "              ],\n"
+              "              text=True,\n"
+              "          ).strip()\n"
+              "          b1_adapter_checkout_blob_sha = subprocess.check_output(\n"
+              "              [\"git\", \"rev-parse\", f\"HEAD:{b1_adapter_path}\"],\n"
+              "              text=True,\n"
+              "          ).strip()\n"
+              "          assert b1_adapter_pinned_blob_sha == b1_adapter_checkout_blob_sha\n\n"
+              "          provenance_path = target / \"runtime_and_git_provenance.json\"\n",
+              "provenance blob calculation",
+          )
+
+          text = replace_once(
+              text,
+              "                  \"adapter_source_git_sha\": os.environ[\"ANALYSIS_SOURCE_GIT_SHA\"],\n"
+              "                  \"matplotlib_version\": importlib.metadata.version(\"matplotlib\"),\n",
+              "                  \"adapter_source_git_sha\": os.environ[\"ANALYSIS_SOURCE_GIT_SHA\"],\n"
+              "                  \"b1_adapter_source_git_sha\": os.environ[\"B1_ADAPTER_SOURCE_GIT_SHA\"],\n"
+              "                  \"b1_adapter_pinned_blob_sha\": b1_adapter_pinned_blob_sha,\n"
+              "                  \"b1_adapter_checkout_blob_sha\": b1_adapter_checkout_blob_sha,\n"
+              "                  \"matplotlib_version\": importlib.metadata.version(\"matplotlib\"),\n",
+              "provenance fields",
+          )
+
+          text = replace_once(
+              text,
+              "              f\"Reference source SHA: {provenance['reference_source_git_sha']}\\n\"\n"
+              "              f\"Adapter source SHA: {provenance['adapter_source_git_sha']}\\n\"\n",
+              "              f\"Reference source SHA: {provenance['reference_source_git_sha']}\\n\"\n"
+              "              f\"accepted B1 Adapter source SHA: {provenance['b1_adapter_source_git_sha']}\\n\"\n"
+              "              f\"Adapter source SHA: {provenance['adapter_source_git_sha']}\\n\"\n",
+              "report provenance",
+          )
+
+          text = replace_once(
+              text,
+              "          assert provenance[\"adapter_source_git_sha\"] == os.environ[\n"
+              "              \"ANALYSIS_SOURCE_GIT_SHA\"\n"
+              "          ]\n"
+              "          assert provenance[\"checkout_git_sha\"] == checkout_sha\n",
+              "          assert provenance[\"adapter_source_git_sha\"] == os.environ[\n"
+              "              \"ANALYSIS_SOURCE_GIT_SHA\"\n"
+              "          ]\n"
+              "          assert provenance[\"b1_adapter_source_git_sha\"] == os.environ[\n"
+              "              \"B1_ADAPTER_SOURCE_GIT_SHA\"\n"
+              "          ]\n"
+              "          assert provenance[\"b1_adapter_pinned_blob_sha\"] == (\n"
+              "              provenance[\"b1_adapter_checkout_blob_sha\"]\n"
+              "          )\n"
+              "          assert provenance[\"checkout_git_sha\"] == checkout_sha\n",
+              "artifact provenance assertions",
+          )
+
+          text = replace_once(
+              text,
+              "          assert provenance[\"reference_used_only_as_comparison_target\"] is True\n\n"
+              "          source_contracts = {\n",
+              "          assert provenance[\"reference_used_only_as_comparison_target\"] is True\n"
+              "          benchmark_contract = json.loads(\n"
+              "              (target / \"benchmark_contract.json\").read_text(encoding=\"utf-8\")\n"
+              "          )\n"
+              "          assert benchmark_contract[\"depends_on\"][\"u3_b1\"][\n"
+              "              \"adapter_source_sha\"\n"
+              "          ] == os.environ[\"B1_ADAPTER_SOURCE_GIT_SHA\"]\n\n"
+              "          source_contracts = {\n",
+              "contract pin assertion",
+          )
+
+          text = replace_once(
+              text,
+              "              os.environ[\"REFERENCE_SOURCE_GIT_SHA\"],\n"
+              "              str(os.environ[\"GITHUB_RUN_ID\"]),\n",
+              "              os.environ[\"REFERENCE_SOURCE_GIT_SHA\"],\n"
+              "              os.environ[\"B1_ADAPTER_SOURCE_GIT_SHA\"],\n"
+              "              str(os.environ[\"GITHUB_RUN_ID\"]),\n",
+              "report token assertion",
+          )
+
+          workflow_path.write_text(text, encoding="utf-8")
+
+          document_path = Path(
+              "docs/verification/stage7_u3_b2_fvm_discharge_adapter.md"
+          )
+          document = document_path.read_text(encoding="utf-8")
+          document = replace_once(
+              document,
+              "Reference source Git SHA\n"
+              "Adapter source Git SHA\n",
+              "Reference source Git SHA\n"
+              "accepted B1 Adapter source Git SHA and pinned/current blob identity\n"
+              "Adapter source Git SHA\n",
+              "documentation provenance list",
+          )
+          document_path.write_text(document, encoding="utf-8")
+          PY
+
+          rm -f .github/workflows/agent-u3-b2-b1-adapter-pin-hardening.yml
+          git diff --check
+          grep -q 'B1_ADAPTER_SOURCE_GIT_SHA' \
+            .github/workflows/stage7-u3-b2-fvm-adapter-face-one-step.yml
+          test ! -e .github/workflows/agent-u3-b2-b1-adapter-pin-hardening.yml
+
+      - name: Commit hardened authority contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Pin accepted B1 Adapter source in B2 authority provenance"
+          git push origin HEAD:agent/u3-b2-fvm-adapter-clean
