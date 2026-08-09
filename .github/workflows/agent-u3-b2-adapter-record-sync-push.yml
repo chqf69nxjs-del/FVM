@@ -1,4 +1,5 @@
 name: Agent U3 B2 Adapter Record Sync Push Executor
+# generation: 2 — explicit push trigger
 
 on:
   push:
