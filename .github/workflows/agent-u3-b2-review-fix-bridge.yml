@@ -17,7 +17,7 @@ concurrency:
 jobs:
   apply-review-fixes:
     if: github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: macos-15
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       PYTHONPATH: src
@@ -34,13 +34,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          git fetch --no-tags origin \
+            +refs/heads/agent/u3-b2-review-fix-payload:refs/remotes/origin/agent/u3-b2-review-fix-payload
           git show \
-            origin/agent/u3-b2-review-fix-runner:.github/workflows/agent-u3-b2-review-fix-runner.yml \
-            > /tmp/agent-u3-b2-review-fix-runner.yml
+            origin/agent/u3-b2-review-fix-payload:.github/workflows/agent-u3-b2-review-feedback-fixes.yml \
+            > /tmp/agent-u3-b2-review-feedback-fixes.yml
           python - <<'PY'
           from pathlib import Path
 
-          source = Path("/tmp/agent-u3-b2-review-fix-runner.yml").read_text(
+          source = Path("/tmp/agent-u3-b2-review-feedback-fixes.yml").read_text(
               encoding="utf-8"
           )
           opening = "          python - <<'PY'\n"
@@ -76,22 +78,6 @@ jobs:
           printf 'pre_fix_git_status=%s\n' "$status"
           test -z "$status"
           python /tmp/u3_b2_review_fix.py
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path(
-              ".github/workflows/stage7-u3-b2-fvm-adapter-face-one-step.yml"
-          )
-          text = path.read_text(encoding="utf-8")
-          temporary = (
-              "  u3-b2-fvm-adapter-authority:\n"
-              "    if: ${{ false }} # TEMPORARY_REVIEW_FIX_PRIORITY\n"
-          )
-          normal = "  u3-b2-fvm-adapter-authority:\n"
-          if temporary in text:
-              text = text.replace(temporary, normal, 1)
-          path.write_text(text, encoding="utf-8")
-          PY
           python -m py_compile \
             src/liquid_gas_transient/solver.py \
             src/liquid_gas_transient/u3_b2_fvm_discharge_adapter_authoritative.py \
@@ -105,8 +91,25 @@ jobs:
             src/liquid_gas_transient/solver.py
           grep -q 'dedicated_junit.xml": (11, 11)' \
             .github/workflows/stage7-u3-b2-fvm-adapter-face-one-step.yml
-          ! grep -q TEMPORARY_REVIEW_FIX_PRIORITY \
-            .github/workflows/stage7-u3-b2-fvm-adapter-face-one-step.yml
+          grep -q '## 結果' \
+            src/liquid_gas_transient/u3_b2_fvm_discharge_adapter_authoritative.py
+          python - <<'PY'
+          import subprocess
+
+          expected = {
+              '.github/workflows/stage7-u3-b2-fvm-adapter-face-one-step.yml',
+              'docs/verification/stage7_u3_b2_fvm_discharge_adapter.md',
+              'src/liquid_gas_transient/solver.py',
+              'src/liquid_gas_transient/u3_b2_fvm_discharge_adapter_authoritative.py',
+              'tests/test_stage7_u3_b2_fvm_discharge_adapter.py',
+          }
+          actual = set(
+              subprocess.check_output(
+                  ['git', 'diff', '--name-only'], text=True
+              ).splitlines()
+          )
+          assert actual == expected, (sorted(actual), sorted(expected))
+          PY
 
       - name: Commit clean review fixes
         shell: bash
