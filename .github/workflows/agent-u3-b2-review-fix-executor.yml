@@ -1,8 +1,9 @@
 name: Agent U3 B2 Review Fix Executor
 
 on:
-  push:
-    branches: [agent/u3-b2-review-fix-executor]
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [agent/u3-b2-fvm-adapter-clean]
     paths:
       - ".github/workflows/agent-u3-b2-review-fix-executor.yml"
 
@@ -10,11 +11,12 @@ permissions:
   contents: write
 
 concurrency:
-  group: agent-u3-b2-review-fix-executor
+  group: agent-u3-b2-review-fix-executor-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
   apply-review-fixes:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: macos-15
     timeout-minutes: 30
     env:
