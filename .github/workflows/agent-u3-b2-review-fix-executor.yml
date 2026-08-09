@@ -15,12 +15,12 @@ concurrency:
 
 jobs:
   apply-review-fixes:
-    runs-on: macos-15
+    runs-on: windows-2025
     timeout-minutes: 30
     env:
       PYTHONPATH: src
       PYTHONDONTWRITEBYTECODE: "1"
-      PYTHONPYCACHEPREFIX: /tmp/u3-b2-review-fix-pycache
+      PYTHONPYCACHEPREFIX: ${{ runner.temp }}/u3-b2-review-fix-pycache
       TARGET_BRANCH: agent/u3-b2-fvm-adapter-clean
     steps:
       - name: Checkout target PR branch
@@ -37,11 +37,13 @@ jobs:
             +refs/heads/agent/u3-b2-review-fix-payload:refs/remotes/origin/agent/u3-b2-review-fix-payload
           git show \
             origin/agent/u3-b2-review-fix-payload:.github/workflows/agent-u3-b2-review-feedback-fixes.yml \
-            > /tmp/agent-u3-b2-review-feedback-fixes.yml
+            > "$RUNNER_TEMP/agent-u3-b2-review-feedback-fixes.yml"
           python - <<'PY'
+          import os
           from pathlib import Path
 
-          source = Path("/tmp/agent-u3-b2-review-feedback-fixes.yml").read_text(
+          temp = Path(os.environ["RUNNER_TEMP"])
+          source = (temp / "agent-u3-b2-review-feedback-fixes.yml").read_text(
               encoding="utf-8"
           )
           opening = "          python - <<'PY'\n"
@@ -57,8 +59,9 @@ jobs:
           if script.count(old) != 1:
               raise RuntimeError("expected one max_steps=2 review-test occurrence")
           script = script.replace(old, new, 1)
-          Path("/tmp/u3_b2_review_fix.py").write_text(script, encoding="utf-8")
-          compile(script, "/tmp/u3_b2_review_fix.py", "exec")
+          target = temp / "u3_b2_review_fix.py"
+          target.write_text(script, encoding="utf-8")
+          compile(script, str(target), "exec")
           print(f"extracted_lines={len(lines)}")
           PY
 
@@ -79,7 +82,7 @@ jobs:
         run: |
           set -euo pipefail
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
-          python /tmp/u3_b2_review_fix.py
+          python "$RUNNER_TEMP/u3_b2_review_fix.py"
           python -m py_compile \
             src/liquid_gas_transient/solver.py \
             src/liquid_gas_transient/u3_b2_fvm_discharge_adapter_authoritative.py \
