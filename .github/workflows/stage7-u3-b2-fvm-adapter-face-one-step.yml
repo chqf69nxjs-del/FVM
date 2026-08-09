@@ -189,14 +189,112 @@ jobs:
             --related-junit related_junit.xml \
             --full-junit full_repository_junit.xml
 
+      - name: Complete runtime and contract provenance
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import importlib.metadata
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          target = Path("artifacts/stage7-u3-b2-fvm-adapter")
+          source_paths = {
+              "parent_contract_source_sha256": Path(
+                  "docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json"
+              ),
+              "extension_contract_source_sha256": Path(
+                  "docs/verification/stage7_u3_b2_fvm_discharge_coupling_event_provenance_contract_v1.json"
+              ),
+              "b1_component_contract_source_sha256": Path(
+                  "docs/verification/stage7_u3_b1_critical_state_contract_v1.json"
+              ),
+          }
+          artifact_paths = {
+              "parent_contract_artifact_sha256": target / "benchmark_contract.json",
+              "extension_contract_artifact_sha256": target / "event_provenance_contract.json",
+              "b1_component_contract_artifact_sha256": target / "b1_component_contract.json",
+          }
+
+          def sha256(path: Path) -> str:
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+
+          checkout_sha = subprocess.check_output(
+              ["git", "rev-parse", "HEAD"], text=True
+          ).strip()
+          assert checkout_sha == os.environ["ANALYSIS_SOURCE_GIT_SHA"]
+
+          provenance_path = target / "runtime_and_git_provenance.json"
+          provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+          provenance.update(
+              {
+                  "checkout_git_sha": checkout_sha,
+                  "adapter_source_git_sha": os.environ["ANALYSIS_SOURCE_GIT_SHA"],
+                  "matplotlib_version": importlib.metadata.version("matplotlib"),
+                  "pytest_version": importlib.metadata.version("pytest"),
+                  "coolprop_version": importlib.metadata.version("CoolProp"),
+                  **{key: sha256(path) for key, path in source_paths.items()},
+                  **{key: sha256(path) for key, path in artifact_paths.items()},
+              }
+          )
+          provenance_path.write_text(
+              json.dumps(provenance, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+
+          summary_path = target / "summary.json"
+          summary = json.loads(summary_path.read_text(encoding="utf-8"))
+          summary["provenance"] = provenance
+          for key in (*source_paths, *artifact_paths):
+              summary[key] = provenance[key]
+          summary_path.write_text(
+              json.dumps(summary, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+
+          report_path = target / "report.md"
+          report = report_path.read_text(encoding="utf-8").rstrip()
+          report += (
+              "\n\n## Authoritative workflow provenance\n\n"
+              "```text\n"
+              "case / matrix: U3_B2_13_FACE_52_COMPARISON_AND_ONE_STEP\n"
+              "model: U3 B2 production-side single-phase FVM discharge Adapter\n"
+              "mapping: direct_external_face_flux_override\n"
+              f"property backend: CoolProp {provenance['property_backend_version']}\n"
+              f"analysis source SHA: {provenance['analysis_source_git_sha']}\n"
+              f"checkout SHA: {provenance['checkout_git_sha']}\n"
+              f"Reference source SHA: {provenance['reference_source_git_sha']}\n"
+              f"Adapter source SHA: {provenance['adapter_source_git_sha']}\n"
+              f"workflow run ID: {provenance['workflow_run_id']}\n"
+              "```\n"
+          )
+          report_path.write_text(report, encoding="utf-8")
+
+          names = sorted(
+              path.name
+              for path in target.iterdir()
+              if path.is_file() and path.name != "artifact_sha256.txt"
+          )
+          (target / "artifact_sha256.txt").write_text(
+              "".join(
+                  f"{sha256(target / name)}  {name}\n" for name in names
+              ),
+              encoding="utf-8",
+          )
+          PY
+
       - name: Inspect Adapter authority artifact
         run: |
           set -euo pipefail
           python - <<'PY'
           import csv
           import hashlib
+          import importlib.metadata
           import json
           import os
+          import subprocess
           from pathlib import Path
 
           from PIL import Image
@@ -254,8 +352,18 @@ jobs:
                   encoding="utf-8"
               )
           )
+          checkout_sha = subprocess.check_output(
+              ["git", "rev-parse", "HEAD"], text=True
+          ).strip()
           assert summary["provenance"] == provenance
           assert provenance["source_git_sha"] == os.environ["ANALYSIS_SOURCE_GIT_SHA"]
+          assert provenance["analysis_source_git_sha"] == os.environ[
+              "ANALYSIS_SOURCE_GIT_SHA"
+          ]
+          assert provenance["adapter_source_git_sha"] == os.environ[
+              "ANALYSIS_SOURCE_GIT_SHA"
+          ]
+          assert provenance["checkout_git_sha"] == checkout_sha
           assert provenance["reference_source_git_sha"] == os.environ[
               "REFERENCE_SOURCE_GIT_SHA"
           ]
@@ -266,6 +374,9 @@ jobs:
               os.environ["REFERENCE_ARTIFACT_ZIP_SHA256"]
           )
           assert provenance["property_backend_version"] == "8.0.0"
+          assert provenance["coolprop_version"] == "8.0.0"
+          assert provenance["matplotlib_version"] == "3.11.1"
+          assert provenance["pytest_version"] == "9.1.1"
           assert provenance["workflow_run_id"] == int(os.environ["GITHUB_RUN_ID"])
           assert provenance["workflow_run_attempt"] == int(
               os.environ["GITHUB_RUN_ATTEMPT"]
@@ -273,6 +384,27 @@ jobs:
           assert provenance["git_status_porcelain_tracked"] == ""
           assert provenance["adapter_imports_B2_reference"] is False
           assert provenance["reference_used_only_as_comparison_target"] is True
+
+          source_contracts = {
+              "parent_contract_source_sha256": Path(
+                  "docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json"
+              ),
+              "extension_contract_source_sha256": Path(
+                  "docs/verification/stage7_u3_b2_fvm_discharge_coupling_event_provenance_contract_v1.json"
+              ),
+              "b1_component_contract_source_sha256": Path(
+                  "docs/verification/stage7_u3_b1_critical_state_contract_v1.json"
+              ),
+          }
+          artifact_contracts = {
+              "parent_contract_artifact_sha256": target / "benchmark_contract.json",
+              "extension_contract_artifact_sha256": target / "event_provenance_contract.json",
+              "b1_component_contract_artifact_sha256": target / "b1_component_contract.json",
+          }
+          for key, path in {**source_contracts, **artifact_contracts}.items():
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              assert provenance[key] == digest
+              assert summary[key] == digest
 
           with (target / "adapter_face_results.csv").open(
               newline="", encoding="utf-8"
@@ -300,6 +432,17 @@ jobs:
               guards = list(csv.DictReader(handle))
           assert len(guards) == 7
           assert all(row["guard_comparison_passed"] == "True" for row in guards)
+
+          report = (target / "report.md").read_text(encoding="utf-8")
+          for token in (
+              "U3_B2_13_FACE_52_COMPARISON_AND_ONE_STEP",
+              "direct_external_face_flux_override",
+              "CoolProp 8.0.0",
+              os.environ["ANALYSIS_SOURCE_GIT_SHA"],
+              os.environ["REFERENCE_SOURCE_GIT_SHA"],
+              str(os.environ["GITHUB_RUN_ID"]),
+          ):
+              assert token in report
 
           with Image.open(target / "reference_adapter_face_flux_parity.png") as image:
               description = image.info.get("Description", "")
