@@ -1,22 +1,110 @@
-name: Agent U3 B2 Review Fix Executor
+name: Agent U3 B2 Final Authority Dispatcher
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-    branches: [agent/u3-b2-fvm-adapter-clean]
+  push:
+    branches: [agent/u3-b2-review-fix-executor]
     paths:
       - ".github/workflows/agent-u3-b2-review-fix-executor.yml"
 
 permissions:
+  actions: write
   contents: read
+  issues: write
 
 concurrency:
-  group: agent-u3-b2-review-fix-executor-${{ github.event.pull_request.number }}
+  group: agent-u3-b2-final-authority-dispatcher
   cancel-in-progress: true
 
 jobs:
-  release-executor-lane:
-    if: ${{ false }}
+  dispatch-final-head-authority:
     runs-on: macos-15
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: chqf69nxjs-del/FVM
+      TARGET_BRANCH: agent/u3-b2-fvm-adapter-clean
+      EXPECTED_HEAD_SHA: 732b7259ac3738c47f7eb7cbd23d8e49195a0d7b
+      WORKFLOW_FILE: stage7-u3-b2-fvm-adapter-face-one-step.yml
+      PR_NUMBER: "144"
     steps:
-      - run: echo "Review-fix executor completed and was superseded."
+      - name: Verify exact target head
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual_head="$(
+            gh api "repos/${REPOSITORY}/git/ref/heads/${TARGET_BRANCH}" \
+              --jq '.object.sha'
+          )"
+          printf 'expected_head=%s\nactual_head=%s\n' \
+            "${EXPECTED_HEAD_SHA}" "${actual_head}"
+          test "${actual_head}" = "${EXPECTED_HEAD_SHA}"
+
+      - name: Dispatch final-head authority
+        id: dispatch
+        shell: bash
+        run: |
+          set -euo pipefail
+          before="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          gh workflow run "${WORKFLOW_FILE}" \
+            --repo "${REPOSITORY}" \
+            --ref "${TARGET_BRANCH}"
+
+          run_id=""
+          for attempt in $(seq 1 30); do
+            payload="$(
+              gh api \
+                "repos/${REPOSITORY}/actions/workflows/${WORKFLOW_FILE}/runs?event=workflow_dispatch&branch=${TARGET_BRANCH}&per_page=20"
+            )"
+            run_id="$(
+              PAYLOAD="${payload}" BEFORE="${before}" EXPECTED="${EXPECTED_HEAD_SHA}" \
+                python - <<'PY'
+          import json
+          import os
+
+          payload = json.loads(os.environ["PAYLOAD"])
+          before = os.environ["BEFORE"]
+          expected = os.environ["EXPECTED"]
+          matches = [
+              row
+              for row in payload.get("workflow_runs", [])
+              if row.get("head_sha") == expected
+              and row.get("created_at", "") >= before
+          ]
+          matches.sort(key=lambda row: row.get("created_at", ""), reverse=True)
+          print(matches[0]["id"] if matches else "")
+          PY
+            )"
+            if [ -n "${run_id}" ]; then
+              break
+            fi
+            sleep 2
+          done
+          test -n "${run_id}"
+          echo "run_id=${run_id}" >> "${GITHUB_OUTPUT}"
+          printf 'authority_run_id=%s\n' "${run_id}"
+
+      - name: Record dispatch on PR conversation
+        shell: bash
+        env:
+          AUTHORITY_RUN_ID: ${{ steps.dispatch.outputs.run_id }}
+        run: |
+          set -euo pipefail
+          body="$(cat <<EOF
+          Final-head authority was dispatched without reopening PR #${PR_NUMBER}.
+
+          \`\`\`text
+          source head:
+          ${EXPECTED_HEAD_SHA}
+
+          workflow:
+          ${WORKFLOW_FILE}
+
+          authority run:
+          ${AUTHORITY_RUN_ID}
+          \`\`\`
+
+          This dispatch does not resolve review threads, promote formal flags, reopen the PR, or merge it.
+          EOF
+          )"
+          gh api "repos/${REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            -f body="${body}" >/dev/null
