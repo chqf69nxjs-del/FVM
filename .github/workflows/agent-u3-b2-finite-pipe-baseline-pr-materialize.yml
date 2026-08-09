@@ -3,7 +3,7 @@ name: Agent U3 B2 Finite-Pipe Baseline PR Materialize
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    branches: [main]
+    branches: [agent/u3-b2-finite-pipe-materialize-base]
     paths:
       - ".github/workflows/agent-u3-b2-finite-pipe-baseline-pr-materialize.yml"
 
