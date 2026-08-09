@@ -76,6 +76,22 @@ jobs:
           printf 'pre_fix_git_status=%s\n' "$status"
           test -z "$status"
           python /tmp/u3_b2_review_fix.py
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path(
+              ".github/workflows/stage7-u3-b2-fvm-adapter-face-one-step.yml"
+          )
+          text = path.read_text(encoding="utf-8")
+          temporary = (
+              "  u3-b2-fvm-adapter-authority:\n"
+              "    if: ${{ false }} # TEMPORARY_REVIEW_FIX_PRIORITY\n"
+          )
+          normal = "  u3-b2-fvm-adapter-authority:\n"
+          if temporary not in text:
+              raise RuntimeError("temporary authority priority guard is missing")
+          path.write_text(text.replace(temporary, normal, 1), encoding="utf-8")
+          PY
           python -m py_compile \
             src/liquid_gas_transient/solver.py \
             src/liquid_gas_transient/u3_b2_fvm_discharge_adapter_authoritative.py \
@@ -88,6 +104,8 @@ jobs:
           grep -q 'accepted_dt = self.step(candidate_dt)' \
             src/liquid_gas_transient/solver.py
           grep -q 'dedicated_junit.xml": (11, 11)' \
+            .github/workflows/stage7-u3-b2-fvm-adapter-face-one-step.yml
+          ! grep -q TEMPORARY_REVIEW_FIX_PRIORITY \
             .github/workflows/stage7-u3-b2-fvm-adapter-face-one-step.yml
 
       - name: Commit clean review fixes
