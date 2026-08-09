@@ -1,0 +1,103 @@
+name: Agent U3 B2 Finite-Pipe Baseline PR Materialize
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+    paths:
+      - ".github/workflows/agent-u3-b2-finite-pipe-baseline-pr-materialize.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: agent-u3-b2-finite-pipe-baseline-pr-materialize
+  cancel-in-progress: true
+
+jobs:
+  materialize:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    env:
+      PAYLOAD: .agent_payloads/u3_b2_finite_pipe_baseline.tar.gz.b64
+      PAYLOAD_SHA256: 85772b5f9f4a50c167fd38b0285f50401bab82624a96758f100930e32c2408e6
+      TARGET_BRANCH: ${{ github.event.pull_request.head.ref }}
+      PYTHONPYCACHEPREFIX: /tmp/u3-b2-finite-pipe-materialize-pycache
+    steps:
+      - name: Checkout exact PR branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Decode and verify payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 --decode "${PAYLOAD}" > /tmp/u3-b2-finite-pipe-baseline.tar.gz
+          echo "${PAYLOAD_SHA256}  /tmp/u3-b2-finite-pipe-baseline.tar.gz" | sha256sum --check --strict
+          rm -rf /tmp/u3-b2-finite-pipe-baseline
+          mkdir -p /tmp/u3-b2-finite-pipe-baseline
+          tar -xzf /tmp/u3-b2-finite-pipe-baseline.tar.gz -C /tmp/u3-b2-finite-pipe-baseline
+
+      - name: Verify source payload hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/u3-b2-finite-pipe-baseline
+          echo 'faadb217d5bef87d4d073a394d6eb939f9e7a5613ab87081b457ec13acd907ff  u3_b2_fvm_discharge_finite_pipe.py' | sha256sum --check --strict
+          echo 'd37699ecb6a4090bd00b01415b13b86b867b831188c1ce071822a91d59be7179  test_stage7_u3_b2_finite_pipe.py' | sha256sum --check --strict
+          echo 'fae3eb757b9fd86c8b76d6fee9bc3f8c2079b3f6eabe3dd1f65d93f1737584bc  stage7_u3_b2_finite_pipe_baseline.md' | sha256sum --check --strict
+          echo '04945560f6ce64154dd4f50c954a94bf78b8d2a8f7f6437bd7cb48053a13d770  stage7-u3-b2-finite-pipe-baseline-preflight.yml' | sha256sum --check --strict
+
+      - name: Materialize controlled files
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp /tmp/u3-b2-finite-pipe-baseline/u3_b2_fvm_discharge_finite_pipe.py \
+            src/liquid_gas_transient/u3_b2_fvm_discharge_finite_pipe.py
+          cp /tmp/u3-b2-finite-pipe-baseline/test_stage7_u3_b2_finite_pipe.py \
+            tests/test_stage7_u3_b2_finite_pipe.py
+          cp /tmp/u3-b2-finite-pipe-baseline/stage7_u3_b2_finite_pipe_baseline.md \
+            docs/verification/stage7_u3_b2_finite_pipe_baseline.md
+          cp /tmp/u3-b2-finite-pipe-baseline/stage7-u3-b2-finite-pipe-baseline-preflight.yml \
+            .github/workflows/stage7-u3-b2-finite-pipe-baseline-preflight.yml
+
+      - name: Compile and inspect clean implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile \
+            src/liquid_gas_transient/u3_b2_fvm_discharge_finite_pipe.py \
+            tests/test_stage7_u3_b2_finite_pipe.py
+          git diff --check
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+
+          source = Path('src/liquid_gas_transient/u3_b2_fvm_discharge_finite_pipe.py')
+          tree = ast.parse(source.read_text(encoding='utf-8'))
+          imported = []
+          for node in ast.walk(tree):
+              if isinstance(node, ast.Import):
+                  imported.extend(alias.name for alias in node.names)
+              elif isinstance(node, ast.ImportFrom):
+                  imported.append(node.module or '')
+          assert not any('u3_b2_fvm_discharge_reference' in name for name in imported)
+          PY
+
+      - name: Commit clean baseline implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f \
+            "${PAYLOAD}" \
+            .github/workflows/agent-u3-b2-finite-pipe-baseline-materialize.yml \
+            .github/workflows/agent-u3-b2-finite-pipe-baseline-pr-materialize.yml
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Implement U3 B2 finite-pipe baseline preflight'
+          git push origin "HEAD:${TARGET_BRANCH}"
