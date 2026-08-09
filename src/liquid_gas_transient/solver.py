@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import Callable, Protocol
 import numpy as np
 
 from .boundary import BoundaryCondition, TransmissiveBoundary
@@ -20,6 +20,53 @@ from .source_terms import NoSource, SourceTerm
 from .state import IDX_RHO, IDX_MOM, IDX_RHOE, IDX_RHO_XV, N_VARS, check_physical_state, inventory
 
 FluxFunction = Callable[[np.ndarray, np.ndarray, EOSModel], np.ndarray]
+
+
+class RightExternalFaceFluxOverride(Protocol):
+    """Optional direct right external-face flux provider.
+
+    The hook is intentionally generic.  It may reduce a candidate time step,
+    replace only the final right external numerical flux, and validate the raw
+    conservative trial state before boundary budgets or solver state are
+    mutated.  A ``None`` hook preserves the historical solver path exactly.
+    """
+
+    maximum_halvings: int
+    failure_outcome: str
+
+    def limit_dt(
+        self,
+        *,
+        U: np.ndarray,
+        eos: EOSModel,
+        grid: UniformGrid,
+        t: float,
+        candidate_dt: float,
+    ) -> float:
+        """Return a positive time step no larger than ``candidate_dt``."""
+
+    def evaluate_flux(
+        self,
+        *,
+        U: np.ndarray,
+        eos: EOSModel,
+        grid: UniformGrid,
+        t: float,
+        dt: float,
+    ) -> np.ndarray:
+        """Return the final right external-face flux with shape ``(N_VARS,)``."""
+
+    def validate_trial(
+        self,
+        *,
+        U_before: np.ndarray,
+        U_trial: np.ndarray,
+        eos: EOSModel,
+        grid: UniformGrid,
+        t: float,
+        dt: float,
+    ) -> None:
+        """Raise ``ValueError`` when the conservative trial is unacceptable."""
 
 
 @dataclass
@@ -46,6 +93,10 @@ class FvmSolver:
         Operator-split phase-change model.
     flux_function:
         Numerical flux function. Defaults to Rusanov.
+    right_external_face_flux_override:
+        Optional direct override applied after Rusanov and internal-interface
+        overrides, but before boundary-budget recording and the conservative
+        update.  ``None`` retains the historical path.
     """
 
     grid: UniformGrid
@@ -59,6 +110,7 @@ class FvmSolver:
     phase_change: PhaseChangeModel = field(default_factory=NoPhaseChange)
     flux_function: FluxFunction = rusanov_flux
     internal_interfaces: tuple[InternalInterface, ...] = ()
+    right_external_face_flux_override: RightExternalFaceFluxOverride | None = None
     enable_boundary_budget: bool = True
     enable_phase_budget: bool = True
     enable_energy_budget: bool = True
@@ -101,8 +153,28 @@ class FvmSolver:
 
         return self.eos.primitive_from_conserved(self.U)
 
+    def _limit_right_external_face_dt(self, candidate_dt: float) -> float:
+        hook = self.right_external_face_flux_override
+        if hook is None:
+            return candidate_dt
+        limited = float(
+            hook.limit_dt(
+                U=self.U,
+                eos=self.eos,
+                grid=self.grid,
+                t=self.t,
+                candidate_dt=float(candidate_dt),
+            )
+        )
+        if not np.isfinite(limited) or limited <= 0.0:
+            raise ValueError("right external-face hook returned an invalid dt")
+        roundoff = 8.0 * np.finfo(float).eps * max(abs(candidate_dt), 1.0)
+        if limited > candidate_dt + roundoff:
+            raise ValueError("right external-face hook may not enlarge dt")
+        return min(limited, candidate_dt)
+
     def compute_dt(self, t_end: float | None = None) -> float:
-        """Compute stable explicit time step from CFL condition."""
+        """Compute stable explicit time step from CFL and active face limits."""
 
         prim = self.primitive()
         wave_speed = np.abs(prim.u) + prim.c
@@ -112,6 +184,8 @@ class FvmSolver:
         dt = self.cfl * self.grid.dx / max_speed
         if t_end is not None:
             dt = min(dt, max(t_end - self.t, 0.0))
+        if dt > 0.0:
+            dt = self._limit_right_external_face_dt(dt)
         return dt
 
     def extend_with_ghosts(self, t: float) -> np.ndarray:
@@ -124,23 +198,14 @@ class FvmSolver:
         check_physical_state(U_ext, names=["U with ghost cells"])
         return U_ext
 
-    def step(self, dt: float | None = None) -> float:
-        """Advance one time step and return the actual dt used."""
+    def _base_fluxes(self) -> tuple[np.ndarray, np.ndarray]:
+        """Return cell-adjacent left/right flux arrays after internal overrides."""
 
-        if dt is None:
-            dt = self.compute_dt()
-        if dt <= 0.0:
-            raise ValueError("dt must be positive")
-
-        check_physical_state(self.U, names=["pre-step U"])
-
-        # 1. Boundary and interface fluxes.
         U_ext = self.extend_with_ghosts(self.t)
         U_left = U_ext[:-1]
         U_right = U_ext[1:]
         flux = self.flux_function(U_left, U_right, self.eos)
 
-        # Flux interfaces adjacent to internal cells.
         i0 = self.n_ghost
         i1 = self.n_ghost + self.grid.n_cells
         flux_left = flux[i0 - 1 : i1 - 1].copy()
@@ -155,7 +220,15 @@ class FvmSolver:
                 t=self.t,
                 flux_function=self.flux_function,
             )
+        return flux_left, flux_right
 
+    def _record_flux_budgets(
+        self,
+        *,
+        flux_left: np.ndarray,
+        flux_right: np.ndarray,
+        dt: float,
+    ) -> None:
         if self.boundary_budget is not None:
             self.boundary_budget.record_external_fluxes(
                 left_flux=flux_left[0],
@@ -176,10 +249,9 @@ class FvmSolver:
                 t=self.t,
             )
 
-        U_new = self.U - (dt / self.grid.dx) * (flux_right - flux_left)
-        check_physical_state(U_new, names=["after FVM update"])
+    def _apply_split_operators(self, U_new: np.ndarray, dt: float) -> np.ndarray:
+        """Apply the existing source and phase-change slots."""
 
-        # 2. Operator-split source terms.
         U_before_source = U_new.copy()
         source_energy_terms = None
         if hasattr(self.source_term, "energy_budget_terms"):
@@ -198,7 +270,6 @@ class FvmSolver:
             )
         check_physical_state(U_new, names=["after source update"])
 
-        # 3. Operator-split phase change.
         U_before_phase = U_new.copy()
         U_new = self.phase_change.apply(U_new, self.eos, dt, self.t)
         phase_vapor_source_kg = 0.0
@@ -221,11 +292,116 @@ class FvmSolver:
                 vapor_mass_source_kg=phase_vapor_source_kg,
             )
         check_physical_state(U_new, names=["after phase-change update"])
+        return U_new
+
+    def _step_without_right_external_override(self, dt: float) -> float:
+        """Historical solver path retained when no external hook is active."""
+
+        flux_left, flux_right = self._base_fluxes()
+        self._record_flux_budgets(
+            flux_left=flux_left,
+            flux_right=flux_right,
+            dt=dt,
+        )
+
+        U_new = self.U - (dt / self.grid.dx) * (flux_right - flux_left)
+        check_physical_state(U_new, names=["after FVM update"])
+        U_new = self._apply_split_operators(U_new, dt)
 
         self.U = U_new
         self.t += dt
         self.step_count += 1
         return dt
+
+    def _step_with_right_external_override(self, dt: float) -> float:
+        """Advance atomically with direct external-face flux and halving."""
+
+        hook = self.right_external_face_flux_override
+        if hook is None:  # pragma: no cover - protected by caller
+            raise AssertionError("external override path requires an active hook")
+        maximum_halvings = int(getattr(hook, "maximum_halvings", 0))
+        if maximum_halvings < 0:
+            raise ValueError("maximum_halvings must be non-negative")
+        failure_outcome = str(
+            getattr(hook, "failure_outcome", "BOUNDARY_UPDATE_POSITIVITY_FAILURE")
+        )
+
+        trial_dt = float(dt)
+        last_error: ValueError | None = None
+        for halving in range(maximum_halvings + 1):
+            flux_left, flux_right = self._base_fluxes()
+            external_flux = np.asarray(
+                hook.evaluate_flux(
+                    U=self.U,
+                    eos=self.eos,
+                    grid=self.grid,
+                    t=self.t,
+                    dt=trial_dt,
+                ),
+                dtype=float,
+            )
+            if external_flux.shape != (N_VARS,):
+                raise ValueError("right external-face flux must have shape (N_VARS,)")
+            if not np.all(np.isfinite(external_flux)):
+                raise ValueError("right external-face flux must be finite")
+            flux_right[-1] = external_flux
+
+            U_trial = self.U - (trial_dt / self.grid.dx) * (
+                flux_right - flux_left
+            )
+            try:
+                check_physical_state(U_trial, names=["after FVM trial update"])
+                hook.validate_trial(
+                    U_before=self.U,
+                    U_trial=U_trial,
+                    eos=self.eos,
+                    grid=self.grid,
+                    t=self.t,
+                    dt=trial_dt,
+                )
+            except ValueError as exc:
+                last_error = exc
+                if halving >= maximum_halvings:
+                    raise RuntimeError(
+                        f"{failure_outcome}: exhausted {maximum_halvings} "
+                        f"deterministic halvings; last error: {exc}"
+                    ) from exc
+                trial_dt *= 0.5
+                if not np.isfinite(trial_dt) or trial_dt <= 0.0:
+                    raise RuntimeError(
+                        f"{failure_outcome}: deterministic halving produced invalid dt"
+                    ) from exc
+                continue
+
+            # No budget, state, time, or step mutation occurs until the trial is
+            # accepted.  This is the atomicity boundary for B2 external Guards.
+            self._record_flux_budgets(
+                flux_left=flux_left,
+                flux_right=flux_right,
+                dt=trial_dt,
+            )
+            U_new = self._apply_split_operators(U_trial, trial_dt)
+            self.U = U_new
+            self.t += trial_dt
+            self.step_count += 1
+            return trial_dt
+
+        raise AssertionError(f"unreachable halving loop: {last_error}")
+
+    def step(self, dt: float | None = None) -> float:
+        """Advance one time step and return the actual dt used."""
+
+        if dt is None:
+            dt = self.compute_dt()
+        elif self.right_external_face_flux_override is not None:
+            dt = self._limit_right_external_face_dt(float(dt))
+        if dt <= 0.0:
+            raise ValueError("dt must be positive")
+
+        check_physical_state(self.U, names=["pre-step U"])
+        if self.right_external_face_flux_override is None:
+            return self._step_without_right_external_override(float(dt))
+        return self._step_with_right_external_override(float(dt))
 
     def run(self, t_end: float, max_steps: int = 100_000, *, sample_every: int = 1) -> list[dict[str, float]]:
         """Run until t_end and return diagnostic history."""
@@ -241,12 +417,12 @@ class FvmSolver:
         for _ in range(max_steps):
             if self.t >= t_end:
                 break
-            dt = self.compute_dt(t_end)
-            if dt <= 0.0:
+            candidate_dt = self.compute_dt(t_end)
+            if candidate_dt <= 0.0:
                 break
-            self.step(dt)
+            accepted_dt = self.step(candidate_dt)
             if self.step_count % sample_every == 0 or self.t >= t_end:
-                history.append(self.diagnostics(dt=dt))
+                history.append(self.diagnostics(dt=accepted_dt))
         else:
             raise RuntimeError("max_steps reached before t_end")
         return history
