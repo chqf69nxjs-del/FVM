@@ -1,0 +1,166 @@
+name: U3 B2 Shadow Preflight macOS
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [agent/u3-b2-shadow-base]
+    paths:
+      - ".github/workflows/u3-b2-shadow-preflight-macos.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: u3-b2-shadow-preflight-macos-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONPYCACHEPREFIX: /tmp/u3-b2-shadow-macos-pycache
+  MPLBACKEND: Agg
+  SOURCE_SHA: 732b7259ac3738c47f7eb7cbd23d8e49195a0d7b
+
+jobs:
+  preflight:
+    runs-on: macos-15
+    timeout-minutes: 180
+    steps:
+      - name: Checkout exact final candidate source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          path: source
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install fixed dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install \
+            'numpy==2.5.1' \
+            'matplotlib==3.11.1' \
+            'pytest==9.1.1' \
+            'CoolProp==8.0.0' \
+            pillow
+
+      - name: Verify exact source and compile
+        working-directory: source
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          rm -rf "$PYTHONPYCACHEPREFIX"
+          python -m py_compile \
+            src/liquid_gas_transient/solver.py \
+            src/liquid_gas_transient/u3_b2_fvm_discharge_adapter.py \
+            src/liquid_gas_transient/u3_b2_fvm_discharge_adapter_authoritative.py \
+            tests/test_stage7_u3_b2_fvm_discharge_adapter.py
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=no)"
+
+      - name: Run dedicated B2 Adapter tests
+        id: dedicated
+        continue-on-error: true
+        working-directory: source
+        run: |
+          python -m pytest -q \
+            tests/test_stage7_u3_b2_fvm_discharge_adapter.py \
+            --strict-markers \
+            --junitxml=dedicated_junit.xml
+
+      - name: Run related U3 regressions
+        id: related
+        continue-on-error: true
+        working-directory: source
+        run: |
+          python -m pytest -q \
+            tests/test_stage7_u3_b1_critical_state_contract.py \
+            tests/test_stage7_u3_b1_critical_state_reference.py \
+            tests/test_stage7_u3_b1_critical_state_authoritative.py \
+            tests/test_stage7_u3_b1_critical_state_adapter.py \
+            tests/test_stage7_u3_b2_fvm_discharge_coupling_contract.py \
+            tests/test_stage7_u3_b2_fvm_discharge_coupling_extension_contract.py \
+            tests/test_stage7_u3_b2_fvm_discharge_reference.py \
+            tests/test_stage7_u3_b2_fvm_discharge_adapter.py \
+            --strict-markers \
+            --junitxml=related_junit.xml
+
+      - name: Run full repository tests
+        id: full
+        continue-on-error: true
+        working-directory: source
+        run: |
+          python -m pytest -q \
+            --strict-markers \
+            --junitxml=full_repository_junit.xml
+
+      - name: Assert macOS preflight JUnit
+        if: always()
+        working-directory: source
+        env:
+          DEDICATED_OUTCOME: ${{ steps.dedicated.outcome }}
+          RELATED_OUTCOME: ${{ steps.related.outcome }}
+          FULL_OUTCOME: ${{ steps.full.outcome }}
+        run: |
+          set -euo pipefail
+          test "$DEDICATED_OUTCOME" = success
+          test "$RELATED_OUTCOME" = success
+          test "$FULL_OUTCOME" = success
+          python - <<'PY'
+          import json
+          import os
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          expectations = {
+              'dedicated_junit.xml': (11, 11),
+              'related_junit.xml': (40, None),
+              'full_repository_junit.xml': (960, None),
+          }
+          receipt = {
+              'schema_version': 'u3_b2_shadow_macos_preflight_v1',
+              'source_git_sha': os.environ['SOURCE_SHA'],
+              'workflow_run_id': int(os.environ.get('GITHUB_RUN_ID', '0')),
+              'official_pr_authority_replacement': False,
+              'junit': {},
+          }
+          for name, (minimum, exact) in expectations.items():
+              root = ET.parse(Path(name)).getroot()
+              suites = [root] if root.tag == 'testsuite' else list(root.findall('testsuite'))
+              totals = {
+                  key: sum(int(suite.attrib.get(key, 0)) for suite in suites)
+                  for key in ('tests', 'skipped', 'failures', 'errors')
+              }
+              print(name, totals)
+              if exact is not None:
+                  assert totals['tests'] == exact
+              else:
+                  assert totals['tests'] >= minimum
+              assert totals['skipped'] == 0
+              assert totals['failures'] == 0
+              assert totals['errors'] == 0
+              receipt['junit'][name] = totals
+          Path('shadow_macos_preflight_receipt.json').write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          PY
+
+      - name: Upload macOS preflight evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage7-u3-b2-shadow-macos-preflight-${{ github.run_id }}
+          retention-days: 30
+          if-no-files-found: warn
+          path: |
+            source/shadow_macos_preflight_receipt.json
+            source/dedicated_junit.xml
+            source/related_junit.xml
+            source/full_repository_junit.xml
