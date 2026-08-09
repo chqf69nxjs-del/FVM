@@ -1,4 +1,5 @@
 name: Agent U3 B2 Finite-Pipe Baseline Materialize
+# generation: 2 — explicit materialization trigger
 
 on:
   push:
