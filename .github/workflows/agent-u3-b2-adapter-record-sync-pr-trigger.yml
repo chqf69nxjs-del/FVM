@@ -1,0 +1,91 @@
+name: Agent U3 B2 Adapter Record Sync PR Trigger
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+    paths:
+      - ".github/workflows/agent-u3-b2-adapter-record-sync-pr-trigger.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: agent-u3-b2-adapter-record-sync
+  cancel-in-progress: true
+
+jobs:
+  synchronize-records:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact PR branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Extract controlled replacement script
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          source = Path(
+              ".github/workflows/agent-u3-b2-adapter-record-sync-bootstrap.yml"
+          ).read_text(encoding="utf-8")
+          opening = "          python - <<'PY'\n"
+          closing = "\n          PY\n"
+          start = source.index(opening) + len(opening)
+          end = source.index(closing, start)
+          lines = source[start:end].splitlines()
+          script = "\n".join(
+              line[10:] if line.startswith("          ") else line for line in lines
+          ) + "\n"
+          Path("/tmp/u3_b2_adapter_record_sync.py").write_text(
+              script, encoding="utf-8"
+          )
+          compile(script, "/tmp/u3_b2_adapter_record_sync.py", "exec")
+          print(f"extracted_lines={len(lines)}")
+          PY
+
+      - name: Apply and inspect central-record synchronization
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          python /tmp/u3_b2_adapter_record_sync.py
+          git diff --check
+          python - <<'PY'
+          import subprocess
+
+          expected = {
+              ".github/workflows/agent-u3-b2-adapter-record-sync-bootstrap.yml",
+              ".github/workflows/agent-u3-b2-adapter-record-sync-pr-trigger.yml",
+              "docs/verification/MASTER_VERIFICATION_INDEX.md",
+              "docs/verification/stage7_current_gate_snapshot.md",
+              "docs/verification/stage7_execution_log.md",
+          }
+          actual = set(
+              subprocess.check_output(["git", "diff", "--name-only"], text=True).splitlines()
+          )
+          assert actual == expected, (sorted(actual), sorted(expected))
+          PY
+
+      - name: Commit clean documentation-only synchronization
+        shell: bash
+        env:
+          TARGET_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          rm -f \
+            .github/workflows/agent-u3-b2-adapter-record-sync-bootstrap.yml \
+            .github/workflows/agent-u3-b2-adapter-record-sync-pr-trigger.yml
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Synchronize U3 B2 Adapter authority records"
+          git push origin "HEAD:${TARGET_BRANCH}"
