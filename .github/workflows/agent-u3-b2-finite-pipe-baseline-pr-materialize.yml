@@ -17,7 +17,7 @@ concurrency:
 jobs:
   materialize:
     if: github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: macos-15
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
       PAYLOAD: .agent_payloads/u3_b2_finite_pipe_baseline.tar.gz.b64
