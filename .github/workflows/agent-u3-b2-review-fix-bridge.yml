@@ -1,0 +1,105 @@
+name: Agent U3 B2 Review Fix Bridge
+
+on:
+  pull_request:
+    types: [synchronize, reopened]
+    branches: [main]
+    paths:
+      - ".github/workflows/agent-u3-b2-review-fix-bridge.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: agent-u3-b2-review-fix-bridge-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  apply-review-fixes:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      PYTHONPATH: src
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONPYCACHEPREFIX: /tmp/u3-b2-review-fix-pycache
+    steps:
+      - name: Checkout exact PR branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Fetch retained review-fix definition
+        shell: bash
+        run: |
+          set -euo pipefail
+          git show \
+            origin/agent/u3-b2-review-fix-runner:.github/workflows/agent-u3-b2-review-fix-runner.yml \
+            > /tmp/agent-u3-b2-review-fix-runner.yml
+          python - <<'PY'
+          from pathlib import Path
+
+          source = Path("/tmp/agent-u3-b2-review-fix-runner.yml").read_text(
+              encoding="utf-8"
+          )
+          opening = "          python - <<'PY'\n"
+          closing = "\n          PY\n"
+          start = source.index(opening) + len(opening)
+          end = source.index(closing, start)
+          lines = source[start:end].splitlines()
+          script = "\n".join(
+              line[10:] if line.startswith("          ") else line for line in lines
+          ) + "\n"
+          Path("/tmp/u3_b2_review_fix.py").write_text(script, encoding="utf-8")
+          compile(script, "/tmp/u3_b2_review_fix.py", "exec")
+          print(f"extracted_lines={len(lines)}")
+          PY
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Install focused dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install 'numpy==2.5.1' 'pytest==9.1.1'
+
+      - name: Apply and verify review fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(git status --porcelain=v1 --untracked-files=all)"
+          printf 'pre_fix_git_status=%s\n' "$status"
+          test -z "$status"
+          python /tmp/u3_b2_review_fix.py
+          python -m py_compile \
+            src/liquid_gas_transient/solver.py \
+            src/liquid_gas_transient/u3_b2_fvm_discharge_adapter_authoritative.py \
+            tests/test_stage7_u3_b2_fvm_discharge_adapter.py
+          git diff --check
+          python -m pytest -q \
+            tests/test_stage7_u3_b2_fvm_discharge_adapter.py \
+            -k 'adapter_does_not_import or solver_without_hook or run_history_records or inventory_orientation' \
+            --strict-markers
+          grep -q 'accepted_dt = self.step(candidate_dt)' \
+            src/liquid_gas_transient/solver.py
+          grep -q 'dedicated_junit.xml": (11, 11)' \
+            .github/workflows/stage7-u3-b2-fvm-adapter-face-one-step.yml
+
+      - name: Commit clean review fixes
+        shell: bash
+        env:
+          TARGET_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/agent-u3-b2-review-fix-bridge.yml
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Address U3 B2 Adapter review feedback"
+          git push origin "HEAD:${TARGET_BRANCH}"
