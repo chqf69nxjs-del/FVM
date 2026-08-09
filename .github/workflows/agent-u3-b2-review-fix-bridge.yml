@@ -116,16 +116,43 @@ jobs:
           assert actual == expected, (sorted(actual), sorted(expected))
           PY
 
-      - name: Commit clean review fixes
+      - name: Commit non-workflow fixes and workflow promotion blob
         shell: bash
         env:
           TARGET_BRANCH: ${{ github.event.pull_request.head.ref }}
         run: |
           set -euo pipefail
-          rm -f .github/workflows/agent-u3-b2-review-fix-bridge.yml
+          payload=.agent_payloads/stage7-u3-b2-fvm-adapter-face-one-step.fixed.yml
+          mkdir -p .agent_payloads
+          cp .github/workflows/stage7-u3-b2-fvm-adapter-face-one-step.yml "$payload"
+          git checkout -- .github/workflows/stage7-u3-b2-fvm-adapter-face-one-step.yml
           git diff --check
+          python - <<'PY'
+          import subprocess
+
+          expected = {
+              '.agent_payloads/stage7-u3-b2-fvm-adapter-face-one-step.fixed.yml',
+              'docs/verification/stage7_u3_b2_fvm_discharge_adapter.md',
+              'src/liquid_gas_transient/solver.py',
+              'src/liquid_gas_transient/u3_b2_fvm_discharge_adapter_authoritative.py',
+              'tests/test_stage7_u3_b2_fvm_discharge_adapter.py',
+          }
+          actual = set(
+              subprocess.check_output(
+                  ['git', 'status', '--porcelain=v1', '--untracked-files=all'],
+                  text=True,
+              ).splitlines()
+          )
+          actual = {line[3:] for line in actual}
+          assert actual == expected, (sorted(actual), sorted(expected))
+          PY
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "Address U3 B2 Adapter review feedback"
+          git add \
+            "$payload" \
+            docs/verification/stage7_u3_b2_fvm_discharge_adapter.md \
+            src/liquid_gas_transient/solver.py \
+            src/liquid_gas_transient/u3_b2_fvm_discharge_adapter_authoritative.py \
+            tests/test_stage7_u3_b2_fvm_discharge_adapter.py
+          git commit -m "Stage U3 B2 Adapter review fixes for workflow promotion"
           git push origin "HEAD:${TARGET_BRANCH}"
