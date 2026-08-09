@@ -5,7 +5,7 @@
 ```text
 Stage 1–6:                              COMPLETE
 Stage 7:                                IN_PROGRESS
-recorded substantive main:              4a70a831bb317ea70218e93801c469a12d7e046e
+recorded substantive main:              615139825247953897bbcbc4e379d4a4a46a4c5a
 Gate 3–9 execution:                     COMPLETE
 Gate 9 crossing candidate time/position: COMPARATIVELY_STABLE_ACROSS_FIXED_CFL
 Gate 9 crossing depth:                  CFL_SENSITIVE / NON_MONOTONE
@@ -17,8 +17,8 @@ U3 B0 component benchmark:              COMPLETE / ACCEPTED; Issue #109 CLOSED
 U3 B1 component benchmark:              COMPLETE / ACCEPTED; Issue #127 CLOSED
 U3 B2 contract:                         LOCKED; PR #136 MERGED
 U3 B2 independent Reference:            IMPLEMENTED; PR #138 MERGED
-U3 B2 FVM Adapter:                      NOT IMPLEMENTED
-active primary implementation:          B2 FVM discharge-face Adapter + face / one-step parity
+U3 B2 FVM Adapter:                      IMPLEMENTED / FACE-AND-ONE-STEP VERIFIED; PR #144 MERGED
+active primary implementation:          B2 finite-pipe single-phase authoritative execution
 active documentation track:             technical report workspace v0.4; B2 v0.5 sync deferred
 physical validation:                    NOT ESTABLISHED
 design-use acceptance:                  NOT ESTABLISHED
@@ -33,6 +33,7 @@ Primary closeout／current records：
 - [`stage7_u3_b2_fvm_discharge_coupling_contract_v1.json`](stage7_u3_b2_fvm_discharge_coupling_contract_v1.json)
 - [`stage7_u3_b2_fvm_discharge_coupling_event_provenance_contract_v1.json`](stage7_u3_b2_fvm_discharge_coupling_event_provenance_contract_v1.json)
 - [`stage7_u3_b2_independent_reference.md`](stage7_u3_b2_independent_reference.md)
+- [`stage7_u3_b2_fvm_discharge_adapter.md`](stage7_u3_b2_fvm_discharge_adapter.md)
 
 ## Project-level current conclusion
 
@@ -48,14 +49,13 @@ Primary closeout／current records：
 - B0およびB1における独立Reference–Adapter parity、明示Guard、Artifact traceability。
 - U3 B2におけるdirect external-face flux override、static-pressure-force decomposition、one-step balance、inventory ledger、linear-acoustic arrival targetのlocked contract。
 - 将来のB2 AdapterとB2-specific helperを共有しない独立Reference、26ケース、7 Guard、Artifact／Git／runtime provenance。
+- production FVM側のB2 discharge-face Adapter、13 face rows、52 / 52 flux parity、actual 32-cell one-step、7 Guard atomicity、Artifact／Git／runtime provenance。
 
 一方、次は成立していない。
 
 - crossing depthのroot-cause approval。
 - mesh／CFL-independent two-phase solution。
 - phase chatter root causeまたはmitigation authorization。
-- production FVM側のB2 discharge-face Adapter。
-- Reference–Adapter face parityおよびone-step conservative parity。
 - finite-pipe discharge coupling、inventory closure、rarefaction event comparison。
 - two-phase choking、non-equilibrium flashing。
 - friction、gravity、wall heat transfer、receiver dynamics、solid CO₂。
@@ -121,7 +121,7 @@ critical pressure:                     546884.9014513075 Pa
 ideal critical mass flux:              2757.298423561355 kg/(m^2 s)
 ```
 
-## U3 B2 contract and independent Reference
+## U3 B2 contract, independent Reference, and Adapter
 
 ```text
 Contract PR / source / merge:          #136 / 75661d9464ea079203b97e8274321d7d7ab2b9c1 / cffc32c257f58942e602614d69b6dad49bd1add8
@@ -156,30 +156,48 @@ maximum pressure decomposition residual: 1.1641532182693481e-10 Pa
 
 B2 Referenceは比較targetを固定したものであり、production FVM Adapter、finite-pipe coupled result、物理精度または設計利用を承認しない。
 
+### Production FVM Adapter
+
+```text
+Adapter PR / source / merge:            #144 / 732b7259ac3738c47f7eb7cbd23d8e49195a0d7b / 615139825247953897bbcbc4e379d4a4a46a4c5a
+Adapter workflow / job:                 31305482286 / 93225055346
+Adapter artifact:                       9037246372
+Adapter ZIP SHA256:                     6315461ba4f0fb69d9f001014a3d38046f108fea1a7a87b979a2c27ac2328378
+Adapter dedicated / related / full:     11 / 57 / 971 passed
+JUnit skips / failures / errors:        0 / 0 / 0
+pytest deselected related / full:       2 / 4
+```
+
+```text
+face rows:                              13
+conserved-flux comparisons:            52
+comparison passes:                     52 / 52
+actual FvmSolver one-step:              PASS
+Guard outcome / atomicity rows:         7 / 7 PASS
+all locked Adapter checks:              true
+external Artifact manifest audit:      15 / 15 verified; 0 mismatches
+```
+
+B2 Adapter authorityは、single-phase direct external-face mappingとactual one-step conservative couplingをVerificationした。finite-pipe coupled response、inventory／acoustic closure、mesh／CFL characterization、物理精度または設計利用は承認しない。
+
 ## Active next controlled work
 
-### Primary — B2 FVM discharge-face Adapter
+### Primary — B2 finite-pipe authoritative execution
 
-Referenceをimportせず、production FVM側で次を独立実装する。
-
-```text
-adjacent conserved state
-→ static / stagnation reconstruction
-→ accepted B1 single-phase discharge component
-→ direct B2 right external-face flux override
-→ boundary budget
-→ conservative update
-```
-
-最初のverification順序は固定する。
+production FVM Adapterのface parity、actual one-step conservative parity、および7 Guard atomicityはPR #144で完了した。次のcontrolled incrementは、mainへmerge済みのAdapterを用いるfinite-pipe single-phase executionである。
 
 ```text
-face parity
-→ one-step conservative parity
-→ finite-pipe authoritative execution
+LIQUID_SMALL_DROP
+→ GAS_UNCHOKED
+→ GAS_CHOKED
+→ mass / energy inventory closure
+→ momentum impulse closure
+→ direct rarefaction / rigid-wall reflection
+→ fixed mesh / CFL characterization
+→ B2 closeout
 ```
 
-finite-pipeへ進む前に、closed／zero-drop identity、B1 outcome adoption、mass／advective momentum／pressure force／energy decomposition、Guard propagationをReferenceと比較する。
+finite-pipe結果を見る前に、実行matrix、probe、ledger、event、許容差およびprovenanceを既存locked contractどおり保持する。
 
 ### Subsequent finite-pipe matrix
 
@@ -223,10 +241,10 @@ u3_b1_component_benchmark_accepted = true
 u3_b2_contract_locked = true
 u3_b2_reference_implemented = true
 
-u3_b2_fvm_adapter_implemented = false
+u3_b2_fvm_adapter_implemented = true
 u3_b2_finite_pipe_execution_complete = false
 u3_b2_verification_benchmark_accepted = false
-single_phase_fvm_discharge_mapping_verified = false
+single_phase_fvm_discharge_mapping_verified = true
 single_phase_finite_pipe_coupling_verified = false
 crossing_depth_root_cause_approved = false
 CFL_independent_crossing_verified = false

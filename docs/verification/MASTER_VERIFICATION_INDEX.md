@@ -20,7 +20,7 @@ Status words such as `IMPLEMENTED`、`VERIFIED`、`ACCEPTED`、`VALIDATED`およ
 ```text
 Stage 1–6:                              COMPLETE
 Stage 7:                                IN_PROGRESS
-recorded substantive main:              4a70a831bb317ea70218e93801c469a12d7e046e
+recorded substantive main:              615139825247953897bbcbc4e379d4a4a46a4c5a
 Gate 3–9 execution:                     COMPLETE
 Gate 9 crossing-depth diagnosis:        CHARACTERIZED / ROOT CAUSE NOT APPROVED
 Application Track A1:                   COMPLETE
@@ -28,8 +28,8 @@ U3 B0:                                  COMPLETE / ACCEPTED
 U3 B1:                                  COMPLETE / ACCEPTED
 U3 B2 contract:                         LOCKED
 U3 B2 independent Reference:            IMPLEMENTED
-U3 B2 FVM Adapter:                      NOT IMPLEMENTED
-next controlled work:                   B2 FVM ADAPTER → FACE / ONE-STEP PARITY
+U3 B2 FVM Adapter:                      IMPLEMENTED / FACE-AND-ONE-STEP VERIFIED
+next controlled work:                   B2 FINITE-PIPE SINGLE-PHASE EXECUTION
 physical validation:                    NOT ESTABLISHED
 design-use acceptance:                  NOT ESTABLISHED
 production HEM activation:              NOT APPROVED
@@ -49,7 +49,8 @@ production HEM activation:              NOT APPROVED
 | U3 B0 liquid limiting component | `COMPLETE / ACCEPTED` | `stage7_u3_b0_closeout.md` | PR #124/#125; Issue #109 |
 | U3 B1 compressible critical component | `COMPLETE / ACCEPTED` | `stage7_u3_b1_closeout.md` | PR #131/#133; Issue #127 |
 | U3 B2 FVM coupling contract | `LOCKED` | `stage7_u3_b2_fvm_discharge_coupling_contract_v1.json` | PR #136; Issue #135 |
-| U3 B2 independent Reference | `IMPLEMENTED; Adapter pending` | `stage7_u3_b2_independent_reference.md` | PR #138; Issue #135 |
+| U3 B2 independent Reference | `IMPLEMENTED` | `stage7_u3_b2_independent_reference.md` | PR #138; Issue #135 |
+| U3 B2 FVM discharge-face Adapter | `IMPLEMENTED / FACE-AND-ONE-STEP VERIFIED` | `stage7_u3_b2_fvm_discharge_adapter.md` | PR #144; Issue #135 |
 
 ## Gate 9 retained disposition
 
@@ -123,7 +124,27 @@ maximum momentum residual:              2.31239994600424e-19 kg m/s
 maximum pressure decomposition residual: 1.1641532182693481e-10 Pa
 ```
 
-このReferenceはdirect external-face flux mapping、one-step balance、inventory／impulse ledger、requested-probe acoustic targetを独立に固定した。production FVM Adapter、finite-pipe result、物理Validation、設計利用は未成立である。
+このReferenceはdirect external-face flux mapping、one-step balance、inventory／impulse ledger、requested-probe acoustic targetを独立に固定した。production FVM Adapter、finite-pipe result、物理Validation、設計利用は、このReference単独では未成立である。
+
+### Production FVM Adapter
+
+```text
+Adapter PR / merge:                     #144 / 615139825247953897bbcbc4e379d4a4a46a4c5a
+Adapter source:                         732b7259ac3738c47f7eb7cbd23d8e49195a0d7b
+Adapter run / job:                      31305482286 / 93225055346
+Adapter artifact:                       9037246372
+Artifact ZIP SHA256:                    6315461ba4f0fb69d9f001014a3d38046f108fea1a7a87b979a2c27ac2328378
+Dedicated / related / full:             11 / 57 / 971 passed
+skips / failures / errors:              0 / 0 / 0
+pytest deselected related / full:       2 / 4
+face rows / flux comparisons:           13 / 52
+flux comparison passes:                 52 / 52
+actual one-step comparison:             PASS
+Guard outcome / atomicity rows:         7 / 7 PASS
+external manifest audit:                15 / 15 verified; 0 mismatches
+```
+
+このAdapter authorityはsingle-phase right-face mappingとactual one-step couplingをVerificationした。finite-pipe response、inventory／acoustic closure、mesh／CFL characterization、物理Validationおよび設計利用は未成立である。
 
 ## Current approval flags
 
@@ -135,10 +156,10 @@ u3_b1_component_benchmark_accepted = true
 u3_b2_contract_locked = true
 u3_b2_reference_implemented = true
 
-u3_b2_fvm_adapter_implemented = false
+u3_b2_fvm_adapter_implemented = true
 u3_b2_finite_pipe_execution_complete = false
 u3_b2_verification_benchmark_accepted = false
-single_phase_fvm_discharge_mapping_verified = false
+single_phase_fvm_discharge_mapping_verified = true
 single_phase_finite_pipe_coupling_verified = false
 crossing_depth_root_cause_approved = false
 CFL_independent_crossing_verified = false
@@ -156,15 +177,14 @@ production_hem_activation_approved = false
 ## Next controlled work
 
 ```text
-accepted B1 component
-→ independent production-side B2 FVM Adapter
-→ face parity against Reference
-→ one-step conservative parity
-→ finite-pipe single-phase execution
+merged single-phase B2 FVM Adapter
+→ finite-pipe LIQUID_SMALL_DROP
+→ finite-pipe GAS_UNCHOKED
+→ finite-pipe GAS_CHOKED
 → mass / energy inventory and momentum-impulse closure
 → direct / reflected rarefaction comparison
 → fixed mesh / CFL characterization
 → B2 closeout
 ```
 
-AdapterはB2 Reference moduleまたはB2-specific helperをimportしない。face／one-step parityを成立させる前にfinite-pipe acceptanceへ進まない。Two-phase critical dischargeは、このsingle-phase coupling layerがacceptedになるまで明示的に延期する。
+Adapter face／one-step Verificationは完了したが、finite-pipe acceptanceは未成立である。Two-phase critical dischargeは、このsingle-phase finite-pipe coupling benchmarkがacceptedになるまで明示的に延期する。
