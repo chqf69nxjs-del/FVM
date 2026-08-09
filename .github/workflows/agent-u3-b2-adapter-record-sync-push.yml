@@ -1,5 +1,5 @@
 name: Agent U3 B2 Adapter Record Sync Push Executor
-# generation: 2 — explicit push trigger
+# generation: 3 — immutable bootstrap source
 
 on:
   push:
@@ -18,12 +18,22 @@ jobs:
   synchronize-records:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 20
+    env:
+      ORIGINAL_BOOTSTRAP_COMMIT: c5583e83018546a0f34def69e74b2954891fc34e
     steps:
       - name: Checkout synchronization branch
         uses: actions/checkout@v7
         with:
           ref: agent/u3-b2-adapter-record-sync
           fetch-depth: 0
+
+      - name: Recover immutable controlled replacement source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git show \
+            "${ORIGINAL_BOOTSTRAP_COMMIT}:.github/workflows/agent-u3-b2-adapter-record-sync-bootstrap.yml" \
+            > /tmp/original-u3-b2-record-sync-bootstrap.yml
 
       - name: Extract section-aware synchronizer
         shell: bash
@@ -32,17 +42,27 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
-          source = Path(
+          trigger = Path(
               ".github/workflows/agent-u3-b2-adapter-record-sync-pr-trigger.yml"
           ).read_text(encoding="utf-8")
           opening = "          python - <<'PY'\n"
           closing = "\n          PY\n"
-          start = source.index(opening) + len(opening)
-          end = source.index(closing, start)
-          lines = source[start:end].splitlines()
+          start = trigger.index(opening) + len(opening)
+          end = trigger.index(closing, start)
+          lines = trigger[start:end].splitlines()
           extractor = "\n".join(
               line[10:] if line.startswith("          ") else line for line in lines
           ) + "\n"
+
+          old_path = (
+              '".github/workflows/'
+              'agent-u3-b2-adapter-record-sync-bootstrap.yml"'
+          )
+          new_path = '"/tmp/original-u3-b2-record-sync-bootstrap.yml"'
+          if extractor.count(old_path) != 1:
+              raise RuntimeError("expected one bootstrap source path")
+          extractor = extractor.replace(old_path, new_path, 1)
+
           Path("/tmp/extract_u3_b2_sync.py").write_text(
               extractor, encoding="utf-8"
           )
