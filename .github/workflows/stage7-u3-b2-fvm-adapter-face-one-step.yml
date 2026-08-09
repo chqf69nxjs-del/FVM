@@ -29,6 +29,7 @@ env:
   ANALYSIS_SOURCE_GIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
   REFERENCE_SOURCE_GIT_SHA: 0e2c8188961175b3c2cd56836296e713735bf8d9
   B1_REFERENCE_SOURCE_GIT_SHA: c7c25efae0e53a8b5f5ed164f9135238c6e005e0
+  B1_ADAPTER_SOURCE_GIT_SHA: 5939f152180fbc6ce9a638eeca670b34e1a6650f
   REFERENCE_ARTIFACT_ID: "9007750537"
   REFERENCE_ARTIFACT_ZIP_SHA256: 1816e60920052391cb9ffde9242597b56571c9ed113c60ece8aa9f32cdb8c7cd
 
@@ -69,7 +70,7 @@ jobs:
           test ! -e .agent_clean_payloads
           test ! -e .github/workflows/agent-u3-b2-clean-materialize.yml
 
-      - name: Verify pinned Reference source identities
+      - name: Verify pinned Reference and B1 source identities
         run: |
           set -euo pipefail
           for path in \
@@ -91,6 +92,11 @@ jobs:
             echo "$path pinned=$pinned current=$current"
             test "$pinned" = "$current"
           done
+          b1_adapter_path=src/liquid_gas_transient/u3_b1_critical_state_adapter.py
+          pinned="$(git rev-parse "$B1_ADAPTER_SOURCE_GIT_SHA:$b1_adapter_path")"
+          current="$(git rev-parse "HEAD:$b1_adapter_path")"
+          echo "$b1_adapter_path pinned=$pinned current=$current"
+          test "$pinned" = "$current"
 
       - name: Compile and diff checks outside repository cache
         run: |
@@ -151,11 +157,7 @@ jobs:
           }
           for name, (minimum, exact) in expectations.items():
               root = ET.parse(Path(name)).getroot()
-              suites = (
-                  [root]
-                  if root.tag == "testsuite"
-                  else list(root.findall("testsuite"))
-              )
+              suites = [root] if root.tag == "testsuite" else list(root.findall("testsuite"))
               totals = {
                   key: sum(int(suite.attrib.get(key, 0)) for suite in suites)
                   for key in ("tests", "skipped", "failures", "errors")
@@ -225,6 +227,19 @@ jobs:
               ["git", "rev-parse", "HEAD"], text=True
           ).strip()
           assert checkout_sha == os.environ["ANALYSIS_SOURCE_GIT_SHA"]
+          b1_adapter_path = "src/liquid_gas_transient/u3_b1_critical_state_adapter.py"
+          b1_adapter_pinned_blob_sha = subprocess.check_output(
+              [
+                  "git",
+                  "rev-parse",
+                  f"{os.environ['B1_ADAPTER_SOURCE_GIT_SHA']}:{b1_adapter_path}",
+              ],
+              text=True,
+          ).strip()
+          b1_adapter_checkout_blob_sha = subprocess.check_output(
+              ["git", "rev-parse", f"HEAD:{b1_adapter_path}"], text=True
+          ).strip()
+          assert b1_adapter_pinned_blob_sha == b1_adapter_checkout_blob_sha
 
           provenance_path = target / "runtime_and_git_provenance.json"
           provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
@@ -232,6 +247,9 @@ jobs:
               {
                   "checkout_git_sha": checkout_sha,
                   "adapter_source_git_sha": os.environ["ANALYSIS_SOURCE_GIT_SHA"],
+                  "b1_adapter_source_git_sha": os.environ["B1_ADAPTER_SOURCE_GIT_SHA"],
+                  "b1_adapter_pinned_blob_sha": b1_adapter_pinned_blob_sha,
+                  "b1_adapter_checkout_blob_sha": b1_adapter_checkout_blob_sha,
                   "matplotlib_version": importlib.metadata.version("matplotlib"),
                   "pytest_version": importlib.metadata.version("pytest"),
                   "coolprop_version": importlib.metadata.version("CoolProp"),
@@ -266,6 +284,7 @@ jobs:
               f"analysis source SHA: {provenance['analysis_source_git_sha']}\n"
               f"checkout SHA: {provenance['checkout_git_sha']}\n"
               f"Reference source SHA: {provenance['reference_source_git_sha']}\n"
+              f"accepted B1 Adapter source SHA: {provenance['b1_adapter_source_git_sha']}\n"
               f"Adapter source SHA: {provenance['adapter_source_git_sha']}\n"
               f"workflow run ID: {provenance['workflow_run_id']}\n"
               "```\n"
@@ -278,9 +297,7 @@ jobs:
               if path.is_file() and path.name != "artifact_sha256.txt"
           )
           (target / "artifact_sha256.txt").write_text(
-              "".join(
-                  f"{sha256(target / name)}  {name}\n" for name in names
-              ),
+              "".join(f"{sha256(target / name)}  {name}\n" for name in names),
               encoding="utf-8",
           )
           PY
@@ -291,7 +308,6 @@ jobs:
           python - <<'PY'
           import csv
           import hashlib
-          import importlib.metadata
           import json
           import os
           import subprocess
@@ -321,9 +337,7 @@ jobs:
           assert {path.name for path in target.iterdir()} == expected
 
           summary = json.loads((target / "summary.json").read_text(encoding="utf-8"))
-          assert summary["schema_version"] == (
-              "stage7_u3_b2_fvm_discharge_adapter_authority_v1"
-          )
+          assert summary["schema_version"] == "stage7_u3_b2_fvm_discharge_adapter_authority_v1"
           assert summary["face_row_count"] == 13
           assert summary["face_comparison_count"] == 52
           assert summary["face_comparison_pass_count"] == 52
@@ -348,42 +362,43 @@ jobs:
           assert summary["production_hem_activation_approved"] is False
 
           provenance = json.loads(
-              (target / "runtime_and_git_provenance.json").read_text(
-                  encoding="utf-8"
-              )
+              (target / "runtime_and_git_provenance.json").read_text(encoding="utf-8")
           )
           checkout_sha = subprocess.check_output(
               ["git", "rev-parse", "HEAD"], text=True
           ).strip()
           assert summary["provenance"] == provenance
           assert provenance["source_git_sha"] == os.environ["ANALYSIS_SOURCE_GIT_SHA"]
-          assert provenance["analysis_source_git_sha"] == os.environ[
-              "ANALYSIS_SOURCE_GIT_SHA"
-          ]
-          assert provenance["adapter_source_git_sha"] == os.environ[
-              "ANALYSIS_SOURCE_GIT_SHA"
+          assert provenance["analysis_source_git_sha"] == os.environ["ANALYSIS_SOURCE_GIT_SHA"]
+          assert provenance["adapter_source_git_sha"] == os.environ["ANALYSIS_SOURCE_GIT_SHA"]
+          assert provenance["b1_adapter_source_git_sha"] == os.environ["B1_ADAPTER_SOURCE_GIT_SHA"]
+          assert provenance["b1_adapter_pinned_blob_sha"] == provenance[
+              "b1_adapter_checkout_blob_sha"
           ]
           assert provenance["checkout_git_sha"] == checkout_sha
-          assert provenance["reference_source_git_sha"] == os.environ[
-              "REFERENCE_SOURCE_GIT_SHA"
-          ]
+          assert provenance["reference_source_git_sha"] == os.environ["REFERENCE_SOURCE_GIT_SHA"]
           assert provenance["reference_historical_artifact_id"] == int(
               os.environ["REFERENCE_ARTIFACT_ID"]
           )
-          assert provenance["reference_historical_artifact_zip_sha256"] == (
-              os.environ["REFERENCE_ARTIFACT_ZIP_SHA256"]
-          )
+          assert provenance["reference_historical_artifact_zip_sha256"] == os.environ[
+              "REFERENCE_ARTIFACT_ZIP_SHA256"
+          ]
           assert provenance["property_backend_version"] == "8.0.0"
           assert provenance["coolprop_version"] == "8.0.0"
           assert provenance["matplotlib_version"] == "3.11.1"
           assert provenance["pytest_version"] == "9.1.1"
           assert provenance["workflow_run_id"] == int(os.environ["GITHUB_RUN_ID"])
-          assert provenance["workflow_run_attempt"] == int(
-              os.environ["GITHUB_RUN_ATTEMPT"]
-          )
+          assert provenance["workflow_run_attempt"] == int(os.environ["GITHUB_RUN_ATTEMPT"])
           assert provenance["git_status_porcelain_tracked"] == ""
           assert provenance["adapter_imports_B2_reference"] is False
           assert provenance["reference_used_only_as_comparison_target"] is True
+
+          benchmark_contract = json.loads(
+              (target / "benchmark_contract.json").read_text(encoding="utf-8")
+          )
+          assert benchmark_contract["depends_on"]["u3_b1"]["adapter_source_sha"] == os.environ[
+              "B1_ADAPTER_SOURCE_GIT_SHA"
+          ]
 
           source_contracts = {
               "parent_contract_source_sha256": Path(
@@ -406,9 +421,7 @@ jobs:
               assert provenance[key] == digest
               assert summary[key] == digest
 
-          with (target / "adapter_face_results.csv").open(
-              newline="", encoding="utf-8"
-          ) as handle:
+          with (target / "adapter_face_results.csv").open(newline="", encoding="utf-8") as handle:
               faces = list(csv.DictReader(handle))
           assert len(faces) == 13
 
@@ -426,9 +439,7 @@ jobs:
           assert len(one_step) == 1
           assert one_step[0]["one_step_comparison_passed"] == "True"
 
-          with (target / "guard_outcomes.csv").open(
-              newline="", encoding="utf-8"
-          ) as handle:
+          with (target / "guard_outcomes.csv").open(newline="", encoding="utf-8") as handle:
               guards = list(csv.DictReader(handle))
           assert len(guards) == 7
           assert all(row["guard_comparison_passed"] == "True" for row in guards)
@@ -440,6 +451,7 @@ jobs:
               "CoolProp 8.0.0",
               os.environ["ANALYSIS_SOURCE_GIT_SHA"],
               os.environ["REFERENCE_SOURCE_GIT_SHA"],
+              os.environ["B1_ADAPTER_SOURCE_GIT_SHA"],
               str(os.environ["GITHUB_RUN_ID"]),
           ):
               assert token in report
@@ -453,9 +465,7 @@ jobs:
           assert f"run={os.environ['GITHUB_RUN_ID']}" in description
 
           manifest = {}
-          for line in (target / "artifact_sha256.txt").read_text(
-              encoding="utf-8"
-          ).splitlines():
+          for line in (target / "artifact_sha256.txt").read_text(encoding="utf-8").splitlines():
               digest, name = line.split("  ", 1)
               manifest[name] = digest
           assert set(manifest) == expected - {"artifact_sha256.txt"}
