@@ -44,6 +44,124 @@ jobs:
           script = "\n".join(
               line[10:] if line.startswith("          ") else line for line in lines
           ) + "\n"
+
+          old_assertions = '''# Cross-file claim-boundary assertions.
+for file_name in (
+    "docs/verification/stage7_current_gate_snapshot.md",
+    "docs/verification/MASTER_VERIFICATION_INDEX.md",
+    "docs/verification/stage7_execution_log.md",
+):
+    body = Path(file_name).read_text(encoding="utf-8")
+    assert body.count("u3_b2_fvm_adapter_implemented = true") == 1, file_name
+    assert body.count("single_phase_fvm_discharge_mapping_verified = true") == 1, file_name
+    assert "u3_b2_finite_pipe_execution_complete = false" in body, file_name
+    assert "single_phase_finite_pipe_coupling_verified = false" in body, file_name
+    assert "u3_b2_verification_benchmark_accepted = false" in body, file_name
+    assert "physical_validation = false" in body, file_name
+    assert "design_use_acceptance = false" in body, file_name
+    assert "production_hem_activation_approved = false" in body, file_name
+
+print("central-record replacements and claim-boundary assertions: PASS")'''
+
+          new_assertions = '''# Section-aware claim-boundary assertions.
+def section(text: str, start: str, end: str | None, label: str) -> str:
+    if start not in text:
+        raise AssertionError(f"{label}: missing start marker {start!r}")
+    selected = text.split(start, 1)[1]
+    if end is not None:
+        if end not in selected:
+            raise AssertionError(f"{label}: missing end marker {end!r}")
+        selected = selected.split(end, 1)[0]
+    return selected
+
+retained_false_flags = (
+    "u3_b2_finite_pipe_execution_complete = false",
+    "single_phase_finite_pipe_coupling_verified = false",
+    "u3_b2_verification_benchmark_accepted = false",
+    "physical_validation = false",
+    "design_use_acceptance = false",
+    "production_hem_activation_approved = false",
+)
+
+snapshot = Path(
+    "docs/verification/stage7_current_gate_snapshot.md"
+).read_text(encoding="utf-8")
+snapshot_status = section(
+    snapshot,
+    "## Status — 2026-08-09",
+    "Primary closeout／current records：",
+    "snapshot status",
+)
+snapshot_approval = section(
+    snapshot,
+    "## Approval boundary",
+    None,
+    "snapshot approval boundary",
+)
+assert (
+    "U3 B2 FVM Adapter:                      "
+    "IMPLEMENTED / FACE-AND-ONE-STEP VERIFIED; PR #144 MERGED"
+    in snapshot_status
+)
+assert "u3_b2_fvm_adapter_implemented = true" in snapshot_approval
+assert "single_phase_fvm_discharge_mapping_verified = true" in snapshot_approval
+for flag in retained_false_flags:
+    assert flag in snapshot_approval, ("snapshot approval boundary", flag)
+
+master = Path(
+    "docs/verification/MASTER_VERIFICATION_INDEX.md"
+).read_text(encoding="utf-8")
+master_state = section(
+    master,
+    "## Current state — 2026-08-09",
+    "## Authoritative milestone index",
+    "master current state",
+)
+master_approval = section(
+    master,
+    "## Current approval flags",
+    "## Next controlled work",
+    "master current approval flags",
+)
+assert (
+    "U3 B2 FVM Adapter:                      "
+    "IMPLEMENTED / FACE-AND-ONE-STEP VERIFIED"
+    in master_state
+)
+assert "u3_b2_fvm_adapter_implemented = true" in master_approval
+assert "single_phase_fvm_discharge_mapping_verified = true" in master_approval
+for flag in retained_false_flags:
+    assert flag in master_approval, ("master current approval flags", flag)
+
+execution_log = Path(
+    "docs/verification/stage7_execution_log.md"
+).read_text(encoding="utf-8")
+adapter_entry = section(
+    execution_log,
+    "## 2026-08-09 — U3 B2 FVM Adapter final audit, authority, and merge",
+    "## 2026-08-09 — U3 B2 Independent Reference final audit and merge",
+    "execution-log Adapter entry",
+)
+end_boundary = section(
+    execution_log,
+    "## End-of-entry approval boundary",
+    None,
+    "execution-log end boundary",
+)
+assert "main merge SHA:                   615139825247953897bbcbc4e379d4a4a46a4c5a" in adapter_entry
+assert "u3_b2_fvm_adapter_implemented = true" in adapter_entry
+assert "single_phase_fvm_discharge_mapping_verified = true" in adapter_entry
+assert "u3_b2_fvm_adapter_implemented = true" in end_boundary
+assert "single_phase_fvm_discharge_mapping_verified = true" in end_boundary
+for flag in retained_false_flags:
+    assert flag in end_boundary, ("execution-log end boundary", flag)
+
+print("central-record replacements and section-aware claim assertions: PASS")'''
+
+          if script.count(old_assertions) != 1:
+              raise RuntimeError("expected one legacy file-wide assertion block")
+          script = script.replace(old_assertions, new_assertions, 1)
+
           Path("/tmp/u3_b2_adapter_record_sync.py").write_text(
               script, encoding="utf-8"
           )
