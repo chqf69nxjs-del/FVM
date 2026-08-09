@@ -9,6 +9,85 @@ Earlier execution detail is preserved in:
 
 このファイルは、現在のcloseoutに関係する実行履歴を簡潔に保持する。
 
+## 2026-08-09 — U3 B2 FVM Adapter final audit, authority, and merge
+
+### PR #144 — final state audit
+
+```text
+state before merge:               OPEN / ready / mergeable
+expected head SHA:                732b7259ac3738c47f7eb7cbd23d8e49195a0d7b
+base main SHA:                    b54aa22421c603605625da9987186370436a37d9
+changed files:                    6 intended paths
+tracked pyc / temporary paths:    0
+unresolved review threads:        0
+blocking findings:                0
+```
+
+### Authoritative Adapter execution
+
+```text
+workflow:                         Stage 7 U3 B2 FVM Adapter Face and One-Step Authority
+run ID:                           31305482286
+job ID:                           93225055346
+source SHA:                       732b7259ac3738c47f7eb7cbd23d8e49195a0d7b
+status:                           SUCCESS
+artifact ID:                      9037246372
+artifact name:                    stage7-u3-b2-adapter-31305482286
+artifact size:                    252073 bytes
+artifact ZIP SHA256:              6315461ba4f0fb69d9f001014a3d38046f108fea1a7a87b979a2c27ac2328378
+external internal-manifest audit: 15 / 15 verified; 0 mismatches
+```
+
+```text
+Adapter dedicated:                11 passed
+related U3:                       57 passed
+full repository:                971 passed
+skips / failures / errors:         0 / 0 / 0
+pytest deselected related / full:  2 / 4
+```
+
+```text
+face rows:                        13
+conserved-flux comparisons:       52
+comparison passes:                52 / 52
+actual FvmSolver one-step:        PASS
+Guard outcome / atomicity rows:    7 / 7 PASS
+all locked Adapter checks:        true
+```
+
+Review requests for Japanese-first report output、CoolProp-unavailable skip behavior、およびaccepted halved-dt history were answered with exact-head Authority and Artifact evidence and resolved 3 / 3.
+
+### Merge
+
+PR #144はexpected head SHA `732b7259ac3738c47f7eb7cbd23d8e49195a0d7b`を指定してmergeした。
+
+```text
+main merge SHA:                   615139825247953897bbcbc4e379d4a4a46a4c5a
+merge method:                     merge commit
+```
+
+これにより、central record synchronization後のformal stateとして次をtrueへ昇格できる。
+
+```text
+u3_b2_fvm_adapter_implemented = true
+single_phase_fvm_discharge_mapping_verified = true
+```
+
+finite-pipe execution、single-phase finite-pipe coupling Verification、B2 benchmark acceptance、物理Validation、設計利用およびproduction activationはfalseのまま維持する。
+
+## 2026-08-09 — U3 B2 Adapter central-record synchronization
+
+次をAdapter merge時点へ同期する。
+
+```text
+stage7_current_gate_snapshot.md
+MASTER_VERIFICATION_INDEX.md
+stage7_execution_log.md
+Issue #135 progress record
+```
+
+次のcontrolled incrementは、LIQUID_SMALL_DROP、GAS_UNCHOKED、GAS_CHOKEDのfinite-pipe authoritative executionである。
+
 ## 2026-08-09 — U3 B2 Independent Reference final audit and merge
 
 ### PR #138 — final state audit
@@ -222,10 +301,10 @@ u3_b1_component_benchmark_accepted = true
 u3_b2_contract_locked = true
 u3_b2_reference_implemented = true
 
-u3_b2_fvm_adapter_implemented = false
+u3_b2_fvm_adapter_implemented = true
 u3_b2_finite_pipe_execution_complete = false
 u3_b2_verification_benchmark_accepted = false
-single_phase_fvm_discharge_mapping_verified = false
+single_phase_fvm_discharge_mapping_verified = true
 single_phase_finite_pipe_coupling_verified = false
 physical_discharge_boundary_approved = false
 two_phase_critical_discharge_accuracy_approved = false
