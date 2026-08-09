@@ -1,9 +1,8 @@
 name: Agent U3 B2 Review Fix Bridge
 
 on:
-  pull_request:
-    types: [synchronize, reopened]
-    branches: [main]
+  push:
+    branches: [agent/u3-b2-fvm-adapter-clean]
     paths:
       - ".github/workflows/agent-u3-b2-review-fix-bridge.yml"
 
@@ -11,23 +10,23 @@ permissions:
   contents: write
 
 concurrency:
-  group: agent-u3-b2-review-fix-bridge-${{ github.event.pull_request.number }}
+  group: agent-u3-b2-review-fix-bridge
   cancel-in-progress: true
 
 jobs:
   apply-review-fixes:
-    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: macos-15
     timeout-minutes: 30
     env:
       PYTHONPATH: src
       PYTHONDONTWRITEBYTECODE: "1"
       PYTHONPYCACHEPREFIX: /tmp/u3-b2-review-fix-pycache
+      TARGET_BRANCH: agent/u3-b2-fvm-adapter-clean
     steps:
-      - name: Checkout exact PR branch
+      - name: Checkout target Adapter branch
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
+          ref: agent/u3-b2-fvm-adapter-clean
           fetch-depth: 0
 
       - name: Fetch retained review-fix definition
@@ -79,9 +78,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          status="$(git status --porcelain=v1 --untracked-files=all)"
-          printf 'pre_fix_git_status=%s\n' "$status"
-          test -z "$status"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
           python /tmp/u3_b2_review_fix.py
           python -m py_compile \
             src/liquid_gas_transient/solver.py \
@@ -98,28 +95,9 @@ jobs:
             .github/workflows/stage7-u3-b2-fvm-adapter-face-one-step.yml
           grep -q '## 結果' \
             src/liquid_gas_transient/u3_b2_fvm_discharge_adapter_authoritative.py
-          python - <<'PY'
-          import subprocess
 
-          expected = {
-              '.github/workflows/stage7-u3-b2-fvm-adapter-face-one-step.yml',
-              'docs/verification/stage7_u3_b2_fvm_discharge_adapter.md',
-              'src/liquid_gas_transient/solver.py',
-              'src/liquid_gas_transient/u3_b2_fvm_discharge_adapter_authoritative.py',
-              'tests/test_stage7_u3_b2_fvm_discharge_adapter.py',
-          }
-          actual = set(
-              subprocess.check_output(
-                  ['git', 'diff', '--name-only'], text=True
-              ).splitlines()
-          )
-          assert actual == expected, (sorted(actual), sorted(expected))
-          PY
-
-      - name: Commit non-workflow fixes and workflow promotion blob
+      - name: Commit verified non-workflow files and workflow payload
         shell: bash
-        env:
-          TARGET_BRANCH: ${{ github.event.pull_request.head.ref }}
         run: |
           set -euo pipefail
           payload=.agent_payloads/stage7-u3-b2-fvm-adapter-face-one-step.fixed.yml
@@ -137,13 +115,11 @@ jobs:
               'src/liquid_gas_transient/u3_b2_fvm_discharge_adapter_authoritative.py',
               'tests/test_stage7_u3_b2_fvm_discharge_adapter.py',
           }
-          actual = set(
-              subprocess.check_output(
-                  ['git', 'status', '--porcelain=v1', '--untracked-files=all'],
-                  text=True,
-              ).splitlines()
-          )
-          actual = {line[3:] for line in actual}
+          rows = subprocess.check_output(
+              ['git', 'status', '--porcelain=v1', '--untracked-files=all'],
+              text=True,
+          ).splitlines()
+          actual = {row[3:] for row in rows}
           assert actual == expected, (sorted(actual), sorted(expected))
           PY
           git config user.name "github-actions[bot]"
