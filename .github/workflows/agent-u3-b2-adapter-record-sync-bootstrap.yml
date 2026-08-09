@@ -1,0 +1,419 @@
+name: Agent U3 B2 Adapter Record Sync Bootstrap
+
+on:
+  push:
+    branches: [agent/u3-b2-adapter-record-sync]
+    paths:
+      - ".github/workflows/agent-u3-b2-adapter-record-sync-bootstrap.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: agent-u3-b2-adapter-record-sync-bootstrap
+  cancel-in-progress: true
+
+jobs:
+  synchronize-records:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout synchronization branch
+        uses: actions/checkout@v7
+        with:
+          ref: agent/u3-b2-adapter-record-sync
+          fetch-depth: 0
+
+      - name: Apply controlled central-record synchronization
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          MAIN_MERGE = "615139825247953897bbcbc4e379d4a4a46a4c5a"
+          ADAPTER_SOURCE = "732b7259ac3738c47f7eb7cbd23d8e49195a0d7b"
+          ARTIFACT_SHA = "6315461ba4f0fb69d9f001014a3d38046f108fea1a7a87b979a2c27ac2328378"
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise RuntimeError(f"{label}: expected one occurrence, found {count}")
+              return text.replace(old, new, 1)
+
+          # Current gate snapshot.
+          path = Path("docs/verification/stage7_current_gate_snapshot.md")
+          text = path.read_text(encoding="utf-8")
+          text = replace_once(
+              text,
+              "recorded substantive main:              4a70a831bb317ea70218e93801c469a12d7e046e",
+              f"recorded substantive main:              {MAIN_MERGE}",
+              "snapshot recorded main",
+          )
+          text = replace_once(
+              text,
+              "U3 B2 FVM Adapter:                      NOT IMPLEMENTED",
+              "U3 B2 FVM Adapter:                      IMPLEMENTED / FACE-AND-ONE-STEP VERIFIED; PR #144 MERGED",
+              "snapshot Adapter state",
+          )
+          text = replace_once(
+              text,
+              "active primary implementation:          B2 FVM discharge-face Adapter + face / one-step parity",
+              "active primary implementation:          B2 finite-pipe single-phase authoritative execution",
+              "snapshot active work",
+          )
+          text = replace_once(
+              text,
+              "- [`stage7_u3_b2_independent_reference.md`](stage7_u3_b2_independent_reference.md)\n",
+              "- [`stage7_u3_b2_independent_reference.md`](stage7_u3_b2_independent_reference.md)\n- [`stage7_u3_b2_fvm_discharge_adapter.md`](stage7_u3_b2_fvm_discharge_adapter.md)\n",
+              "snapshot primary record link",
+          )
+          text = replace_once(
+              text,
+              "- 将来のB2 AdapterとB2-specific helperを共有しない独立Reference、26ケース、7 Guard、Artifact／Git／runtime provenance。\n",
+              "- 将来のB2 AdapterとB2-specific helperを共有しない独立Reference、26ケース、7 Guard、Artifact／Git／runtime provenance。\n- production FVM側のB2 discharge-face Adapter、13 face rows、52 / 52 flux parity、actual 32-cell one-step、7 Guard atomicity、Artifact／Git／runtime provenance。\n",
+              "snapshot supported result",
+          )
+          text = replace_once(
+              text,
+              "- production FVM側のB2 discharge-face Adapter。\n- Reference–Adapter face parityおよびone-step conservative parity。\n",
+              "",
+              "snapshot no-longer-unestablished items",
+          )
+          text = replace_once(
+              text,
+              "## U3 B2 contract and independent Reference",
+              "## U3 B2 contract, independent Reference, and Adapter",
+              "snapshot B2 heading",
+          )
+          adapter_block = f'''B2 Referenceは比較targetを固定したものであり、production FVM Adapter、finite-pipe coupled result、物理精度または設計利用を承認しない。
+
+### Production FVM Adapter
+
+```text
+Adapter PR / source / merge:            #144 / {ADAPTER_SOURCE} / {MAIN_MERGE}
+Adapter workflow / job:                 31305482286 / 93225055346
+Adapter artifact:                       9037246372
+Adapter ZIP SHA256:                     {ARTIFACT_SHA}
+Adapter dedicated / related / full:     11 / 57 / 971 passed
+JUnit skips / failures / errors:        0 / 0 / 0
+pytest deselected related / full:       2 / 4
+```
+
+```text
+face rows:                              13
+conserved-flux comparisons:            52
+comparison passes:                     52 / 52
+actual FvmSolver one-step:              PASS
+Guard outcome / atomicity rows:         7 / 7 PASS
+all locked Adapter checks:              true
+external Artifact manifest audit:      15 / 15 verified; 0 mismatches
+```
+
+B2 Adapter authorityは、single-phase direct external-face mappingとactual one-step conservative couplingをVerificationした。finite-pipe coupled response、inventory／acoustic closure、mesh／CFL characterization、物理精度または設計利用は承認しない。'''
+          text = replace_once(
+              text,
+              "B2 Referenceは比較targetを固定したものであり、production FVM Adapter、finite-pipe coupled result、物理精度または設計利用を承認しない。",
+              adapter_block,
+              "snapshot Adapter authority block",
+          )
+          old_primary = '''### Primary — B2 FVM discharge-face Adapter
+
+Referenceをimportせず、production FVM側で次を独立実装する。
+
+```text
+adjacent conserved state
+→ static / stagnation reconstruction
+→ accepted B1 single-phase discharge component
+→ direct B2 right external-face flux override
+→ boundary budget
+→ conservative update
+```
+
+最初のverification順序は固定する。
+
+```text
+face parity
+→ one-step conservative parity
+→ finite-pipe authoritative execution
+```
+
+finite-pipeへ進む前に、closed／zero-drop identity、B1 outcome adoption、mass／advective momentum／pressure force／energy decomposition、Guard propagationをReferenceと比較する。
+'''
+          new_primary = '''### Primary — B2 finite-pipe authoritative execution
+
+production FVM Adapterのface parity、actual one-step conservative parity、および7 Guard atomicityはPR #144で完了した。次のcontrolled incrementは、mainへmerge済みのAdapterを用いるfinite-pipe single-phase executionである。
+
+```text
+LIQUID_SMALL_DROP
+→ GAS_UNCHOKED
+→ GAS_CHOKED
+→ mass / energy inventory closure
+→ momentum impulse closure
+→ direct rarefaction / rigid-wall reflection
+→ fixed mesh / CFL characterization
+→ B2 closeout
+```
+
+finite-pipe結果を見る前に、実行matrix、probe、ledger、event、許容差およびprovenanceを既存locked contractどおり保持する。
+'''
+          text = replace_once(text, old_primary, new_primary, "snapshot active primary section")
+          text = replace_once(
+              text,
+              "u3_b2_fvm_adapter_implemented = false",
+              "u3_b2_fvm_adapter_implemented = true",
+              "snapshot Adapter flag",
+          )
+          text = replace_once(
+              text,
+              "single_phase_fvm_discharge_mapping_verified = false",
+              "single_phase_fvm_discharge_mapping_verified = true",
+              "snapshot mapping flag",
+          )
+          path.write_text(text, encoding="utf-8")
+
+          # Master verification index.
+          path = Path("docs/verification/MASTER_VERIFICATION_INDEX.md")
+          text = path.read_text(encoding="utf-8")
+          text = replace_once(
+              text,
+              "recorded substantive main:              4a70a831bb317ea70218e93801c469a12d7e046e",
+              f"recorded substantive main:              {MAIN_MERGE}",
+              "master recorded main",
+          )
+          text = replace_once(
+              text,
+              "U3 B2 FVM Adapter:                      NOT IMPLEMENTED",
+              "U3 B2 FVM Adapter:                      IMPLEMENTED / FACE-AND-ONE-STEP VERIFIED",
+              "master Adapter state",
+          )
+          text = replace_once(
+              text,
+              "next controlled work:                   B2 FVM ADAPTER → FACE / ONE-STEP PARITY",
+              "next controlled work:                   B2 FINITE-PIPE SINGLE-PHASE EXECUTION",
+              "master next work",
+          )
+          text = replace_once(
+              text,
+              "| U3 B2 independent Reference | `IMPLEMENTED; Adapter pending` | `stage7_u3_b2_independent_reference.md` | PR #138; Issue #135 |\n",
+              "| U3 B2 independent Reference | `IMPLEMENTED` | `stage7_u3_b2_independent_reference.md` | PR #138; Issue #135 |\n| U3 B2 FVM discharge-face Adapter | `IMPLEMENTED / FACE-AND-ONE-STEP VERIFIED` | `stage7_u3_b2_fvm_discharge_adapter.md` | PR #144; Issue #135 |\n",
+              "master milestone rows",
+          )
+          master_adapter = f'''このReferenceはdirect external-face flux mapping、one-step balance、inventory／impulse ledger、requested-probe acoustic targetを独立に固定した。production FVM Adapter、finite-pipe result、物理Validation、設計利用は、このReference単独では未成立である。
+
+### Production FVM Adapter
+
+```text
+Adapter PR / merge:                     #144 / {MAIN_MERGE}
+Adapter source:                         {ADAPTER_SOURCE}
+Adapter run / job:                      31305482286 / 93225055346
+Adapter artifact:                       9037246372
+Artifact ZIP SHA256:                    {ARTIFACT_SHA}
+Dedicated / related / full:             11 / 57 / 971 passed
+skips / failures / errors:              0 / 0 / 0
+pytest deselected related / full:       2 / 4
+face rows / flux comparisons:           13 / 52
+flux comparison passes:                 52 / 52
+actual one-step comparison:             PASS
+Guard outcome / atomicity rows:         7 / 7 PASS
+external manifest audit:                15 / 15 verified; 0 mismatches
+```
+
+このAdapter authorityはsingle-phase right-face mappingとactual one-step couplingをVerificationした。finite-pipe response、inventory／acoustic closure、mesh／CFL characterization、物理Validationおよび設計利用は未成立である。'''
+          text = replace_once(
+              text,
+              "このReferenceはdirect external-face flux mapping、one-step balance、inventory／impulse ledger、requested-probe acoustic targetを独立に固定した。production FVM Adapter、finite-pipe result、物理Validation、設計利用は未成立である。",
+              master_adapter,
+              "master Adapter retained result",
+          )
+          text = replace_once(
+              text,
+              "u3_b2_fvm_adapter_implemented = false",
+              "u3_b2_fvm_adapter_implemented = true",
+              "master Adapter flag",
+          )
+          text = replace_once(
+              text,
+              "single_phase_fvm_discharge_mapping_verified = false",
+              "single_phase_fvm_discharge_mapping_verified = true",
+              "master mapping flag",
+          )
+          old_next = '''```text
+accepted B1 component
+→ independent production-side B2 FVM Adapter
+→ face parity against Reference
+→ one-step conservative parity
+→ finite-pipe single-phase execution
+→ mass / energy inventory and momentum-impulse closure
+→ direct / reflected rarefaction comparison
+→ fixed mesh / CFL characterization
+→ B2 closeout
+```
+
+AdapterはB2 Reference moduleまたはB2-specific helperをimportしない。face／one-step parityを成立させる前にfinite-pipe acceptanceへ進まない。Two-phase critical dischargeは、このsingle-phase coupling layerがacceptedになるまで明示的に延期する。'''
+          new_next = '''```text
+merged single-phase B2 FVM Adapter
+→ finite-pipe LIQUID_SMALL_DROP
+→ finite-pipe GAS_UNCHOKED
+→ finite-pipe GAS_CHOKED
+→ mass / energy inventory and momentum-impulse closure
+→ direct / reflected rarefaction comparison
+→ fixed mesh / CFL characterization
+→ B2 closeout
+```
+
+Adapter face／one-step Verificationは完了したが、finite-pipe acceptanceは未成立である。Two-phase critical dischargeは、このsingle-phase finite-pipe coupling benchmarkがacceptedになるまで明示的に延期する。'''
+          text = replace_once(text, old_next, new_next, "master next controlled work block")
+          path.write_text(text, encoding="utf-8")
+
+          # Execution log: prepend the Adapter final audit and merge entry.
+          path = Path("docs/verification/stage7_execution_log.md")
+          text = path.read_text(encoding="utf-8")
+          marker = "## 2026-08-09 — U3 B2 Independent Reference final audit and merge"
+          entry = f'''## 2026-08-09 — U3 B2 FVM Adapter final audit, authority, and merge
+
+### PR #144 — final state audit
+
+```text
+state before merge:               OPEN / ready / mergeable
+expected head SHA:                {ADAPTER_SOURCE}
+base main SHA:                    b54aa22421c603605625da9987186370436a37d9
+changed files:                    6 intended paths
+tracked pyc / temporary paths:    0
+unresolved review threads:        0
+blocking findings:                0
+```
+
+### Authoritative Adapter execution
+
+```text
+workflow:                         Stage 7 U3 B2 FVM Adapter Face and One-Step Authority
+run ID:                           31305482286
+job ID:                           93225055346
+source SHA:                       {ADAPTER_SOURCE}
+status:                           SUCCESS
+artifact ID:                      9037246372
+artifact name:                    stage7-u3-b2-adapter-31305482286
+artifact size:                    252073 bytes
+artifact ZIP SHA256:              {ARTIFACT_SHA}
+external internal-manifest audit: 15 / 15 verified; 0 mismatches
+```
+
+```text
+Adapter dedicated:                11 passed
+related U3:                       57 passed
+full repository:                971 passed
+skips / failures / errors:         0 / 0 / 0
+pytest deselected related / full:  2 / 4
+```
+
+```text
+face rows:                        13
+conserved-flux comparisons:       52
+comparison passes:                52 / 52
+actual FvmSolver one-step:        PASS
+Guard outcome / atomicity rows:    7 / 7 PASS
+all locked Adapter checks:        true
+```
+
+Review requests for Japanese-first report output、CoolProp-unavailable skip behavior、およびaccepted halved-dt history were answered with exact-head Authority and Artifact evidence and resolved 3 / 3.
+
+### Merge
+
+PR #144はexpected head SHA `{ADAPTER_SOURCE}`を指定してmergeした。
+
+```text
+main merge SHA:                   {MAIN_MERGE}
+merge method:                     merge commit
+```
+
+これにより、central record synchronization後のformal stateとして次をtrueへ昇格できる。
+
+```text
+u3_b2_fvm_adapter_implemented = true
+single_phase_fvm_discharge_mapping_verified = true
+```
+
+finite-pipe execution、single-phase finite-pipe coupling Verification、B2 benchmark acceptance、物理Validation、設計利用およびproduction activationはfalseのまま維持する。
+
+## 2026-08-09 — U3 B2 Adapter central-record synchronization
+
+次をAdapter merge時点へ同期する。
+
+```text
+stage7_current_gate_snapshot.md
+MASTER_VERIFICATION_INDEX.md
+stage7_execution_log.md
+Issue #135 progress record
+```
+
+次のcontrolled incrementは、LIQUID_SMALL_DROP、GAS_UNCHOKED、GAS_CHOKEDのfinite-pipe authoritative executionである。
+
+'''
+          text = replace_once(text, marker, entry + marker, "execution-log Adapter entry")
+          text = replace_once(
+              text,
+              "u3_b2_fvm_adapter_implemented = false",
+              "u3_b2_fvm_adapter_implemented = true",
+              "execution-log Adapter flag",
+          )
+          text = replace_once(
+              text,
+              "single_phase_fvm_discharge_mapping_verified = false",
+              "single_phase_fvm_discharge_mapping_verified = true",
+              "execution-log mapping flag",
+          )
+          path.write_text(text, encoding="utf-8")
+
+          # Cross-file claim-boundary assertions.
+          for file_name in (
+              "docs/verification/stage7_current_gate_snapshot.md",
+              "docs/verification/MASTER_VERIFICATION_INDEX.md",
+              "docs/verification/stage7_execution_log.md",
+          ):
+              body = Path(file_name).read_text(encoding="utf-8")
+              assert body.count("u3_b2_fvm_adapter_implemented = true") == 1, file_name
+              assert body.count("single_phase_fvm_discharge_mapping_verified = true") == 1, file_name
+              assert "u3_b2_finite_pipe_execution_complete = false" in body, file_name
+              assert "single_phase_finite_pipe_coupling_verified = false" in body, file_name
+              assert "u3_b2_verification_benchmark_accepted = false" in body, file_name
+              assert "physical_validation = false" in body, file_name
+              assert "design_use_acceptance = false" in body, file_name
+              assert "production_hem_activation_approved = false" in body, file_name
+
+          print("central-record replacements and claim-boundary assertions: PASS")
+          PY
+
+      - name: Inspect controlled diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          python - <<'PY'
+          import subprocess
+
+          expected = {
+              ".github/workflows/agent-u3-b2-adapter-record-sync-bootstrap.yml",
+              "docs/verification/MASTER_VERIFICATION_INDEX.md",
+              "docs/verification/stage7_current_gate_snapshot.md",
+              "docs/verification/stage7_execution_log.md",
+          }
+          actual = set(
+              subprocess.check_output(["git", "diff", "--name-only"], text=True).splitlines()
+          )
+          assert actual == expected, (sorted(actual), sorted(expected))
+          PY
+
+      - name: Commit documentation-only synchronization
+        shell: bash
+        env:
+          TARGET_BRANCH: agent/u3-b2-adapter-record-sync
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/agent-u3-b2-adapter-record-sync-bootstrap.yml
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Synchronize U3 B2 Adapter authority records"
+          git push origin "HEAD:${TARGET_BRANCH}"
