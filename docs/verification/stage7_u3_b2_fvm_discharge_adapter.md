@@ -161,6 +161,24 @@ full_repository_junit.xml
 artifact_sha256.txt
 ```
 
+The provenance record must separately retain:
+
+```text
+analysis source Git SHA
+checkout Git SHA
+Reference source Git SHA
+Adapter source Git SHA
+historical Reference Artifact ID and ZIP SHA256
+parent B2 contract source and retained-artifact SHA256
+B2 event/provenance contract source and retained-artifact SHA256
+B1 component contract source and retained-artifact SHA256
+Python / NumPy / Matplotlib / Pytest / CoolProp versions
+workflow run ID and attempt
+pre-execution and post-execution checkout state
+```
+
+`artifact_sha256.txt` must cover every retained evidence file except itself.
+
 ## 8. Candidate promotion boundary
 
 Only after authoritative evidence and expected-head merge may this increment
