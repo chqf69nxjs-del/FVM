@@ -1,0 +1,188 @@
+name: Stage 7 U3 B2 Finite-Pipe Baseline Preflight
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/liquid_gas_transient/u3_b2_fvm_discharge_finite_pipe.py"
+      - "tests/test_stage7_u3_b2_finite_pipe.py"
+      - "docs/verification/stage7_u3_b2_finite_pipe_baseline.md"
+      - ".github/workflows/stage7-u3-b2-finite-pipe-baseline-preflight.yml"
+      - "src/liquid_gas_transient/u3_b2_fvm_discharge_adapter.py"
+      - "src/liquid_gas_transient/solver.py"
+      - "docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json"
+      - "docs/verification/stage7_u3_b2_fvm_discharge_coupling_event_provenance_contract_v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage7-u3-b2-finite-pipe-baseline-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  baseline-preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      PYTHONPATH: src
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONPYCACHEPREFIX: /tmp/u3-b2-finite-pipe-pycache
+      MPLBACKEND: Agg
+      ACCEPTED_ADAPTER_SOURCE_SHA: 732b7259ac3738c47f7eb7cbd23d8e49195a0d7b
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Install fixed dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install \
+            'numpy==2.5.1' \
+            'pytest==9.1.1' \
+            'CoolProp==8.0.0'
+
+      - name: Verify accepted Adapter identity and clean checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          adapter=src/liquid_gas_transient/u3_b2_fvm_discharge_adapter.py
+          pinned="$(git rev-parse "${ACCEPTED_ADAPTER_SOURCE_SHA}:${adapter}")"
+          current="$(git rev-parse "HEAD:${adapter}")"
+          echo "accepted Adapter blob=${pinned} current=${current}"
+          test "${pinned}" = "${current}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test -z "$(git ls-files | grep -E '(^|/)(__pycache__/|.*\.py[co]$)' || true)"
+
+      - name: Compile and static checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "${PYTHONPYCACHEPREFIX}"
+          python -m py_compile \
+            src/liquid_gas_transient/u3_b2_fvm_discharge_finite_pipe.py \
+            tests/test_stage7_u3_b2_finite_pipe.py
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=no)"
+
+      - name: Run dedicated finite-pipe tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/test_stage7_u3_b2_finite_pipe.py \
+            --strict-markers \
+            --junitxml=finite_pipe_dedicated_junit.xml
+
+      - name: Run related U3 regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/test_stage7_u3_b1_critical_state_contract.py \
+            tests/test_stage7_u3_b1_critical_state_reference.py \
+            tests/test_stage7_u3_b1_critical_state_authoritative.py \
+            tests/test_stage7_u3_b1_critical_state_adapter.py \
+            tests/test_stage7_u3_b2_fvm_discharge_coupling_contract.py \
+            tests/test_stage7_u3_b2_fvm_discharge_coupling_extension_contract.py \
+            tests/test_stage7_u3_b2_fvm_discharge_reference.py \
+            tests/test_stage7_u3_b2_fvm_discharge_adapter.py \
+            tests/test_stage7_u3_b2_finite_pipe.py \
+            --strict-markers \
+            --junitxml=finite_pipe_related_junit.xml
+
+      - name: Execute locked three-family baseline preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/stage7-u3-b2-finite-pipe-baseline-preflight
+          rm -rf "${output}"
+          python -m liquid_gas_transient.u3_b2_fvm_discharge_finite_pipe \
+            --contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json \
+            --extension-contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_event_provenance_contract_v1.json \
+            --b1-contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
+            --output-dir "${output}" \
+            --source-git-sha "${{ github.event.pull_request.head.sha }}"
+
+      - name: Inspect baseline preflight evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv
+          import hashlib
+          import json
+          from pathlib import Path
+
+          target = Path("artifacts/stage7-u3-b2-finite-pipe-baseline-preflight")
+          expected = {
+              "summary.json",
+              "report.md",
+              "benchmark_contract.json",
+              "event_provenance_contract.json",
+              "b1_component_contract.json",
+              "baseline_run_summary.csv",
+              "baseline_step_history.csv",
+              "baseline_probe_history.csv",
+              "baseline_acoustic_events.csv",
+              "artifact_sha256.txt",
+          }
+          assert {path.name for path in target.iterdir()} == expected
+          summary = json.loads((target / "summary.json").read_text(encoding="utf-8"))
+          assert summary["schema_version"] == "stage7_u3_b2_finite_pipe_baseline_v1"
+          assert summary["run_count"] == 3
+          assert summary["all_baseline_runs_passed"] is True
+          assert summary["candidate_baseline_finite_pipe_execution_passed"] is True
+          assert summary["u3_b2_finite_pipe_execution_complete"] is False
+          assert summary["single_phase_finite_pipe_coupling_verified"] is False
+          assert summary["u3_b2_verification_benchmark_accepted"] is False
+          assert summary["physical_validation"] is False
+          assert summary["design_use_acceptance"] is False
+          assert summary["production_hem_activation_approved"] is False
+
+          with (target / "baseline_run_summary.csv").open(newline="", encoding="utf-8") as handle:
+              runs = list(csv.DictReader(handle))
+          assert len(runs) == 3
+          assert all(row["formal_outcome_matches_contract"] == "True" for row in runs)
+          assert all(row["mass_inventory_passed"] == "True" for row in runs)
+          assert all(row["energy_inventory_passed"] == "True" for row in runs)
+          assert all(row["momentum_inventory_passed"] == "True" for row in runs)
+          assert all(row["right_momentum_decomposition_passed"] == "True" for row in runs)
+          assert all(row["vapor_identity_passed"] == "True" for row in runs)
+
+          with (target / "baseline_acoustic_events.csv").open(newline="", encoding="utf-8") as handle:
+              events = list(csv.DictReader(handle))
+          assert len(events) == 6
+          assert all(row["comparison_passed"] == "True" for row in events)
+
+          manifest = {}
+          for line in (target / "artifact_sha256.txt").read_text(encoding="utf-8").splitlines():
+              digest, name = line.split("  ", 1)
+              manifest[name] = digest
+          assert set(manifest) == expected - {"artifact_sha256.txt"}
+          for name, digest in manifest.items():
+              actual = hashlib.sha256((target / name).read_bytes()).hexdigest()
+              assert actual == digest, name
+          PY
+
+      - name: Upload baseline preflight evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: stage7-u3-b2-finite-pipe-baseline-preflight-${{ github.run_id }}
+          path: |
+            artifacts/stage7-u3-b2-finite-pipe-baseline-preflight
+            finite_pipe_dedicated_junit.xml
+            finite_pipe_related_junit.xml
+          if-no-files-found: warn
