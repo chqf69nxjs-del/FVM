@@ -1,0 +1,292 @@
+name: Agent U3 B2 Finite-Pipe Family Balance Diagnostic V2
+
+on:
+  push:
+    branches: [agent/u3-b2-finite-pipe-reverse-guard-diagnostic]
+    paths:
+      - ".github/workflows/agent-u3-b2-finite-pipe-family-balance-diagnostic-v2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: agent-u3-b2-finite-pipe-family-balance-diagnostic-v2
+  cancel-in-progress: true
+
+jobs:
+  diagnose-family-balance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      PYTHONPATH: src
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONPYCACHEPREFIX: /tmp/u3-b2-finite-pipe-family-diagnostic-v2-pycache
+      MPLBACKEND: Agg
+      SOURCE_SHA: ${{ github.sha }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout exact diagnostic source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Install fixed dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install \
+            'numpy==2.5.1' \
+            'matplotlib==3.11.1' \
+            'pytest==9.1.1' \
+            'CoolProp==8.0.0'
+
+      - name: Capture initial balance and per-family completion
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-finite-pipe-family-balance-diagnostic-v2
+          rm -rf "${output}"
+          mkdir -p "${output}"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          from liquid_gas_transient.boundary import ReflectiveBoundary, TransmissiveBoundary
+          from liquid_gas_transient.config import PipeGeometry
+          from liquid_gas_transient.grid import UniformGrid
+          from liquid_gas_transient.solver import FvmSolver
+          from liquid_gas_transient.state import IDX_MOM, IDX_RHO
+          from liquid_gas_transient.u3_b2_fvm_discharge_adapter import (
+              B2AdapterError,
+              CoolPropB2StateProvider,
+              CoolPropSinglePhaseEOS,
+              adapter_for_case,
+              build_uniform_initial_state,
+              load_b1_contract,
+              load_contract,
+          )
+          from liquid_gas_transient.u3_b2_fvm_discharge_finite_pipe import (
+              BASELINE_CASE_IDS,
+              _case,
+              _family,
+              execute_finite_pipe_case,
+              load_extension_contract,
+          )
+
+          contract = load_contract(
+              "docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json"
+          )
+          extension = load_extension_contract(
+              "docs/verification/stage7_u3_b2_fvm_discharge_coupling_event_provenance_contract_v1.json"
+          )
+          b1_contract = load_b1_contract(
+              "docs/verification/stage7_u3_b1_critical_state_contract_v1.json"
+          )
+          geometry = contract["geometry"]
+          cells = int(geometry["baseline_cells"])
+          cfl = float(geometry["baseline_cfl"])
+          pipe = PipeGeometry(
+              length_m=float(geometry["pipe_length_m"]),
+              diameter_m=float(geometry["pipe_diameter_m"]),
+              roughness_m=float(geometry["roughness_m"]),
+          )
+
+          rows = []
+          for case_id in BASELINE_CASE_IDS:
+              case = _case(contract, case_id)
+              state_id = str(case["state_id"])
+              family = _family(contract, state_id)
+              provider = CoolPropB2StateProvider()
+              grid = UniformGrid(pipe, cells)
+              U_initial, static = build_uniform_initial_state(
+                  contract, provider, state_id, cells
+              )
+              eos = CoolPropSinglePhaseEOS(
+                  provider,
+                  boundary_temperature_K=static.temperature_K,
+              )
+              adapter = adapter_for_case(
+                  contract, b1_contract, case, provider=provider
+              )
+              solver = FvmSolver(
+                  grid=grid,
+                  eos=eos,
+                  U=U_initial,
+                  cfl=cfl,
+                  n_ghost=int(geometry["ghost_cells_each_side"]),
+                  left_boundary=ReflectiveBoundary(),
+                  right_boundary=TransmissiveBoundary(),
+                  right_external_face_flux_override=adapter,
+                  enable_boundary_budget=True,
+                  enable_phase_budget=False,
+                  enable_energy_budget=False,
+                  enable_interface_budget=False,
+              )
+
+              t_end = (
+                  2.0 * pipe.length_m / static.sound_speed_m_s
+                  if bool(family.get("full_acoustic_horizon_enabled", False))
+                  else None
+              )
+              flux_left, _ = solver._base_fluxes()
+              initial_eval = adapter.evaluate(
+                  solver.U[-1], grid.geometry.area_m2
+              )
+              assert initial_eval.succeeded and initial_eval.face is not None
+              face = initial_eval.face
+              candidate_dt = float(solver.compute_dt(t_end))
+              left_flux = float(flux_left[-1, IDX_MOM])
+              right_flux = float(face.F_rho_u_pa)
+              flux_difference = right_flux - left_flux
+              predicted_rho_u = float(
+                  solver.U[-1, IDX_MOM]
+                  - candidate_dt / grid.dx * flux_difference
+              )
+              pressure_drop_force = float(
+                  (face.upstream_static_pressure_pa - face.discharge_state_pressure_pa)
+                  * face.open_area_m2
+              )
+              advective_excess = float(
+                  face.advective_momentum_rate_out_N - pressure_drop_force
+              )
+
+              accepted_dt = float(solver.step(candidate_dt))
+              primitive_after = solver.primitive()
+              actual_rho_u = float(solver.U[-1, IDX_MOM])
+              actual_velocity = float(
+                  actual_rho_u / solver.U[-1, IDX_RHO]
+              )
+              second_outcome = "SUCCESS"
+              second_message = None
+              try:
+                  solver.compute_dt(t_end)
+              except B2AdapterError as exc:
+                  evaluation = adapter.last_evaluation
+                  second_outcome = (
+                      evaluation.formal_outcome
+                      if evaluation is not None
+                      else str(exc).split(":", 1)[0]
+                  )
+                  second_message = str(exc)
+
+              full_outcome = "SUCCESS"
+              full_message = None
+              full_summary = None
+              try:
+                  completed = execute_finite_pipe_case(
+                      contract, extension, b1_contract, case_id
+                  )
+                  full_summary = completed.summary
+              except Exception as exc:
+                  full_outcome = type(exc).__name__
+                  full_message = str(exc)
+
+              rows.append(
+                  {
+                      "case_id": case_id,
+                      "state_id": state_id,
+                      "initial_pressure_pa": float(static.pressure_pa),
+                      "external_back_pressure_pa": float(adapter.back_pressure_pa),
+                      "candidate_dt_s": candidate_dt,
+                      "accepted_dt_s": accepted_dt,
+                      "left_internal_momentum_flux_pa": left_flux,
+                      "right_external_momentum_flux_pa": right_flux,
+                      "momentum_flux_difference_pa": flux_difference,
+                      "pressure_drop_force_on_open_area_N": pressure_drop_force,
+                      "advective_momentum_rate_out_N": float(
+                          face.advective_momentum_rate_out_N
+                      ),
+                      "advective_excess_over_pressure_drop_N": advective_excess,
+                      "predicted_last_cell_momentum_density_after_step": predicted_rho_u,
+                      "actual_last_cell_momentum_density_after_step": actual_rho_u,
+                      "momentum_prediction_residual": actual_rho_u - predicted_rho_u,
+                      "actual_last_cell_velocity_after_step_m_s": actual_velocity,
+                      "actual_last_cell_pressure_after_step_pa": float(
+                          primitive_after.p[-1]
+                      ),
+                      "second_compute_dt_outcome": second_outcome,
+                      "second_compute_dt_message": second_message,
+                      "full_run_outcome": full_outcome,
+                      "full_run_message": full_message,
+                      "full_run_summary": full_summary,
+                  }
+              )
+
+          liquid = rows[0]
+          assert liquid["momentum_flux_difference_pa"] > 0.0
+          assert liquid[
+              "predicted_last_cell_momentum_density_after_step"
+          ] < 0.0
+          assert abs(liquid["momentum_prediction_residual"]) < 1.0e-12
+          assert (
+              liquid["second_compute_dt_outcome"]
+              == "REVERSE_PRESSURE_OR_FLOW_NOT_SUPPORTED"
+          )
+
+          payload = {
+              "schema_version": "stage7_u3_b2_finite_pipe_family_balance_diagnostic_v2",
+              "scope": "diagnostic_only_no_contract_or_tolerance_change",
+              "source_git_sha": "46ee40dd6f03598e4d38cbcd9f6f67faab965782",
+              "rows": rows,
+              "formal_state_promoted": False,
+          }
+          target = Path(
+              "artifacts/u3-b2-finite-pipe-family-balance-diagnostic-v2"
+          )
+          (target / "diagnostic.json").write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          (target / "report.md").write_text(
+              "# U3 B2 finite-pipe family balance diagnostic V2\n\n"
+              "Diagnostic-only execution. Contract, tolerance, Adapter and "
+              "formal state are unchanged.\n\n```json\n"
+              + json.dumps(payload, indent=2, sort_keys=True)
+              + "\n```\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(payload, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: u3-b2-finite-pipe-family-balance-diagnostic-v2-${{ github.run_id }}
+          path: artifacts/u3-b2-finite-pipe-family-balance-diagnostic-v2
+          if-no-files-found: error
+
+      - name: Record diagnostic receipt
+        if: always()
+        shell: bash
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          body="$(cat <<EOF
+          ## U3 B2 finite-pipe family-balance diagnostic V2 receipt
+
+          \`\`\`text
+          source:
+          ${SOURCE_SHA}
+
+          workflow run:
+          ${GITHUB_RUN_ID}
+
+          job status:
+          ${JOB_STATUS}
+          \`\`\`
+
+          Diagnostic-only execution. No Contract, tolerance, formal finite-pipe state, Physical Validation, design-use status, or production activation was changed.
+          EOF
+          )"
+          gh api "repos/${GITHUB_REPOSITORY}/issues/135/comments" -f body="${body}" >/dev/null
