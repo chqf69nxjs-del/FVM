@@ -1,5 +1,5 @@
 name: Agent U3 B2 Finite-Pipe Run Discovery
-# discovery trigger: 2
+# discovery trigger: 3
 
 on:
   push:
@@ -19,7 +19,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       REPOSITORY: chqf69nxjs-del/FVM
-      TARGET_WORKFLOW: stage7-u3-b2-finite-pipe-baseline-preflight.yml
+      TARGET_NAME: Stage 7 U3 B2 Finite-Pipe Baseline Preflight
       TARGET_BRANCH: agent/u3-b2-finite-pipe-baseline
       TARGET_SHA: c10e98736df91b74848620dbb1f64e135b722b9c
       PR_NUMBER: "148"
@@ -29,16 +29,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          payload="$(gh api "repos/${REPOSITORY}/actions/workflows/${TARGET_WORKFLOW}/runs?event=push&branch=${TARGET_BRANCH}&per_page=30")"
-          record="$(PAYLOAD="${payload}" TARGET_SHA="${TARGET_SHA}" python - <<'PY'
+          payload="$(gh api "repos/${REPOSITORY}/actions/runs?event=push&branch=${TARGET_BRANCH}&per_page=100")"
+          record="$(PAYLOAD="${payload}" TARGET_SHA="${TARGET_SHA}" TARGET_NAME="${TARGET_NAME}" python - <<'PY'
           import json
           import os
 
           payload = json.loads(os.environ["PAYLOAD"])
-          target = os.environ["TARGET_SHA"]
+          target_sha = os.environ["TARGET_SHA"]
+          target_name = os.environ["TARGET_NAME"]
           matches = [
               row for row in payload.get("workflow_runs", [])
-              if row.get("head_sha") == target
+              if row.get("head_sha") == target_sha
+              and row.get("name") == target_name
           ]
           matches.sort(key=lambda row: row.get("created_at", ""), reverse=True)
           print(json.dumps(matches[0] if matches else {}))
