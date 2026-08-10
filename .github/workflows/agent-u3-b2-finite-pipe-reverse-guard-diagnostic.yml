@@ -1,0 +1,254 @@
+name: Agent U3 B2 Finite-Pipe Reverse Guard Diagnostic
+
+on:
+  push:
+    branches: [agent/u3-b2-finite-pipe-reverse-guard-diagnostic]
+    paths:
+      - ".github/workflows/agent-u3-b2-finite-pipe-reverse-guard-diagnostic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: agent-u3-b2-finite-pipe-reverse-guard-diagnostic
+  cancel-in-progress: true
+
+jobs:
+  diagnose-liquid-baseline-guard:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      PYTHONPATH: src
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONPYCACHEPREFIX: /tmp/u3-b2-finite-pipe-reverse-guard-pycache
+      MPLBACKEND: Agg
+      SOURCE_SHA: ${{ github.sha }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout exact diagnostic source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Install fixed dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install \
+            'numpy==2.5.1' \
+            'matplotlib==3.11.1' \
+            'pytest==9.1.1' \
+            'CoolProp==8.0.0'
+
+      - name: Capture exact reverse-velocity guard context
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf artifacts/u3-b2-finite-pipe-reverse-guard-diagnostic
+          mkdir -p artifacts/u3-b2-finite-pipe-reverse-guard-diagnostic
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          import numpy as np
+
+          from liquid_gas_transient.solver import FvmSolver
+          from liquid_gas_transient.state import IDX_MOM, IDX_RHO
+          from liquid_gas_transient.u3_b2_fvm_discharge_adapter import (
+              B2AdapterError,
+              REVERSE_PRESSURE_OR_FLOW_NOT_SUPPORTED,
+              load_b1_contract,
+              load_contract,
+          )
+          from liquid_gas_transient.u3_b2_fvm_discharge_finite_pipe import (
+              LIQUID_CASE_ID,
+              execute_finite_pipe_case,
+              load_extension_contract,
+          )
+
+          contract_path = Path(
+              "docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json"
+          )
+          extension_path = Path(
+              "docs/verification/stage7_u3_b2_fvm_discharge_coupling_event_provenance_contract_v1.json"
+          )
+          b1_contract_path = Path(
+              "docs/verification/stage7_u3_b1_critical_state_contract_v1.json"
+          )
+          contract = load_contract(contract_path)
+          extension = load_extension_contract(extension_path)
+          b1_contract = load_b1_contract(b1_contract_path)
+
+          diagnostic = {
+              "schema_version": "stage7_u3_b2_finite_pipe_reverse_guard_diagnostic_v1",
+              "scope": "diagnostic_only_no_contract_or_tolerance_change",
+              "source_git_sha": "${SOURCE_SHA}",
+              "case_id": LIQUID_CASE_ID,
+              "expected_guard": REVERSE_PRESSURE_OR_FLOW_NOT_SUPPORTED,
+              "formal_state_promoted": False,
+          }
+
+          original_compute_dt = FvmSolver.compute_dt
+
+          def instrumented_compute_dt(self, t_end=None):
+              try:
+                  return original_compute_dt(self, t_end)
+              except B2AdapterError as exc:
+                  primitive = self.primitive()
+                  rho = float(self.U[-1, IDX_RHO])
+                  adjacent_velocity = float(self.U[-1, IDX_MOM] / rho)
+                  minimum_index = int(np.argmin(primitive.u))
+                  hook = self.right_external_face_flux_override
+                  tolerance = float(
+                      hook.contract["acceptance_tolerances"][
+                          "velocity_zero_tolerance_m_s"
+                      ]
+                  )
+                  evaluation = hook.last_evaluation
+                  diagnostic.update(
+                      {
+                          "guard_captured": True,
+                          "solver_step_count": int(self.step_count),
+                          "solver_time_s": float(self.t),
+                          "target_horizon_s": (
+                              None if t_end is None else float(t_end)
+                          ),
+                          "time_fraction_of_target": (
+                              None
+                              if t_end is None or float(t_end) == 0.0
+                              else float(self.t / float(t_end))
+                          ),
+                          "remaining_horizon_s": (
+                              None if t_end is None else float(t_end - self.t)
+                          ),
+                          "candidate_dt_before_boundary_limit_s": None,
+                          "adjacent_density_kg_m3": rho,
+                          "adjacent_momentum_density_kg_m2_s": float(
+                              self.U[-1, IDX_MOM]
+                          ),
+                          "adjacent_velocity_m_s": adjacent_velocity,
+                          "locked_velocity_zero_tolerance_m_s": tolerance,
+                          "velocity_to_tolerance_ratio": float(
+                              adjacent_velocity / tolerance
+                          ),
+                          "adjacent_pressure_pa": float(primitive.p[-1]),
+                          "minimum_internal_velocity_m_s": float(
+                              np.min(primitive.u)
+                          ),
+                          "minimum_velocity_internal_index": minimum_index,
+                          "maximum_internal_velocity_m_s": float(
+                              np.max(primitive.u)
+                          ),
+                          "minimum_internal_pressure_pa": float(
+                              np.min(primitive.p)
+                          ),
+                          "maximum_internal_pressure_pa": float(
+                              np.max(primitive.p)
+                          ),
+                          "adapter_last_formal_outcome": (
+                              None
+                              if evaluation is None
+                              else evaluation.formal_outcome
+                          ),
+                          "adapter_last_formal_message": (
+                              None
+                              if evaluation is None
+                              else evaluation.formal_message
+                          ),
+                          "exception_type": type(exc).__name__,
+                          "exception_message": str(exc),
+                      }
+                  )
+                  raise
+
+          FvmSolver.compute_dt = instrumented_compute_dt
+          try:
+              execute_finite_pipe_case(
+                  contract,
+                  extension,
+                  b1_contract,
+                  LIQUID_CASE_ID,
+              )
+          except B2AdapterError as exc:
+              diagnostic["outer_exception_type"] = type(exc).__name__
+              diagnostic["outer_exception_message"] = str(exc)
+          else:
+              diagnostic["guard_captured"] = False
+              raise AssertionError(
+                  "Locked liquid baseline unexpectedly completed without the observed guard"
+              )
+          finally:
+              FvmSolver.compute_dt = original_compute_dt
+
+          assert diagnostic.get("guard_captured") is True
+          assert (
+              diagnostic.get("adapter_last_formal_outcome")
+              == REVERSE_PRESSURE_OR_FLOW_NOT_SUPPORTED
+          )
+          assert diagnostic["adjacent_velocity_m_s"] < -diagnostic[
+              "locked_velocity_zero_tolerance_m_s"
+          ]
+
+          output = Path("artifacts/u3-b2-finite-pipe-reverse-guard-diagnostic")
+          (output / "diagnostic.json").write_text(
+              json.dumps(diagnostic, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          lines = [
+              "# U3 B2 finite-pipe reverse-velocity Guard diagnostic",
+              "",
+              "This is diagnostic-only evidence. No Contract, tolerance, Adapter,",
+              "formal finite-pipe flag, Physical Validation, design-use status, or",
+              "production activation is changed.",
+              "",
+              "```json",
+              json.dumps(diagnostic, indent=2, sort_keys=True),
+              "```",
+              "",
+          ]
+          (output / "report.md").write_text("\n".join(lines), encoding="utf-8")
+          print(json.dumps(diagnostic, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: u3-b2-finite-pipe-reverse-guard-diagnostic-${{ github.run_id }}
+          path: artifacts/u3-b2-finite-pipe-reverse-guard-diagnostic
+          if-no-files-found: error
+
+      - name: Record diagnostic receipt
+        if: always()
+        shell: bash
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          body="$(cat <<EOF
+          ## U3 B2 finite-pipe reverse-velocity Guard diagnostic receipt
+
+          \`\`\`text
+          source:
+          ${SOURCE_SHA}
+
+          workflow run:
+          ${GITHUB_RUN_ID}
+
+          job status:
+          ${JOB_STATUS}
+          \`\`\`
+
+          Diagnostic-only execution. No Contract, tolerance, formal finite-pipe state, Physical Validation, design-use status, or production activation was changed.
+          EOF
+          )"
+          gh api "repos/${GITHUB_REPOSITORY}/issues/135/comments" -f body="${body}" >/dev/null
