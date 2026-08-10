@@ -1,4 +1,5 @@
 name: Agent U3 B2 Finite-Pipe Run Discovery
+# discovery trigger: 2
 
 on:
   push:
