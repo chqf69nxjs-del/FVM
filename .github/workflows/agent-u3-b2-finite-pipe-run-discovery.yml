@@ -1,0 +1,97 @@
+name: Agent U3 B2 Finite-Pipe Run Discovery
+
+on:
+  push:
+    branches: [agent/u3-b2-finite-pipe-run-discovery]
+    paths:
+      - ".github/workflows/agent-u3-b2-finite-pipe-run-discovery.yml"
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+
+jobs:
+  discover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: chqf69nxjs-del/FVM
+      TARGET_WORKFLOW: stage7-u3-b2-finite-pipe-baseline-preflight.yml
+      TARGET_BRANCH: agent/u3-b2-finite-pipe-baseline
+      TARGET_SHA: c10e98736df91b74848620dbb1f64e135b722b9c
+      PR_NUMBER: "148"
+    steps:
+      - name: Locate exact-source push run
+        id: locate
+        shell: bash
+        run: |
+          set -euo pipefail
+          payload="$(gh api "repos/${REPOSITORY}/actions/workflows/${TARGET_WORKFLOW}/runs?event=push&branch=${TARGET_BRANCH}&per_page=30")"
+          record="$(PAYLOAD="${payload}" TARGET_SHA="${TARGET_SHA}" python - <<'PY'
+          import json
+          import os
+
+          payload = json.loads(os.environ["PAYLOAD"])
+          target = os.environ["TARGET_SHA"]
+          matches = [
+              row for row in payload.get("workflow_runs", [])
+              if row.get("head_sha") == target
+          ]
+          matches.sort(key=lambda row: row.get("created_at", ""), reverse=True)
+          print(json.dumps(matches[0] if matches else {}))
+          PY
+          )"
+          RUN_RECORD="${record}" python - <<'PY' >> "${GITHUB_OUTPUT}"
+          import json
+          import os
+
+          record = json.loads(os.environ["RUN_RECORD"])
+          print(f"found={'true' if record else 'false'}")
+          for key in ("id", "status", "conclusion", "created_at", "updated_at", "html_url", "head_sha"):
+              value = record.get(key)
+              print(f"{key}={'' if value is None else value}")
+          PY
+
+      - name: Record discovery on PR #148
+        shell: bash
+        env:
+          FOUND: ${{ steps.locate.outputs.found }}
+          RUN_ID: ${{ steps.locate.outputs.id }}
+          RUN_STATUS: ${{ steps.locate.outputs.status }}
+          RUN_CONCLUSION: ${{ steps.locate.outputs.conclusion }}
+          RUN_CREATED: ${{ steps.locate.outputs.created_at }}
+          RUN_UPDATED: ${{ steps.locate.outputs.updated_at }}
+          RUN_URL: ${{ steps.locate.outputs.html_url }}
+          RUN_HEAD_SHA: ${{ steps.locate.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          body="$(cat <<EOF
+          ### Isolated finite-pipe preflight run discovery
+
+          \`\`\`text
+          requested source:
+          ${TARGET_SHA}
+
+          run found:
+          ${FOUND}
+
+          run ID:
+          ${RUN_ID:-none}
+
+          status / conclusion:
+          ${RUN_STATUS:-none} / ${RUN_CONCLUSION:-none}
+
+          run head SHA:
+          ${RUN_HEAD_SHA:-none}
+
+          created / updated:
+          ${RUN_CREATED:-none}
+          ${RUN_UPDATED:-none}
+          \`\`\`
+
+          This discovery workflow performs no solver calculation and does not reopen or merge PR #${PR_NUMBER}. Run URL: ${RUN_URL:-not available}
+          EOF
+          )"
+          gh api "repos/${REPOSITORY}/issues/${PR_NUMBER}/comments" -f body="${body}" >/dev/null
