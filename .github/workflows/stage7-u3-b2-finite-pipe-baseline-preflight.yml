@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 concurrency:
   group: stage7-u3-b2-finite-pipe-baseline-clean-v2
@@ -24,6 +25,7 @@ env:
   MPLBACKEND: Agg
   ANALYSIS_SOURCE_GIT_SHA: ${{ github.sha }}
   ACCEPTED_ADAPTER_SOURCE_SHA: 732b7259ac3738c47f7eb7cbd23d8e49195a0d7b
+  GH_TOKEN: ${{ github.token }}
 
 jobs:
   baseline-preflight:
@@ -221,3 +223,32 @@ jobs:
             finite_pipe_dedicated_junit.xml
             finite_pipe_related_junit.xml
           if-no-files-found: warn
+
+      - name: Record observable preflight receipt
+        if: always()
+        shell: bash
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          body="$(cat <<EOF
+          ## U3 B2 finite-pipe baseline preflight receipt
+
+          \`\`\`text
+          source:
+          ${ANALYSIS_SOURCE_GIT_SHA}
+
+          workflow run:
+          ${GITHUB_RUN_ID}
+
+          job status:
+          ${JOB_STATUS}
+
+          branch:
+          ${GITHUB_REF_NAME}
+          \`\`\`
+
+          This is a candidate baseline preflight receipt only. It does not promote finite-pipe execution, coupling Verification, B2 acceptance, Physical Validation, design use, or production activation.
+          EOF
+          )"
+          gh api "repos/${GITHUB_REPOSITORY}/issues/135/comments" -f body="${body}" >/dev/null
