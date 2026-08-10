@@ -1,6 +1,13 @@
 name: Stage 7 U3 B2 Finite-Pipe Baseline Preflight
 
 on:
+  push:
+    branches: [agent/u3-b2-finite-pipe-baseline]
+    paths:
+      - "src/liquid_gas_transient/u3_b2_fvm_discharge_finite_pipe.py"
+      - "tests/test_stage7_u3_b2_finite_pipe.py"
+      - "docs/verification/stage7_u3_b2_finite_pipe_baseline.md"
+      - ".github/workflows/stage7-u3-b2-finite-pipe-baseline-preflight.yml"
   pull_request:
     branches: [main]
     paths:
@@ -17,8 +24,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: stage7-u3-b2-finite-pipe-baseline-${{ github.event.pull_request.number }}
+  group: stage7-u3-b2-finite-pipe-baseline-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
+
+env:
+  ANALYSIS_SOURCE_GIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
 jobs:
   baseline-preflight:
@@ -31,10 +41,10 @@ jobs:
       MPLBACKEND: Agg
       ACCEPTED_ADAPTER_SOURCE_SHA: 732b7259ac3738c47f7eb7cbd23d8e49195a0d7b
     steps:
-      - name: Checkout exact PR head
+      - name: Checkout exact source
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ env.ANALYSIS_SOURCE_GIT_SHA }}
           fetch-depth: 0
 
       - name: Set up Python
@@ -56,7 +66,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          test "$(git rev-parse HEAD)" = "${ANALYSIS_SOURCE_GIT_SHA}"
           adapter=src/liquid_gas_transient/u3_b2_fvm_discharge_adapter.py
           pinned="$(git rev-parse "${ACCEPTED_ADAPTER_SOURCE_SHA}:${adapter}")"
           current="$(git rev-parse "HEAD:${adapter}")"
@@ -113,7 +123,7 @@ jobs:
             --extension-contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_event_provenance_contract_v1.json \
             --b1-contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
             --output-dir "${output}" \
-            --source-git-sha "${{ github.event.pull_request.head.sha }}"
+            --source-git-sha "${ANALYSIS_SOURCE_GIT_SHA}"
 
       - name: Inspect baseline preflight evidence
         shell: bash
