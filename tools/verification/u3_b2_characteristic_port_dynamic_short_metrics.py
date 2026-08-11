@@ -4,10 +4,13 @@ from typing import Any
 
 import numpy as np
 
-import u3_b2_characteristic_port_root_robustness as robustness
+import u3_b2_characteristic_port_root_robustness_v4 as robustness_v4
 from liquid_gas_transient.state import IDX_MOM, IDX_RHO, IDX_RHOE, IDX_RHO_XV
 from liquid_gas_transient.u3_b2_fvm_discharge_adapter import normalize_phase
 from u3_b2_characteristic_port_dynamic_short_model import ACCEPTED_STEPS_PER_CASE
+
+
+robustness = robustness_v4.robustness
 
 
 def inventory(U: np.ndarray, *, dx: float, area_m2: float) -> dict[str, float]:
@@ -174,6 +177,43 @@ def build_step_row(
         "pipe_energy_rate_W": float(root["pipe_energy_rate_W"]),
         "b1_energy_rate_W": float(root["b1_energy_rate_W"]),
         "energy_port_residual_W": float(root["energy_port_residual_W"]),
+        "pipe_stagnation_enthalpy_J_kg": float(
+            root["pipe_stagnation_enthalpy_J_kg"]
+        ),
+        "b1_stagnation_enthalpy_from_transfer_J_kg": float(
+            root["b1_stagnation_enthalpy_from_transfer_J_kg"]
+        ),
+        "stagnation_enthalpy_round_trip_residual_J_kg": float(
+            root["stagnation_enthalpy_round_trip_residual_J_kg"]
+        ),
+        "locked_stagnation_enthalpy_round_trip_absolute_J_kg": float(
+            root["locked_stagnation_enthalpy_round_trip_absolute_J_kg"]
+        ),
+        "energy_expected_from_mass_residual_W": float(
+            root["energy_expected_from_mass_residual_W"]
+        ),
+        "energy_mass_consistency_residual_W": float(
+            root["energy_mass_consistency_residual_W"]
+        ),
+        "energy_consistency_roundoff_allowed_W": float(
+            root["energy_consistency_roundoff_allowed_W"]
+        ),
+        "energy_h0_round_trip_allowed_W": float(
+            root["energy_h0_round_trip_allowed_W"]
+        ),
+        "energy_mass_consistency_allowed_W": float(
+            root["energy_mass_consistency_allowed_W"]
+        ),
+        "energy_allowed_from_locked_root_and_h0_tolerances_W": float(
+            root["energy_allowed_from_locked_root_and_h0_tolerances_W"]
+        ),
+        "stagnation_enthalpy_round_trip_passed": bool(
+            root["stagnation_enthalpy_round_trip_passed"]
+        ),
+        "energy_mass_consistency_passed": bool(
+            root["energy_mass_consistency_passed"]
+        ),
+        "energy_port_closure_passed": bool(root["energy_port_closure_passed"]),
         "connected_scan_base_node_count": int(root_context["connected_scan_base_node_count"]),
         "connected_scan_requested_nodes": int(root_context["connected_scan_requested_nodes"]),
         "connected_scan_admissible_subsonic_nodes": int(
@@ -221,8 +261,9 @@ def build_step_row(
         <= robustness.ROOT_MASS_RESIDUAL_ABSOLUTE_KG_S
         and float(root["local_residual_slope_kg_s_Pa"]) < 0.0
         and 0.0 <= float(root["mach"]) < 1.0
-        and abs(float(root["energy_port_residual_W"]))
-        <= robustness.ENERGY_PORT_RESIDUAL_ABSOLUTE_W
+        and bool(root["stagnation_enthalpy_round_trip_passed"])
+        and bool(root["energy_mass_consistency_passed"])
+        and bool(root["energy_port_closure_passed"])
         and abs(float(root["momentum_ledger_residual_N"]))
         <= robustness.MOMENTUM_LEDGER_RESIDUAL_ABSOLUTE_N
     )
@@ -278,6 +319,45 @@ def summarize_case(
         ),
         "maximum_absolute_cumulative_energy_residual_J": maximum(
             "cumulative_energy_residual_J", absolute=True
+        ),
+        "maximum_absolute_root_stagnation_enthalpy_round_trip_residual_J_kg": maximum(
+            "stagnation_enthalpy_round_trip_residual_J_kg", absolute=True
+        ),
+        "maximum_absolute_root_energy_mass_consistency_residual_W": maximum(
+            "energy_mass_consistency_residual_W", absolute=True
+        ),
+        "maximum_absolute_root_energy_port_residual_W": maximum(
+            "energy_port_residual_W", absolute=True
+        ),
+        "minimum_root_energy_allowed_from_locked_tolerances_W": (
+            min(
+                float(
+                    row[
+                        "energy_allowed_from_locked_root_and_h0_tolerances_W"
+                    ]
+                )
+                for row in complete
+            )
+            if complete
+            else None
+        ),
+        "all_root_stagnation_enthalpy_round_trips_pass": bool(
+            complete
+            and all(
+                row["stagnation_enthalpy_round_trip_passed"] is True
+                for row in complete
+            )
+        ),
+        "all_root_energy_mass_consistency_checks_pass": bool(
+            complete
+            and all(
+                row["energy_mass_consistency_passed"] is True
+                for row in complete
+            )
+        ),
+        "all_root_energy_ports_close": bool(
+            complete
+            and all(row["energy_port_closure_passed"] is True for row in complete)
         ),
         "maximum_halving_count": (
             max(int(row["halving_count"]) for row in complete) if complete else None
