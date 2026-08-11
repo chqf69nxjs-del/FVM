@@ -1,0 +1,164 @@
+name: Agent U3 B2 Characteristic Upstream Port Diagnostic
+
+on:
+  push:
+    branches: [agent/u3-b2-momentum-control-volume-review]
+    paths:
+      - "tools/verification/u3_b2_characteristic_port_diagnostic.py"
+      - ".github/workflows/agent-u3-b2-characteristic-port-diagnostic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: agent-u3-b2-characteristic-port-diagnostic
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONPYCACHEPREFIX: /tmp/u3-b2-characteristic-port-pycache
+  SOURCE_SHA: ${{ github.sha }}
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  diagnose-characteristic-port:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout exact model-review source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Install fixed dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install \
+            'numpy==2.5.1' \
+            'CoolProp==8.0.0'
+
+      - name: Verify review-only source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${SOURCE_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          python -m py_compile tools/verification/u3_b2_characteristic_port_diagnostic.py
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=no)"
+
+      - name: Execute fixed A1 root diagnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-characteristic-upstream-port-diagnostic
+          rm -rf "${output}"
+          python tools/verification/u3_b2_characteristic_port_diagnostic.py \
+            --contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json \
+            --b1-contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
+            --output-dir "${output}" \
+            --source-git-sha "${SOURCE_SHA}"
+
+      - name: Inspect model-review evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv
+          import hashlib
+          import json
+          from pathlib import Path
+
+          target = Path("artifacts/u3-b2-characteristic-upstream-port-diagnostic")
+          expected = {
+              "summary.json",
+              "residual_scan.csv",
+              "root_summary.csv",
+              "report.md",
+              "artifact_sha256.txt",
+          }
+          assert {path.name for path in target.iterdir()} == expected
+
+          summary = json.loads((target / "summary.json").read_text(encoding="utf-8"))
+          assert summary["scope"] == "model_review_only_no_contract_or_tolerance_change"
+          assert summary["source_git_sha"] == __import__("os").environ["SOURCE_SHA"]
+          assert summary["formal_state_promoted"] is False
+          assert summary["u3_b2_finite_pipe_execution_complete"] is False
+          assert summary["single_phase_finite_pipe_coupling_verified"] is False
+          assert summary["u3_b2_verification_benchmark_accepted"] is False
+          assert summary["physical_validation"] is False
+          assert summary["design_use_acceptance"] is False
+          assert summary["production_hem_activation_approved"] is False
+          assert len(summary["cases"]) == 3
+          assert all(
+              row["unique_root_on_fixed_scan"] is True
+              for row in summary["cases"]
+          )
+          assert all(
+              row["root"] is not None
+              and row["root"]["evaluation_succeeded"] is True
+              and 0.0 <= row["root"]["mach"] < 1.0
+              for row in summary["cases"]
+          )
+          assert all(
+              row["exact_identity"] is True
+              for row in summary["exact_identities"].values()
+          )
+
+          with (target / "root_summary.csv").open(newline="", encoding="utf-8") as handle:
+              roots = list(csv.DictReader(handle))
+          assert len(roots) == 3
+
+          manifest = {}
+          for line in (target / "artifact_sha256.txt").read_text(encoding="utf-8").splitlines():
+              digest, name = line.split("  ", 1)
+              manifest[name] = digest
+          assert set(manifest) == expected - {"artifact_sha256.txt"}
+          for name, digest in manifest.items():
+              assert hashlib.sha256((target / name).read_bytes()).hexdigest() == digest
+          PY
+
+      - name: Upload model-review evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: u3-b2-characteristic-upstream-port-diagnostic-${{ github.run_id }}
+          path: artifacts/u3-b2-characteristic-upstream-port-diagnostic
+          if-no-files-found: warn
+
+      - name: Record diagnostic receipt
+        if: always()
+        shell: bash
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          body="$(cat <<EOF
+          ## U3 B2 characteristic upstream-port diagnostic receipt
+
+          \`\`\`text
+          source:
+          ${SOURCE_SHA}
+
+          workflow run:
+          ${GITHUB_RUN_ID}
+
+          job status:
+          ${JOB_STATUS}
+          \`\`\`
+
+          MODEL_REVIEW_ONLY. No B1/B2 Contract, tolerance, Adapter, solver, finite-pipe formal state, Physical Validation, design-use status, or production activation was changed.
+          EOF
+          )"
+          gh api "repos/${GITHUB_REPOSITORY}/issues/135/comments" -f body="${body}" >/dev/null
