@@ -165,7 +165,17 @@ def solve_dynamic_root(
     if abs(float(merged["energy_port_residual_W"])) > float(
         robustness.ENERGY_PORT_RESIDUAL_ABSOLUTE_W
     ):
-        raise DynamicDiagnosticStop("root energy-port ledger does not close")
+        raise DynamicDiagnosticStop(
+            "root energy-port ledger does not close: "
+            f"pipe={merged['pipe_energy_rate_W']!r} W, "
+            f"b1={merged['b1_energy_rate_W']!r} W, "
+            f"residual={merged['energy_port_residual_W']!r} W, "
+            f"limit={robustness.ENERGY_PORT_RESIDUAL_ABSOLUTE_W!r} W, "
+            f"p_P={merged['pressure_pa']!r} Pa, "
+            f"u_P={merged['velocity_m_s']!r} m/s, "
+            f"m_dot={merged['pipe_mass_rate_kg_s']!r} kg/s, "
+            f"h0={merged['h0_J_kg']!r} J/kg"
+        )
     if abs(float(merged["momentum_ledger_residual_N"])) > float(
         robustness.MOMENTUM_LEDGER_RESIDUAL_ABSOLUTE_N
     ):
