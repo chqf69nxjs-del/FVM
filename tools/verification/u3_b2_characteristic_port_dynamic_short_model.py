@@ -5,8 +5,11 @@ from typing import Any
 import numpy as np
 
 import u3_b2_characteristic_port_diagnostic as diagnostic
-import u3_b2_characteristic_port_root_robustness as robustness
+import u3_b2_characteristic_port_root_robustness_v4 as robustness_v4
 from liquid_gas_transient.u3_b2_fvm_discharge_adapter import normalize_phase
+
+
+robustness = robustness_v4.robustness
 
 
 CASE_IDS = (
@@ -142,7 +145,7 @@ def solve_dynamic_root(
         upper_pressure_pa=brackets[0][1],
         evaluate=evaluate,
     )
-    completed = robustness._complete_root_row(
+    completed = robustness_v4._complete_root_row_v4(
         root=root,
         evaluate=evaluate,
         adapter=adapter,
@@ -162,15 +165,28 @@ def solve_dynamic_root(
         raise DynamicDiagnosticStop("root is outside the subsonic branch")
     if float(merged["velocity_m_s"]) < -velocity_tolerance:
         raise DynamicDiagnosticStop("root velocity is reverse-directed")
-    if abs(float(merged["energy_port_residual_W"])) > float(
-        robustness.ENERGY_PORT_RESIDUAL_ABSOLUTE_W
-    ):
+    if not bool(merged["stagnation_enthalpy_round_trip_passed"]):
         raise DynamicDiagnosticStop(
-            "root energy-port ledger does not close: "
+            "root stagnation-enthalpy round trip exceeds locked B2 tolerance: "
+            f"residual={merged['stagnation_enthalpy_round_trip_residual_J_kg']!r} "
+            "J/kg, "
+            f"limit={merged['locked_stagnation_enthalpy_round_trip_absolute_J_kg']!r} "
+            "J/kg"
+        )
+    if not bool(merged["energy_mass_consistency_passed"]):
+        raise DynamicDiagnosticStop(
+            "root energy/mass ledger decomposition does not close: "
+            f"residual={merged['energy_mass_consistency_residual_W']!r} W, "
+            f"allowed={merged['energy_mass_consistency_allowed_W']!r} W"
+        )
+    if not bool(merged["energy_port_closure_passed"]):
+        raise DynamicDiagnosticStop(
+            "root energy-port ledger does not close under retained mass-root and "
+            "locked h0 round-trip tolerances: "
             f"pipe={merged['pipe_energy_rate_W']!r} W, "
             f"b1={merged['b1_energy_rate_W']!r} W, "
             f"residual={merged['energy_port_residual_W']!r} W, "
-            f"limit={robustness.ENERGY_PORT_RESIDUAL_ABSOLUTE_W!r} W, "
+            f"allowed={merged['energy_allowed_from_locked_root_and_h0_tolerances_W']!r} W, "
             f"p_P={merged['pressure_pa']!r} Pa, "
             f"u_P={merged['velocity_m_s']!r} m/s, "
             f"m_dot={merged['pipe_mass_rate_kg_s']!r} kg/s, "
