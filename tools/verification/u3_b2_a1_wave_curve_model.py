@@ -266,7 +266,6 @@ def _scan_row(
             back_pressure_pa=float(hook.adapter.back_pressure_pa),
             pipe_mass_rate_kg_s=pipe_mass,
             b1_mass_rate_kg_s=b1_mass,
-            compatibility_residual_kg_s=residual,
             root_mass_tolerance_kg_s=float(
                 robustness.ROOT_MASS_RESIDUAL_ABSOLUTE_KG_S
             ),
