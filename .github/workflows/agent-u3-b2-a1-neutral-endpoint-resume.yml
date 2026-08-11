@@ -1,0 +1,237 @@
+name: Agent U3 B2 A1 Neutral Endpoint Resume
+
+on:
+  push:
+    branches: [agent/u3-b2-a1-wave-curve-review]
+    paths:
+      - "docs/verification/stage7_u3_b2_a1_neutral_endpoint_resume_model_review.md"
+      - "tools/verification/u3_b2_a1_neutral_endpoint_resume.py"
+      - ".github/workflows/agent-u3-b2-a1-neutral-endpoint-resume.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: agent-u3-b2-a1-neutral-endpoint-resume
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src:tools/verification
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONPYCACHEPREFIX: /tmp/u3-b2-a1-neutral-endpoint-resume-pycache
+  SOURCE_SHA: ${{ github.sha }}
+  PARENT_EVIDENCE_SOURCE_SHA: 5fa69e2b1dff91095ea852057bbe19222b8c68ce
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  neutral-endpoint-resume:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout exact model-review source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Install fixed dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install \
+            'numpy==2.5.1' \
+            'CoolProp==8.0.0'
+
+      - name: Verify resume-only source identity and scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${SOURCE_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test -f docs/verification/stage7_u3_b2_a1_neutral_endpoint_resume_model_review.md
+          python -m py_compile \
+            tools/verification/u3_b2_characteristic_port_diagnostic.py \
+            tools/verification/u3_b2_characteristic_port_root_robustness.py \
+            tools/verification/u3_b2_characteristic_port_root_robustness_v4.py \
+            tools/verification/u3_b2_characteristic_port_dynamic_short_model.py \
+            tools/verification/u3_b2_characteristic_port_dynamic_short_hook.py \
+            tools/verification/u3_b2_characteristic_port_dynamic_short_metrics.py \
+            tools/verification/u3_b2_characteristic_port_two_l_over_c0.py \
+            tools/verification/u3_b2_a1_wave_curve_model.py \
+            tools/verification/u3_b2_a1_wave_curve_checkpoint_review.py \
+            tools/verification/u3_b2_a1_neutral_endpoint_resume.py
+          mapfile -t actual < <(
+            git diff --name-only "${PARENT_EVIDENCE_SOURCE_SHA}" HEAD | sort
+          )
+          mapfile -t expected < <(printf '%s\n' \
+            '.github/workflows/agent-u3-b2-a1-neutral-endpoint-resume.yml' \
+            'docs/verification/stage7_u3_b2_a1_neutral_endpoint_resume_model_review.md' \
+            'tools/verification/u3_b2_a1_neutral_endpoint_resume.py' | sort)
+          diff -u \
+            <(printf '%s\n' "${expected[@]}") \
+            <(printf '%s\n' "${actual[@]}")
+          git diff --check "${PARENT_EVIDENCE_SOURCE_SHA}" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=no)"
+
+      - name: Replay checkpoint and resume step 337 at neutral endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-a1-neutral-endpoint-resume
+          rm -rf "${output}"
+          python tools/verification/u3_b2_a1_neutral_endpoint_resume.py \
+            --contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json \
+            --b1-contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
+            --model-review-spec docs/verification/stage7_u3_b2_a1_neutral_endpoint_resume_model_review.md \
+            --output-dir "${output}" \
+            --source-git-sha "${SOURCE_SHA}"
+
+      - name: Inspect neutral-endpoint resume evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          import numpy as np
+
+          target = Path("artifacts/u3-b2-a1-neutral-endpoint-resume")
+          expected = {
+              "resume_step.csv",
+              "resume_state.npz",
+              "summary.json",
+              "report.md",
+              "artifact_sha256.txt",
+          }
+          assert {path.name for path in target.iterdir()} == expected
+
+          summary = json.loads((target / "summary.json").read_text(encoding="utf-8"))
+          assert summary["scope"] == (
+              "model_review_only_neutral_endpoint_one_step_resume"
+          )
+          assert summary["source_git_sha"] == os.environ["SOURCE_SHA"]
+          assert summary["parent_evidence_source_sha"] == os.environ[
+              "PARENT_EVIDENCE_SOURCE_SHA"
+          ]
+          assert summary["checkpoint_reproduction_ok"] is True
+          assert summary["checkpoint_accepted_steps"] == 336
+          assert summary["resumed_solver_step"] == 337
+          assert summary["boundary_root_branch"] == "NEUTRAL_ENDPOINT"
+          assert abs(summary["endpoint_pressure_delta_pa"]) == 0.0
+          assert abs(summary["endpoint_mass_residual_kg_s"]) <= summary[
+              "retained_root_mass_tolerance_kg_s"
+          ]
+          assert summary["local_residual_slope_kg_s_Pa"] < 0.0
+          assert summary["local_residual_slope_scheme"] == (
+              "backward_admissible_retained_1_pa"
+          )
+          assert summary["neutral_endpoint_one_step_gate_passed"] is True
+          assert summary["finite_compression_branch_approved"] is False
+          assert summary["post_endpoint_multi_step_passed"] is False
+          assert summary["full_two_l_over_c0_passed"] is False
+          assert summary["formal_state_promoted"] is False
+          assert summary["u3_b2_finite_pipe_execution_complete"] is False
+          assert summary["single_phase_finite_pipe_coupling_verified"] is False
+          assert summary["u3_b2_verification_benchmark_accepted"] is False
+          assert summary["physical_validation"] is False
+          assert summary["design_use_acceptance"] is False
+          assert summary["production_hem_activation_approved"] is False
+
+          with (target / "resume_step.csv").open(
+              newline="", encoding="utf-8"
+          ) as handle:
+              rows = list(csv.DictReader(handle))
+          assert len(rows) == 1
+          row = rows[0]
+          assert row["accepted_step"] == "True"
+          assert row["step_passed"] == "True"
+          assert row["boundary_root_branch"] == "NEUTRAL_ENDPOINT"
+          assert row["endpoint_within_locked_root_mass_tolerance"] == "True"
+          assert row["solver_step_count"] == "337"
+          assert row["guard_status"] == "NOT_TRIGGERED"
+          assert row["reverse_flow_guard_triggered"] == "False"
+          assert row["reverse_velocity_detected"] == "False"
+          assert row["rho_xv_exact_zero"] == "True"
+          assert row["outlet_phase_passed"] == "True"
+          assert row["connected_scan_sign_change_count"] == "0"
+
+          with np.load(target / "resume_state.npz") as states:
+              assert states["U_before"].shape == (32, 4)
+              assert states["U_after"].shape == (32, 4)
+              assert int(states["solver_step_before"][0]) == 336
+              assert int(states["solver_step_after"][0]) == 337
+
+          manifest = {}
+          for line in (target / "artifact_sha256.txt").read_text(
+              encoding="utf-8"
+          ).splitlines():
+              digest, name = line.split("  ", 1)
+              manifest[name] = digest
+          assert set(manifest) == expected - {"artifact_sha256.txt"}
+          for name, digest in manifest.items():
+              assert hashlib.sha256((target / name).read_bytes()).hexdigest() == digest
+          PY
+
+      - name: Upload neutral-endpoint resume evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: u3-b2-a1-neutral-endpoint-resume-${{ github.run_id }}
+          path: artifacts/u3-b2-a1-neutral-endpoint-resume
+          if-no-files-found: warn
+
+      - name: Record neutral-endpoint resume receipt
+        if: always()
+        shell: bash
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          gate=NOT_AVAILABLE
+          if test -f artifacts/u3-b2-a1-neutral-endpoint-resume/summary.json; then
+            gate="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          summary = json.loads(
+              Path("artifacts/u3-b2-a1-neutral-endpoint-resume/summary.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          print(summary["neutral_endpoint_one_step_gate_passed"])
+          PY
+            )"
+          fi
+          body="$(cat <<EOF
+          ## U3 B2 A1 neutral-endpoint one-step resume receipt
+
+          \`\`\`text
+          source:
+          ${SOURCE_SHA}
+
+          workflow run:
+          ${GITHUB_RUN_ID}
+
+          job status:
+          ${JOB_STATUS}
+
+          neutral endpoint one-step gate:
+          ${gate}
+          \`\`\`
+
+          MODEL_REVIEW_ONLY. The B2-10A step-336 checkpoint was reproduced and one existing FvmSolver step was attempted with the neutral endpoint accepted under the unchanged root-mass tolerance before any sign-change requirement. No positive-pressure continuation constructed the applied flux. No B1/B2 Contract, physics tolerance, production Adapter, solver, finite-compression approval, finite-pipe formal state, Physical Validation, design-use status, or production activation was changed.
+          EOF
+          )"
+          gh api "repos/${GITHUB_REPOSITORY}/issues/135/comments" \
+            -f body="${body}" >/dev/null
