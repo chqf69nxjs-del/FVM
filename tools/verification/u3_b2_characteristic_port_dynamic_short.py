@@ -10,7 +10,7 @@ from typing import Any
 import numpy as np
 
 import u3_b2_characteristic_port_diagnostic as diagnostic
-import u3_b2_characteristic_port_root_robustness as robustness
+import u3_b2_characteristic_port_root_robustness_v4 as robustness_v4
 from liquid_gas_transient.boundary import ReflectiveBoundary, TransmissiveBoundary
 from liquid_gas_transient.config import PipeGeometry
 from liquid_gas_transient.grid import UniformGrid
@@ -35,6 +35,9 @@ from u3_b2_characteristic_port_dynamic_short_model import (
     DynamicDiagnosticStop,
     ROOT_QUADRATURE_ORDER,
 )
+
+
+robustness = robustness_v4.robustness
 
 
 def _sha256(path: Path) -> str:
@@ -243,7 +246,7 @@ def main() -> None:
         and all(row["dynamic_short_case_passed"] for row in case_summaries)
     )
     summary = {
-        "schema_version": "stage7_u3_b2_characteristic_port_dynamic_short_v1",
+        "schema_version": "stage7_u3_b2_characteristic_port_dynamic_short_v2",
         "scope": "model_review_only_dynamic_short_no_contract_or_production_change",
         "source_git_sha": args.source_git_sha,
         "fixed_method": {
@@ -257,9 +260,18 @@ def main() -> None:
             "root_mass_residual_absolute_kg_s": (
                 robustness.ROOT_MASS_RESIDUAL_ABSOLUTE_KG_S
             ),
-            "energy_port_residual_absolute_W": (
-                robustness.ENERGY_PORT_RESIDUAL_ABSOLUTE_W
+            "energy_port_closure_definition": (
+                "E_pipe-E_B1 is bounded by h0_pipe times the fixed mass-root "
+                "tolerance plus m_B1 times the locked B2 stagnation-enthalpy "
+                "round-trip tolerance, with scale-based floating-point roundoff"
             ),
+            "locked_stagnation_enthalpy_round_trip_absolute_J_kg": (
+                robustness_v4.STAGNATION_ENTHALPY_ROUND_TRIP_ABSOLUTE_J_KG
+            ),
+            "energy_consistency_roundoff_factor": (
+                robustness_v4.ENERGY_CONSISTENCY_ROUNDOFF_FACTOR
+            ),
+            "energy_port_residual_absolute_W": None,
             "momentum_ledger_residual_absolute_N": (
                 robustness.MOMENTUM_LEDGER_RESIDUAL_ABSOLUTE_N
             ),
