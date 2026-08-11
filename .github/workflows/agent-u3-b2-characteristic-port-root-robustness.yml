@@ -8,6 +8,7 @@ on:
       - "tools/verification/u3_b2_characteristic_port_root_robustness.py"
       - "tools/verification/u3_b2_characteristic_port_root_robustness_v2.py"
       - "tools/verification/u3_b2_characteristic_port_root_robustness_v3.py"
+      - "tools/verification/u3_b2_characteristic_port_root_robustness_v4.py"
       - ".github/workflows/agent-u3-b2-characteristic-port-root-robustness.yml"
   workflow_dispatch:
 
@@ -61,7 +62,8 @@ jobs:
             tools/verification/u3_b2_characteristic_port_diagnostic.py \
             tools/verification/u3_b2_characteristic_port_root_robustness.py \
             tools/verification/u3_b2_characteristic_port_root_robustness_v2.py \
-            tools/verification/u3_b2_characteristic_port_root_robustness_v3.py
+            tools/verification/u3_b2_characteristic_port_root_robustness_v3.py \
+            tools/verification/u3_b2_characteristic_port_root_robustness_v4.py
           git diff --check
           test -z "$(git status --porcelain=v1 --untracked-files=no)"
 
@@ -71,7 +73,7 @@ jobs:
           set -euo pipefail
           output=artifacts/u3-b2-characteristic-port-root-robustness
           rm -rf "${output}"
-          python tools/verification/u3_b2_characteristic_port_root_robustness_v3.py \
+          python tools/verification/u3_b2_characteristic_port_root_robustness_v4.py \
             --contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json \
             --b1-contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
             --output-dir "${output}" \
@@ -106,12 +108,14 @@ jobs:
           assert len(summary["case_stability"]) == 3
           assert all(row["stability_passed"] is True for row in summary["case_stability"])
           assert all(
-              row["all_energy_ports_close"] is True
+              row["all_stagnation_enthalpy_round_trips_pass"] is True
+              and row["all_energy_ports_close"] is True
               and row["all_energy_mass_consistency_residuals_pass"] is True
               for row in summary["case_stability"]
           )
           assert all(
-              row["energy_port_closure_passed"] is True
+              row["stagnation_enthalpy_round_trip_passed"] is True
+              and row["energy_port_closure_passed"] is True
               and row["energy_mass_consistency_passed"] is True
               for row in summary["root_rows"]
           )
