@@ -1,0 +1,262 @@
+name: Agent U3 B2 A1 Wave Curve Review
+
+on:
+  push:
+    branches: [agent/u3-b2-a1-wave-curve-review]
+    paths:
+      - "docs/verification/stage7_u3_b2_a1_wave_curve_model_review.md"
+      - "tools/verification/u3_b2_a1_wave_curve_model.py"
+      - "tools/verification/u3_b2_a1_wave_curve_checkpoint_review.py"
+      - "tools/verification/u3_b2_characteristic_port_diagnostic.py"
+      - "tools/verification/u3_b2_characteristic_port_root_robustness.py"
+      - "tools/verification/u3_b2_characteristic_port_root_robustness_v4.py"
+      - "tools/verification/u3_b2_characteristic_port_dynamic_short_model.py"
+      - "tools/verification/u3_b2_characteristic_port_dynamic_short_hook.py"
+      - "tools/verification/u3_b2_characteristic_port_dynamic_short_metrics.py"
+      - "tools/verification/u3_b2_characteristic_port_two_l_over_c0.py"
+      - ".github/workflows/agent-u3-b2-a1-wave-curve-review.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: agent-u3-b2-a1-wave-curve-review
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src:tools/verification
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONPYCACHEPREFIX: /tmp/u3-b2-a1-wave-curve-pycache
+  SOURCE_SHA: ${{ github.sha }}
+  PARENT_NUMERICAL_SOURCE_SHA: eee113e40911b11c62644609f9b8c57ac85707b4
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  checkpoint-wave-curve-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout exact model-review source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Install fixed dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install \
+            'numpy==2.5.1' \
+            'CoolProp==8.0.0'
+
+      - name: Verify review-only source identity and scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${SOURCE_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test -f docs/verification/stage7_u3_b2_a1_wave_curve_model_review.md
+          python -m py_compile \
+            tools/verification/u3_b2_characteristic_port_diagnostic.py \
+            tools/verification/u3_b2_characteristic_port_root_robustness.py \
+            tools/verification/u3_b2_characteristic_port_root_robustness_v4.py \
+            tools/verification/u3_b2_characteristic_port_dynamic_short_model.py \
+            tools/verification/u3_b2_characteristic_port_dynamic_short_hook.py \
+            tools/verification/u3_b2_characteristic_port_dynamic_short_metrics.py \
+            tools/verification/u3_b2_characteristic_port_two_l_over_c0.py \
+            tools/verification/u3_b2_a1_wave_curve_model.py \
+            tools/verification/u3_b2_a1_wave_curve_checkpoint_review.py
+          python - <<'PY'
+          from u3_b2_a1_wave_curve_model import PRESSURE_OFFSETS_PA
+          assert len(PRESSURE_OFFSETS_PA) == 15
+          assert PRESSURE_OFFSETS_PA[7] == 0.0
+          assert min(PRESSURE_OFFSETS_PA) == -1.0
+          assert max(PRESSURE_OFFSETS_PA) == 1.0
+          PY
+          mapfile -t actual < <(
+            git diff --name-only "${PARENT_NUMERICAL_SOURCE_SHA}" HEAD | sort
+          )
+          mapfile -t expected < <(printf '%s\n' \
+            '.github/workflows/agent-u3-b2-a1-wave-curve-review.yml' \
+            'docs/verification/stage7_u3_b2_a1_wave_curve_model_review.md' \
+            'tools/verification/u3_b2_a1_wave_curve_checkpoint_review.py' \
+            'tools/verification/u3_b2_a1_wave_curve_model.py' | sort)
+          diff -u \
+            <(printf '%s\n' "${expected[@]}") \
+            <(printf '%s\n' "${actual[@]}")
+          git diff --check "${PARENT_NUMERICAL_SOURCE_SHA}" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=no)"
+
+      - name: Replay checkpoint and scan local wave curve
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-a1-wave-curve-review
+          rm -rf "${output}"
+          python tools/verification/u3_b2_a1_wave_curve_checkpoint_review.py \
+            --contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json \
+            --b1-contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
+            --model-review-spec docs/verification/stage7_u3_b2_a1_wave_curve_model_review.md \
+            --output-dir "${output}" \
+            --source-git-sha "${SOURCE_SHA}"
+
+      - name: Inspect model-review evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          import numpy as np
+
+          target = Path("artifacts/u3-b2-a1-wave-curve-review")
+          expected = {
+              "checkpoint.npz",
+              "checkpoint_summary.json",
+              "pressure_scan.csv",
+              "summary.json",
+              "report.md",
+              "artifact_sha256.txt",
+          }
+          assert {path.name for path in target.iterdir()} == expected
+
+          summary = json.loads((target / "summary.json").read_text(encoding="utf-8"))
+          assert summary["scope"] == (
+              "model_review_only_checkpoint_and_local_wave_curve_scan"
+          )
+          assert summary["source_git_sha"] == os.environ["SOURCE_SHA"]
+          assert summary["parent_numerical_source_sha"] == os.environ[
+              "PARENT_NUMERICAL_SOURCE_SHA"
+          ]
+          assert summary["wave_curve_checkpoint_evidence_gate_passed"] is True
+          assert summary["checkpoint"]["reproduction_ok"] is True
+          assert summary["checkpoint"]["accepted_steps"] == 336
+          assert summary["classification"] in {
+              "NEUTRAL_ENDPOINT_WITHIN_LOCKED_TOLERANCE",
+              "LOCAL_COMPRESSION_CONTINUATION_ROOT_SUPPORTED",
+              "RAREFACTION_ROOT_RETAINED",
+              "MULTIPLE_LOCAL_ROOT_BRANCHES",
+              "NO_LOCAL_COMPATIBLE_ROOT",
+              "LOCAL_ROOT_INADMISSIBLE",
+          }
+          assert summary["finite_compression_branch_approved"] is False
+          assert summary["full_two_l_over_c0_passed"] is False
+          assert summary["formal_state_promoted"] is False
+          assert summary["u3_b2_finite_pipe_execution_complete"] is False
+          assert summary["single_phase_finite_pipe_coupling_verified"] is False
+          assert summary["u3_b2_verification_benchmark_accepted"] is False
+          assert summary["physical_validation"] is False
+          assert summary["design_use_acceptance"] is False
+          assert summary["production_hem_activation_approved"] is False
+
+          with (target / "pressure_scan.csv").open(
+              newline="", encoding="utf-8"
+          ) as handle:
+              rows = list(csv.DictReader(handle))
+          assert len(rows) == 15
+          assert all(row["evaluation_succeeded"] == "True" for row in rows)
+          endpoint = [
+              row
+              for row in rows
+              if float(row["pressure_offset_pa"]) == 0.0
+          ]
+          assert len(endpoint) == 1
+          assert [float(row["pressure_offset_pa"]) for row in rows] == [
+              -1.0,
+              -0.1,
+              -0.01,
+              -0.001,
+              -0.0001,
+              -0.00001,
+              -0.000001,
+              0.0,
+              0.000001,
+              0.00001,
+              0.0001,
+              0.001,
+              0.01,
+              0.1,
+              1.0,
+          ]
+
+          with np.load(target / "checkpoint.npz") as checkpoint:
+              assert checkpoint["U"].shape == (32, 4)
+              assert checkpoint["U_initial"].shape == (32, 4)
+              assert int(checkpoint["solver_step_count"][0]) == 336
+              assert checkpoint["cumulative_expected_delta"].shape == (4,)
+
+          manifest = {}
+          for line in (target / "artifact_sha256.txt").read_text(
+              encoding="utf-8"
+          ).splitlines():
+              digest, name = line.split("  ", 1)
+              manifest[name] = digest
+          assert set(manifest) == expected - {"artifact_sha256.txt"}
+          for name, digest in manifest.items():
+              assert hashlib.sha256((target / name).read_bytes()).hexdigest() == digest
+          PY
+
+      - name: Upload model-review evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: u3-b2-a1-wave-curve-review-${{ github.run_id }}
+          path: artifacts/u3-b2-a1-wave-curve-review
+          if-no-files-found: warn
+
+      - name: Record wave-curve diagnostic receipt
+        if: always()
+        shell: bash
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          classification=NOT_AVAILABLE
+          if test -f artifacts/u3-b2-a1-wave-curve-review/summary.json; then
+            classification="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          summary = json.loads(
+              Path("artifacts/u3-b2-a1-wave-curve-review/summary.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          print(summary["classification"])
+          PY
+            )"
+          fi
+          body="$(cat <<EOF
+          ## U3 B2 A1 checkpoint wave-curve review receipt
+
+          \`\`\`text
+          source:
+          ${SOURCE_SHA}
+
+          workflow run:
+          ${GITHUB_RUN_ID}
+
+          job status:
+          ${JOB_STATUS}
+
+          classification:
+          ${classification}
+          \`\`\`
+
+          MODEL_REVIEW_ONLY. The existing B2-10A rarefaction-side run was replayed to its first next-step root stop, the full conservative checkpoint was retained, and the fixed pressure offsets around p_P = p_i were inspected. Positive pressure offsets are local continuation observations only. No B1/B2 Contract, physics tolerance, production Adapter, solver, finite-pipe formal state, Physical Validation, design-use status, or production activation was changed.
+          EOF
+          )"
+          gh api "repos/${GITHUB_REPOSITORY}/issues/135/comments" \
+            -f body="${body}" >/dev/null
