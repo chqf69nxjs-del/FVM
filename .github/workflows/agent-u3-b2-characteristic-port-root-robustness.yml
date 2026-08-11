@@ -1,0 +1,166 @@
+name: Agent U3 B2 Characteristic Port Root Robustness
+
+on:
+  push:
+    branches: [agent/u3-b2-momentum-control-volume-review]
+    paths:
+      - "tools/verification/u3_b2_characteristic_port_diagnostic.py"
+      - "tools/verification/u3_b2_characteristic_port_root_robustness.py"
+      - "tools/verification/u3_b2_characteristic_port_root_robustness_v2.py"
+      - ".github/workflows/agent-u3-b2-characteristic-port-root-robustness.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: agent-u3-b2-characteristic-port-root-robustness
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONPYCACHEPREFIX: /tmp/u3-b2-characteristic-root-robustness-pycache
+  SOURCE_SHA: ${{ github.sha }}
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  diagnose-root-robustness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout exact model-review source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Install fixed dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install \
+            'numpy==2.5.1' \
+            'CoolProp==8.0.0'
+
+      - name: Verify review-only source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${SOURCE_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          python -m py_compile \
+            tools/verification/u3_b2_characteristic_port_diagnostic.py \
+            tools/verification/u3_b2_characteristic_port_root_robustness.py \
+            tools/verification/u3_b2_characteristic_port_root_robustness_v2.py
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=no)"
+
+      - name: Execute fixed A1 root robustness diagnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-characteristic-port-root-robustness
+          rm -rf "${output}"
+          python tools/verification/u3_b2_characteristic_port_root_robustness_v2.py \
+            --contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json \
+            --b1-contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
+            --output-dir "${output}" \
+            --source-git-sha "${SOURCE_SHA}"
+
+      - name: Inspect model-review evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          target = Path("artifacts/u3-b2-characteristic-port-root-robustness")
+          expected = {
+              "summary.json",
+              "root_robustness.csv",
+              "choked_connected_subsonic_scan.csv",
+              "report.md",
+              "artifact_sha256.txt",
+          }
+          assert {path.name for path in target.iterdir()} == expected
+
+          summary = json.loads((target / "summary.json").read_text(encoding="utf-8"))
+          assert summary["scope"] == "model_review_only_no_contract_or_tolerance_change"
+          assert summary["source_git_sha"] == os.environ["SOURCE_SHA"]
+          assert summary["root_robustness_gate_passed"] is True
+          assert len(summary["root_rows"]) == 9
+          assert len(summary["case_stability"]) == 3
+          assert all(row["stability_passed"] is True for row in summary["case_stability"])
+          assert summary["choked_connected_subsonic_scan"]["unique_root_branch_passed"] is True
+          assert summary["formal_state_promoted"] is False
+          assert summary["u3_b2_finite_pipe_execution_complete"] is False
+          assert summary["single_phase_finite_pipe_coupling_verified"] is False
+          assert summary["u3_b2_verification_benchmark_accepted"] is False
+          assert summary["physical_validation"] is False
+          assert summary["design_use_acceptance"] is False
+          assert summary["production_hem_activation_approved"] is False
+
+          with (target / "root_robustness.csv").open(newline="", encoding="utf-8") as handle:
+              roots = list(csv.DictReader(handle))
+          assert len(roots) == 9
+
+          with (target / "choked_connected_subsonic_scan.csv").open(
+              newline="", encoding="utf-8"
+          ) as handle:
+              choked = list(csv.DictReader(handle))
+          assert len(choked) == 33
+
+          manifest = {}
+          for line in (target / "artifact_sha256.txt").read_text(encoding="utf-8").splitlines():
+              digest, name = line.split("  ", 1)
+              manifest[name] = digest
+          assert set(manifest) == expected - {"artifact_sha256.txt"}
+          for name, digest in manifest.items():
+              assert hashlib.sha256((target / name).read_bytes()).hexdigest() == digest
+          PY
+
+      - name: Upload model-review evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: u3-b2-characteristic-port-root-robustness-${{ github.run_id }}
+          path: artifacts/u3-b2-characteristic-port-root-robustness
+          if-no-files-found: warn
+
+      - name: Record diagnostic receipt
+        if: always()
+        shell: bash
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          body="$(cat <<EOF
+          ## U3 B2 characteristic-port root robustness receipt
+
+          \`\`\`text
+          source:
+          ${SOURCE_SHA}
+
+          workflow run:
+          ${GITHUB_RUN_ID}
+
+          job status:
+          ${JOB_STATUS}
+          \`\`\`
+
+          MODEL_REVIEW_ONLY. No B1/B2 Contract, tolerance, Adapter, solver, finite-pipe formal state, Physical Validation, design-use status, or production activation was changed.
+          EOF
+          )"
+          gh api "repos/${GITHUB_REPOSITORY}/issues/135/comments" -f body="${body}" >/dev/null
