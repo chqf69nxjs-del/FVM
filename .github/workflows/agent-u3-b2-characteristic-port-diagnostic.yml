@@ -5,6 +5,7 @@ on:
     branches: [agent/u3-b2-momentum-control-volume-review]
     paths:
       - "tools/verification/u3_b2_characteristic_port_diagnostic.py"
+      - "tools/verification/u3_b2_characteristic_port_diagnostic_v2.py"
       - ".github/workflows/agent-u3-b2-characteristic-port-diagnostic.yml"
   workflow_dispatch:
 
@@ -54,7 +55,9 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "${SOURCE_SHA}"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
-          python -m py_compile tools/verification/u3_b2_characteristic_port_diagnostic.py
+          python -m py_compile \
+            tools/verification/u3_b2_characteristic_port_diagnostic.py \
+            tools/verification/u3_b2_characteristic_port_diagnostic_v2.py
           git diff --check
           test -z "$(git status --porcelain=v1 --untracked-files=no)"
 
@@ -64,7 +67,7 @@ jobs:
           set -euo pipefail
           output=artifacts/u3-b2-characteristic-upstream-port-diagnostic
           rm -rf "${output}"
-          python tools/verification/u3_b2_characteristic_port_diagnostic.py \
+          python tools/verification/u3_b2_characteristic_port_diagnostic_v2.py \
             --contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json \
             --b1-contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
             --output-dir "${output}" \
