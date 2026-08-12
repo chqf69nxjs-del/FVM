@@ -1,0 +1,274 @@
+name: Agent U3 B2 A1 Weak Compression Bridge Increment 1
+
+on:
+  push:
+    branches: [agent/u3-b2-a1-wave-curve-review]
+    paths:
+      - "docs/verification/stage7_u3_b2_a1_weak_compression_bridge_v0_1_model_review.md"
+      - "tools/verification/u3_b2_a1_weak_compression_bridge_diagnostic.py"
+      - ".github/workflows/agent-u3-b2-a1-weak-compression-bridge-increment-1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-u3-b2-a1-weak-compression-bridge-increment-1
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src:tools/verification
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONPYCACHEPREFIX: /tmp/u3-b2-a1-weak-compression-pycache
+  SOURCE_SHA: ${{ github.sha }}
+  PARENT_SOURCE_SHA: e3202ce2b886c0ff21893076d66c84dc9b275919
+
+jobs:
+  diagnose-weak-compression-root:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout exact model-review source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Install fixed dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install \
+            'numpy==2.5.1' \
+            'CoolProp==8.0.0'
+
+      - name: Verify fixed source identity and MODEL_REVIEW scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${SOURCE_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test -f docs/verification/stage7_u3_b2_a1_weak_compression_bridge_v0_1_model_review.md
+          test -f tools/verification/u3_b2_a1_weak_compression_bridge_diagnostic.py
+          python -m py_compile \
+            tools/verification/u3_b2_characteristic_port_diagnostic.py \
+            tools/verification/u3_b2_characteristic_port_root_robustness.py \
+            tools/verification/u3_b2_characteristic_port_root_robustness_v4.py \
+            tools/verification/u3_b2_characteristic_port_dynamic_short_model.py \
+            tools/verification/u3_b2_characteristic_port_dynamic_short_hook.py \
+            tools/verification/u3_b2_characteristic_port_dynamic_short_metrics.py \
+            tools/verification/u3_b2_characteristic_port_two_l_over_c0.py \
+            tools/verification/u3_b2_a1_wave_curve_model.py \
+            tools/verification/u3_b2_a1_wave_curve_checkpoint_review.py \
+            tools/verification/u3_b2_a1_neutral_endpoint_resume.py \
+            tools/verification/u3_b2_a1_post_endpoint_branch_classification.py \
+            tools/verification/u3_b2_a1_weak_compression_bridge_diagnostic.py
+          mapfile -t actual < <(
+            git diff --name-only "${PARENT_SOURCE_SHA}" HEAD | sort
+          )
+          mapfile -t expected < <(printf '%s\n' \
+            '.github/workflows/agent-u3-b2-a1-weak-compression-bridge-increment-1.yml' \
+            'docs/verification/stage7_u3_b2_a1_weak_compression_bridge_v0_1_model_review.md' \
+            'tools/verification/u3_b2_a1_weak_compression_bridge_diagnostic.py' | sort)
+          diff -u \
+            <(printf '%s\n' "${expected[@]}") \
+            <(printf '%s\n' "${actual[@]}")
+          git diff --check "${PARENT_SOURCE_SHA}" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=no)"
+
+      - name: Run diagnostic-only Weak Compression Bridge Increment 1
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-a1-weak-compression-bridge-increment-1
+          rm -rf "${output}"
+          python tools/verification/u3_b2_a1_weak_compression_bridge_diagnostic.py \
+            --contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json \
+            --b1-contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
+            --model-review-spec docs/verification/stage7_u3_b2_a1_weak_compression_bridge_v0_1_model_review.md \
+            --output-dir "${output}" \
+            --source-git-sha "${SOURCE_SHA}"
+
+      - name: Inspect Increment 1 evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          import numpy as np
+
+          import u3_b2_characteristic_port_root_robustness_v4 as robustness_v4
+
+          target = Path(
+              "artifacts/u3-b2-a1-weak-compression-bridge-increment-1"
+          )
+          expected = {
+              "resume_step_337.csv",
+              "weak_compression_positive_scan.csv",
+              "weak_compression_root.csv",
+              "step337_state.npz",
+              "summary.json",
+              "report.md",
+              "artifact_sha256.txt",
+          }
+          assert {path.name for path in target.iterdir()} == expected
+
+          summary = json.loads(
+              (target / "summary.json").read_text(encoding="utf-8")
+          )
+          root_tol = float(
+              robustness_v4.robustness.ROOT_MASS_RESIDUAL_ABSOLUTE_KG_S
+          )
+          assert summary["schema_version"] == (
+              "stage7_u3_b2_a1_weak_compression_bridge_v0_1_increment_1"
+          )
+          assert summary["scope"] == (
+              "model_review_working_vertical_slice_diagnostic_only"
+          )
+          assert summary["source_git_sha"] == os.environ["SOURCE_SHA"]
+          assert summary["parent_source_sha"] == os.environ["PARENT_SOURCE_SHA"]
+          assert summary["case_id"] == (
+              "B2-10A_FINITE_PIPE_LIQUID_INVENTORY_CLOSURE"
+          )
+          assert summary["cells"] == 32
+          assert summary["cfl"] == 0.10
+          assert summary["checkpoint_reproduction_ok"] is True
+          assert summary["neutral_endpoint_step337_gate_passed"] is True
+          assert summary["solver_step_before_diagnostic"] == 337
+          assert summary["solver_step_after_diagnostic"] == 337
+          assert summary["solver_time_before_diagnostic_s"] == (
+              summary["solver_time_after_diagnostic_s"]
+          )
+          assert summary["state_unchanged_after_diagnostic"] is True
+          assert abs(summary["endpoint_residual_kg_s"]) > root_tol
+          assert summary["endpoint_within_retained_tolerance"] is False
+          assert summary["connected_rarefaction_sign_change_count"] == 0
+          assert summary["connected_rarefaction_residual_monotone"] is True
+          assert summary["rarefaction_side_local_sign_change_count"] == 0
+          assert summary["positive_scan_sign_change_count"] == 1
+          assert summary["branch_classification"] == "WEAK_COMPRESSION"
+          assert summary["root_pressure_offset_pa"] > 0.0
+          assert 0.0 < summary["root_chi"] <= 1.0e-6
+          assert abs(summary["root_mass_residual_kg_s"]) <= root_tol
+          assert summary["root_velocity_m_s"] >= 0.0
+          assert 0.0 <= summary["root_mach"] < 1.0
+          assert summary["root_phase"].lower() == "liquid"
+          assert summary["root_stagnation_pressure_pa"] > (
+              summary["back_pressure_pa"]
+          )
+          assert summary["bisection_iterations"] <= 32
+          assert summary["outcome"] == (
+              "WEAK_COMPRESSION_INCREMENT_1_DIAGNOSTIC_PASS"
+          )
+          assert summary["increment_1_diagnostic_gate_passed"] is True
+          assert summary["positive_pressure_continuation_flux_applied"] is False
+          assert summary["fvm_step_338_attempted"] is False
+          assert summary["finite_compression_branch_approved"] is False
+          assert summary["full_two_l_over_c0_passed"] is False
+          assert summary["formal_state_promoted"] is False
+          assert summary["u3_b2_finite_pipe_execution_complete"] is False
+          assert summary["single_phase_finite_pipe_coupling_verified"] is False
+          assert summary["u3_b2_verification_benchmark_accepted"] is False
+          assert summary["physical_validation"] is False
+          assert summary["design_use_acceptance"] is False
+          assert summary["production_hem_activation_approved"] is False
+
+          with (target / "resume_step_337.csv").open(
+              newline="", encoding="utf-8"
+          ) as handle:
+              resume = list(csv.DictReader(handle))
+          assert len(resume) == 1
+          assert resume[0]["accepted_step"] == "True"
+          assert resume[0]["solver_step_count"] == "337"
+          assert resume[0]["boundary_root_branch"] == "NEUTRAL_ENDPOINT"
+
+          with (target / "weak_compression_positive_scan.csv").open(
+              newline="", encoding="utf-8"
+          ) as handle:
+              scan = list(csv.DictReader(handle))
+          assert len(scan) >= 3
+          offsets = [float(row["pressure_offset_pa"]) for row in scan]
+          assert offsets[0] == 0.0
+          assert offsets == sorted(offsets)
+          assert len(set(offsets)) == len(offsets)
+          assert all(
+              row["evaluation_succeeded"] == "True" for row in scan
+          )
+          assert all(
+              row["local_candidate_admissible"] == "True" for row in scan
+          )
+          assert all(
+              row["within_weak_compression_scope"] == "True" for row in scan
+          )
+          assert sum(
+              row["selected_sign_change_bracket_member"] == "True"
+              for row in scan
+          ) == 2
+          assert all(
+              row["positive_pressure_continuation_flux_applied"] == "False"
+              for row in scan
+          )
+          assert all(
+              row["fvm_step_338_attempted"] == "False" for row in scan
+          )
+
+          with (target / "weak_compression_root.csv").open(
+              newline="", encoding="utf-8"
+          ) as handle:
+              roots = list(csv.DictReader(handle))
+          assert len(roots) == 1
+          root = roots[0]
+          assert root["branch_classification"] == "WEAK_COMPRESSION"
+          assert float(root["p_P_minus_p_i_pa"]) > 0.0
+          assert 0.0 < float(root["chi"]) <= 1.0e-6
+          assert abs(float(root["compatibility_residual_kg_s"])) <= root_tol
+          assert root["root_closure_passed"] == "True"
+          assert root["energy_ledger_passed"] == "True"
+          assert root["reaction_ledger_passed"] == "True"
+          assert root["positive_pressure_continuation_flux_applied"] == "False"
+          assert root["fvm_step_338_attempted"] == "False"
+          assert root["solver_step_before_diagnostic"] == "337"
+          assert root["solver_step_after_diagnostic"] == "337"
+          assert root["state_unchanged_after_diagnostic"] == "True"
+
+          with np.load(target / "step337_state.npz") as states:
+              before = states["U_step337_before"]
+              after = states["U_step337_after"]
+              assert before.shape == (32, 4)
+              assert after.shape == (32, 4)
+              assert np.array_equal(before, after)
+              assert int(states["solver_step_before"][0]) == 337
+              assert int(states["solver_step_after"][0]) == 337
+              assert float(states["solver_time_before_s"][0]) == float(
+                  states["solver_time_after_s"][0]
+              )
+
+          manifest = {}
+          for line in (target / "artifact_sha256.txt").read_text(
+              encoding="utf-8"
+          ).splitlines():
+              digest, name = line.split("  ", 1)
+              manifest[name] = digest
+          assert set(manifest) == expected - {"artifact_sha256.txt"}
+          for name, digest in manifest.items():
+              assert hashlib.sha256((target / name).read_bytes()).hexdigest() == digest
+          PY
+
+      - name: Upload Increment 1 evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: u3-b2-a1-weak-compression-bridge-increment-1-${{ github.run_id }}
+          path: artifacts/u3-b2-a1-weak-compression-bridge-increment-1
+          if-no-files-found: warn
