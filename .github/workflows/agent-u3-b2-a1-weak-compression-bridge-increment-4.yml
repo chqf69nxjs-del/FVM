@@ -1,0 +1,480 @@
+name: Agent U3 B2 A1 Weak Compression Bridge Increment 4
+
+on:
+  push:
+    branches: [agent/u3-b2-a1-wave-curve-review]
+    paths:
+      - "docs/verification/stage7_u3_b2_a1_weak_compression_bridge_v0_1_increment_4_full_horizon_model_review.md"
+      - "tools/verification/u3_b2_a1_weak_compression_bridge_full_horizon.py"
+      - ".github/workflows/agent-u3-b2-a1-weak-compression-bridge-increment-4.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: agent-u3-b2-a1-weak-compression-bridge-increment-4
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src:tools/verification
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONPYCACHEPREFIX: /tmp/u3-b2-a1-weak-compression-inc4-pycache
+  SOURCE_SHA: ${{ github.sha }}
+  PARENT_SOURCE_SHA: 00a410127c10d5c2fa2f79c7471daa8f896a0e76
+  PARENT_WORKFLOW_RUN: "31605175607"
+  PARENT_JOB: "94142164951"
+  PARENT_ARTIFACT_ID: "9144936292"
+  PARENT_ARTIFACT_NAME: u3-b2-a1-weak-compression-bridge-increment-3-rerun-31605175607
+  PARENT_ARTIFACT_DIGEST: eaaf54b9012ed2748c1e0d425a238915a030c497517a6651f7f916a8b09ecaf6
+
+jobs:
+  continue-to-full-two-l-over-c0:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout exact model-review source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Install fixed dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install \
+            'numpy==2.5.1' \
+            'CoolProp==8.0.0'
+
+      - name: Verify fixed source identity and Increment 4 scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${SOURCE_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test -f docs/verification/stage7_u3_b2_a1_weak_compression_bridge_v0_1_increment_4_full_horizon_model_review.md
+          test -f tools/verification/u3_b2_a1_weak_compression_bridge_full_horizon.py
+          python -m py_compile \
+            tools/verification/u3_b2_characteristic_port_diagnostic.py \
+            tools/verification/u3_b2_characteristic_port_root_robustness.py \
+            tools/verification/u3_b2_characteristic_port_root_robustness_v4.py \
+            tools/verification/u3_b2_characteristic_port_dynamic_short_model.py \
+            tools/verification/u3_b2_characteristic_port_dynamic_short_hook.py \
+            tools/verification/u3_b2_characteristic_port_dynamic_short_metrics.py \
+            tools/verification/u3_b2_characteristic_port_two_l_over_c0.py \
+            tools/verification/u3_b2_a1_wave_curve_model.py \
+            tools/verification/u3_b2_a1_wave_curve_checkpoint_review.py \
+            tools/verification/u3_b2_a1_neutral_endpoint_resume.py \
+            tools/verification/u3_b2_a1_post_endpoint_branch_classification.py \
+            tools/verification/u3_b2_a1_weak_compression_bridge_diagnostic.py \
+            tools/verification/u3_b2_a1_weak_compression_bridge_one_step.py \
+            tools/verification/u3_b2_a1_weak_compression_bridge_short_run.py \
+            tools/verification/u3_b2_a1_weak_compression_bridge_short_run_scope_roundoff.py \
+            tools/verification/u3_b2_a1_weak_compression_bridge_full_horizon.py
+          mapfile -t actual < <(
+            git diff --name-only "${PARENT_SOURCE_SHA}" HEAD | sort
+          )
+          mapfile -t expected < <(printf '%s\n' \
+            '.github/workflows/agent-u3-b2-a1-weak-compression-bridge-increment-4.yml' \
+            'docs/verification/stage7_u3_b2_a1_weak_compression_bridge_v0_1_increment_4_full_horizon_model_review.md' \
+            'tools/verification/u3_b2_a1_weak_compression_bridge_full_horizon.py' | sort)
+          diff -u \
+            <(printf '%s\n' "${expected[@]}") \
+            <(printf '%s\n' "${actual[@]}")
+          git diff --check "${PARENT_SOURCE_SHA}" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=no)"
+
+      - name: Download and verify authoritative Increment 3 artifact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          parent=artifacts/parent-increment-3
+          rm -rf "${parent}"
+          mkdir -p "${parent}"
+
+          metadata="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${PARENT_ARTIFACT_ID}")"
+          test "$(jq -r '.id' <<<"${metadata}")" = "${PARENT_ARTIFACT_ID}"
+          test "$(jq -r '.name' <<<"${metadata}")" = "${PARENT_ARTIFACT_NAME}"
+          test "$(jq -r '.expired' <<<"${metadata}")" = "false"
+          test "$(jq -r '.workflow_run.id' <<<"${metadata}")" = "${PARENT_WORKFLOW_RUN}"
+          test "$(jq -r '.workflow_run.head_sha' <<<"${metadata}")" = "${PARENT_SOURCE_SHA}"
+          test "$(jq -r '.digest' <<<"${metadata}")" = "sha256:${PARENT_ARTIFACT_DIGEST}"
+
+          gh run download "${PARENT_WORKFLOW_RUN}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --name "${PARENT_ARTIFACT_NAME}" \
+            --dir "${parent}"
+
+          test -f "${parent}/summary.json"
+          test -f "${parent}/short_run_states.npz"
+          test -f "${parent}/artifact_sha256.txt"
+          test "$(jq -r '.source_git_sha' "${parent}/summary.json")" = "${PARENT_SOURCE_SHA}"
+          test "$(jq -r '.outcome' "${parent}/summary.json")" = "WEAK_COMPRESSION_INCREMENT_3_32_STEP_PASS"
+          test "$(jq -r '.increment_3_32_step_gate_passed' "${parent}/summary.json")" = "true"
+          test "$(jq -r '.solver_step_after' "${parent}/summary.json")" = "369"
+
+      - name: Continue branch-aware FvmSolver to full 2L/c0
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-a1-weak-compression-bridge-increment-4
+          rm -rf "${output}"
+          python tools/verification/u3_b2_a1_weak_compression_bridge_full_horizon.py \
+            --contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json \
+            --b1-contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
+            --model-review-spec docs/verification/stage7_u3_b2_a1_weak_compression_bridge_v0_1_increment_4_full_horizon_model_review.md \
+            --parent-artifact-dir artifacts/parent-increment-3 \
+            --parent-artifact-digest "${PARENT_ARTIFACT_DIGEST}" \
+            --output-dir "${output}" \
+            --source-git-sha "${SOURCE_SHA}"
+
+      - name: Inspect Increment 4 full-horizon evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv
+          import hashlib
+          import json
+          import os
+          from collections import Counter
+          from pathlib import Path
+
+          import numpy as np
+
+          import u3_b2_characteristic_port_root_robustness_v4 as robustness_v4
+
+          target = Path(
+              "artifacts/u3-b2-a1-weak-compression-bridge-increment-4"
+          )
+          expected = {
+              "full_horizon_continuation_steps.csv",
+              "full_horizon_continuation_roots.csv",
+              "local_wave_scans.csv",
+              "positive_pressure_scans.csv",
+              "branch_transitions.csv",
+              "probe_series.csv",
+              "full_horizon_states.npz",
+              "parent_verification.json",
+              "summary.json",
+              "report.md",
+              "artifact_sha256.txt",
+          }
+          assert {path.name for path in target.iterdir()} == expected
+
+          summary = json.loads(
+              (target / "summary.json").read_text(encoding="utf-8")
+          )
+          parent = json.loads(
+              (target / "parent_verification.json").read_text(encoding="utf-8")
+          )
+          root_tol = float(
+              robustness_v4.robustness.ROOT_MASS_RESIDUAL_ABSOLUTE_KG_S
+          )
+          allowed = {
+              "RAREFACTION",
+              "NEUTRAL_ENDPOINT",
+              "WEAK_COMPRESSION",
+          }
+
+          assert summary["schema_version"] == (
+              "stage7_u3_b2_a1_weak_compression_bridge_v0_1_increment_4"
+          )
+          assert summary["scope"] == (
+              "model_review_working_vertical_slice_full_two_l_over_c0"
+          )
+          assert summary["source_git_sha"] == os.environ["SOURCE_SHA"]
+          assert summary["parent_source_sha"] == os.environ["PARENT_SOURCE_SHA"]
+          assert summary["parent_workflow_run"] == int(
+              os.environ["PARENT_WORKFLOW_RUN"]
+          )
+          assert summary["parent_job"] == int(os.environ["PARENT_JOB"])
+          assert summary["parent_artifact"] == int(
+              os.environ["PARENT_ARTIFACT_ID"]
+          )
+          assert summary["parent_artifact_sha256"] == os.environ[
+              "PARENT_ARTIFACT_DIGEST"
+          ]
+          assert summary["parent_artifact_verified"] is True
+          assert summary["parent_outcome"] == (
+              "WEAK_COMPRESSION_INCREMENT_3_32_STEP_PASS"
+          )
+          assert summary["case_id"] == (
+              "B2-10A_FINITE_PIPE_LIQUID_INVENTORY_CLOSURE"
+          )
+          assert summary["cells"] == 32
+          assert summary["cfl"] == 0.10
+          assert summary["solver_step_before"] == 369
+          assert summary["solver_step_after"] > 369
+          assert summary["solver_time_before_s"] == 0.0024719939763977834
+          assert summary["target_two_l_over_c0_time_s"] == (
+              0.004285834855172021
+          )
+          assert abs(summary["horizon_time_error_s"]) <= summary[
+              "horizon_time_roundoff_tolerance_s"
+          ]
+          assert abs(summary["horizon_fraction_reached"] - 1.0) <= 1.0e-14
+          assert summary["continuation_accepted_steps_completed"] > 0
+          assert summary["solver_step_after"] == (
+              369 + summary["continuation_accepted_steps_completed"]
+          )
+          assert summary["total_accepted_steps_from_parent_step_337"] == (
+              32 + summary["continuation_accepted_steps_completed"]
+          )
+          assert len(summary["continuation_branch_sequence"]) == summary[
+              "continuation_accepted_steps_completed"
+          ]
+          assert set(summary["continuation_branch_sequence"]).issubset(allowed)
+          assert sum(summary["continuation_branch_counts"].values()) == summary[
+              "continuation_accepted_steps_completed"
+          ]
+          assert sum(summary["total_branch_counts_from_step_338"].values()) == (
+              summary["total_accepted_steps_from_parent_step_337"]
+          )
+          assert summary["clear_branch_chatter_detected"] is False
+          if summary["maximum_continuation_weak_compression_chi"] is not None:
+              assert 0.0 < summary[
+                  "maximum_continuation_weak_compression_chi"
+              ] <= 1.0e-6
+          assert 0.0 < summary["maximum_total_weak_compression_chi"] <= 1.0e-6
+          assert summary[
+              "maximum_absolute_continuation_root_mass_residual_kg_s"
+          ] <= root_tol
+          assert summary["maximum_continuation_root_mach"] < 1.0
+          assert summary["minimum_continuation_root_velocity_m_s"] >= 0.0
+          assert summary["final_minimum_density_kg_m3"] > 0.0
+          assert summary["final_minimum_internal_energy_J_kg"] > 0.0
+          assert summary["final_rho_xv_exact_zero"] is True
+          assert summary["final_step_clipped_to_target_horizon"] is True
+          assert summary["stop_classification"] is None
+          assert summary["stop_reason"] is None
+          assert summary["outcome"] == (
+              "WEAK_COMPRESSION_INCREMENT_4_FULL_HORIZON_WORKING_SLICE_PASS"
+          )
+          assert summary["working_vertical_slice_two_l_over_c0_passed"] is True
+          assert summary["finite_compression_branch_approved"] is False
+          assert summary["full_two_l_over_c0_passed"] is False
+          assert summary["formal_state_promoted"] is False
+          assert summary["u3_b2_finite_pipe_execution_complete"] is False
+          assert summary["single_phase_finite_pipe_coupling_verified"] is False
+          assert summary["u3_b2_verification_benchmark_accepted"] is False
+          assert summary["physical_validation"] is False
+          assert summary["design_use_acceptance"] is False
+          assert summary["production_hem_activation_approved"] is False
+          assert summary["acoustic_timing_validation_performed"] is False
+
+          assert parent["parent_source_git_sha"] == os.environ[
+              "PARENT_SOURCE_SHA"
+          ]
+          assert parent["parent_workflow_run"] == int(
+              os.environ["PARENT_WORKFLOW_RUN"]
+          )
+          assert parent["parent_job"] == int(os.environ["PARENT_JOB"])
+          assert parent["parent_artifact"] == int(
+              os.environ["PARENT_ARTIFACT_ID"]
+          )
+          assert parent["parent_artifact_sha256"] == os.environ[
+              "PARENT_ARTIFACT_DIGEST"
+          ]
+          assert parent["parent_artifact_verified"] is True
+          assert parent["parent_gate_passed"] is True
+          assert parent["parent_solver_step"] == 369
+          assert parent["parent_accepted_steps"] == 32
+          assert parent["parent_final_state_shape"] == [32, 4]
+          assert parent["parent_final_state_finite"] is True
+          assert parent["parent_final_density_positive"] is True
+          assert parent["parent_final_rho_xv_exact_zero"] is True
+
+          with (target / "full_horizon_continuation_steps.csv").open(
+              newline="", encoding="utf-8"
+          ) as handle:
+              steps = list(csv.DictReader(handle))
+          assert len(steps) == summary["continuation_accepted_steps_completed"]
+          expected_steps = list(range(370, summary["solver_step_after"] + 1))
+          assert [int(row["requested_step"]) for row in steps] == expected_steps
+          assert [int(row["solver_step_count"]) for row in steps] == expected_steps
+          assert all(row["accepted_step"] == "True" for row in steps)
+          assert all(row["step_passed"] == "True" for row in steps)
+          assert all(
+              row["increment_4_per_step_gate_passed"] == "True"
+              for row in steps
+          )
+          assert all(
+              row["branch_classification"] in allowed for row in steps
+          )
+          assert all(
+              abs(float(row["root_mass_residual_kg_s"])) <= root_tol
+              for row in steps
+          )
+          assert all(float(row["root_velocity_m_s"]) >= 0.0 for row in steps)
+          assert all(0.0 <= float(row["root_mach"]) < 1.0 for row in steps)
+          assert all(row["rho_xv_exact_zero"] == "True" for row in steps)
+          assert all(
+              row["reverse_flow_guard_triggered"] == "False"
+              for row in steps
+          )
+          assert all(
+              row["reverse_velocity_detected"] == "False" for row in steps
+          )
+          assert all(row["outlet_phase_passed"] == "True" for row in steps)
+          assert all(row["step_mass_passed"] == "True" for row in steps)
+          assert all(row["step_momentum_passed"] == "True" for row in steps)
+          assert all(row["step_energy_passed"] == "True" for row in steps)
+          assert all(row["cumulative_mass_passed"] == "True" for row in steps)
+          assert all(
+              row["cumulative_momentum_passed"] == "True" for row in steps
+          )
+          assert all(row["cumulative_energy_passed"] == "True" for row in steps)
+          assert all(
+              row["clear_branch_chatter_detected"] == "False" for row in steps
+          )
+          assert all(
+              row["finite_compression_branch_approved"] == "False"
+              for row in steps
+          )
+          assert steps[-1]["final_horizon_clip_requested"] == "True"
+          assert steps[-1]["reached_two_way_two_l_over_c0"] == "True"
+          assert abs(float(steps[-1]["horizon_fraction_after"]) - 1.0) <= 1.0e-14
+
+          with (target / "full_horizon_continuation_roots.csv").open(
+              newline="", encoding="utf-8"
+          ) as handle:
+              roots = list(csv.DictReader(handle))
+          assert len(roots) == len(steps)
+          assert [int(row["requested_solver_step"]) for row in roots] == expected_steps
+          assert all(row["branch_classification"] in allowed for row in roots)
+          assert all(
+              abs(float(row["root_mass_residual_kg_s"])) <= root_tol
+              for row in roots
+          )
+          assert all(
+              row["stagnation_enthalpy_round_trip_passed"] == "True"
+              for row in roots
+          )
+          assert all(
+              row["energy_mass_consistency_passed"] == "True"
+              for row in roots
+          )
+          assert all(
+              row["energy_port_closure_passed"] == "True" for row in roots
+          )
+
+          with (target / "local_wave_scans.csv").open(
+              newline="", encoding="utf-8"
+          ) as handle:
+              local_scan = list(csv.DictReader(handle))
+          assert len(local_scan) >= len(steps)
+          assert {
+              int(row["requested_solver_step"]) for row in local_scan
+          } == set(expected_steps)
+
+          with (target / "positive_pressure_scans.csv").open(
+              newline="", encoding="utf-8"
+          ) as handle:
+              positive_scan = list(csv.DictReader(handle))
+          assert len(positive_scan) >= 3
+          assert all(
+              row["scan_coordinate_correction"]
+              == "requested_scan_coordinate_authoritative_realized_pressure_recorded"
+              for row in positive_scan
+          )
+          assert all(
+              row["within_weak_compression_scope"] == "True"
+              for row in positive_scan
+          )
+          assert all(
+              0.0 <= float(row["requested_chi"]) <= 1.0e-6
+              for row in positive_scan
+          )
+
+          with (target / "branch_transitions.csv").open(
+              newline="", encoding="utf-8"
+          ) as handle:
+              transitions = list(csv.DictReader(handle))
+          assert len(transitions) == len(steps)
+          assert transitions[0]["from_solver_step"] == "369"
+          assert transitions[-1]["to_solver_step"] == str(
+              summary["solver_step_after"]
+          )
+          assert all(
+              row["clear_branch_chatter_detected"] == "False"
+              for row in transitions
+          )
+
+          with (target / "probe_series.csv").open(
+              newline="", encoding="utf-8"
+          ) as handle:
+              probes = list(csv.DictReader(handle))
+          assert len(probes) == len(steps)
+          assert int(probes[0]["solver_step_count"]) == 370
+          assert int(probes[-1]["solver_step_count"]) == summary[
+              "solver_step_after"
+          ]
+          assert abs(float(probes[-1]["horizon_fraction"]) - 1.0) <= 1.0e-14
+
+          with np.load(target / "full_horizon_states.npz") as states:
+              before = states["U_start"]
+              after = states["U_final"]
+              assert before.shape == (32, 4)
+              assert after.shape == (32, 4)
+              assert not np.array_equal(before, after)
+              assert np.all(np.isfinite(after))
+              assert np.all(after[:, 0] > 0.0)
+              assert np.all(after[:, 3] == 0.0)
+              assert int(states["solver_step_before"][0]) == 369
+              assert int(states["solver_step_after"][0]) == summary[
+                  "solver_step_after"
+              ]
+              assert float(states["solver_time_before_s"][0]) == (
+                  0.0024719939763977834
+              )
+              assert abs(
+                  float(states["solver_time_after_s"][0])
+                  - float(states["target_two_l_over_c0_time_s"][0])
+              ) <= summary["horizon_time_roundoff_tolerance_s"]
+
+          manifest = {}
+          for line in (target / "artifact_sha256.txt").read_text(
+              encoding="utf-8"
+          ).splitlines():
+              digest, name = line.split("  ", 1)
+              manifest[name] = digest
+          assert set(manifest) == expected - {"artifact_sha256.txt"}
+          for name, digest in manifest.items():
+              assert hashlib.sha256((target / name).read_bytes()).hexdigest() == digest
+
+          notice = (
+              "continuation_steps={continuation_accepted_steps_completed}; "
+              "final_step={solver_step_after}; "
+              "branches={continuation_branch_counts}; "
+              "transitions={continuation_branch_transition_count}; "
+              "max_total_weak_chi={maximum_total_weak_compression_chi}; "
+              "max_root_residual_kg_s={maximum_absolute_continuation_root_mass_residual_kg_s}; "
+              "final_time_s={solver_time_after_s:.17g}; "
+              "target_time_s={target_two_l_over_c0_time_s:.17g}; "
+              "final_outlet_pressure_pa={final_outlet_pressure_pa:.17g}; "
+              "final_outlet_velocity_m_s={final_outlet_velocity_m_s:.17g}; "
+              "max_cumulative_mass_residual_kg={maximum_absolute_full_cumulative_mass_residual_kg:.17g}; "
+              "max_cumulative_momentum_residual_kg_m_s={maximum_absolute_full_cumulative_momentum_residual_kg_m_s:.17g}; "
+              "max_cumulative_energy_residual_J={maximum_absolute_full_cumulative_energy_residual_J:.17g}"
+          ).format(**summary)
+          print(f"::notice title=Weak Compression Increment 4 result::{notice}")
+          PY
+
+      - name: Upload Increment 4 evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: u3-b2-a1-weak-compression-bridge-increment-4-${{ github.run_id }}
+          path: artifacts/u3-b2-a1-weak-compression-bridge-increment-4
+          if-no-files-found: warn
