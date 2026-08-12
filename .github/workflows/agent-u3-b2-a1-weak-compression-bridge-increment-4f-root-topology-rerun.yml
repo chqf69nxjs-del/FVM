@@ -1,0 +1,340 @@
+name: Agent U3 B2 A1 Weak Compression Bridge Increment 4F Root Topology Rerun
+
+on:
+  push:
+    branches: [agent/u3-b2-a1-wave-curve-review]
+    paths:
+      - "docs/verification/stage7_u3_b2_a1_weak_compression_bridge_v0_1_increment_4f_guard_front_root_topology_correction.md"
+      - "tools/verification/u3_b2_a1_weak_compression_bridge_full_horizon_guard_front_root_topology.py"
+      - ".github/workflows/agent-u3-b2-a1-weak-compression-bridge-increment-4f-root-topology-rerun.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: agent-u3-b2-a1-weak-compression-bridge-increment-4f-root-topology-rerun
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src:tools/verification
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONPYCACHEPREFIX: /tmp/u3-b2-a1-weak-compression-inc4f-topology-pycache
+  SOURCE_SHA: ${{ github.sha }}
+  SCOPE_BASE_SHA: 618f49c0a75620751cb517d669a4da868e82f41e
+  PARENT_RUN_ID: "31605175607"
+  PARENT_ARTIFACT_NAME: u3-b2-a1-weak-compression-bridge-increment-3-rerun-31605175607
+  PARENT_ARTIFACT_DIGEST: eaaf54b9012ed2748c1e0d425a238915a030c497517a6651f7f916a8b09ecaf6
+  INCREMENT_4E_RUN_ID: "31618287187"
+  INCREMENT_4E_ARTIFACT_NAME: u3-b2-a1-weak-compression-bridge-increment-4e-rerun-31618287187
+  INCREMENT_4E_ARTIFACT_DIGEST: a1bfbee4699cca03b0ddf50c1cf11f4fcdbc9cf066d5d4fbdffd167fd73750f8
+  FAILED_INCREMENT_4D_RUN_ID: "31616654684"
+  FAILED_INCREMENT_4D_ARTIFACT_NAME: u3-b2-a1-weak-compression-bridge-increment-4d-31616654684
+  FAILED_INCREMENT_4D_ARTIFACT_DIGEST: a24c491035bbe296b9ad2cc128fc98302025cc90a03f1bda190ee4d9cb5dbd0c
+  FAILED_INCREMENT_4F_RUN_ID: "31619671593"
+  FAILED_INCREMENT_4F_ARTIFACT_NAME: u3-b2-a1-weak-compression-bridge-increment-4f-31619671593
+  FAILED_INCREMENT_4F_ARTIFACT_DIGEST: 2d00f5fc739a218657de9cc82d0fb1193649decfa3d4813d15ef0782d8dc6927
+
+jobs:
+  rerun-with-root-topology-separation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout exact corrected Increment 4F source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Install fixed dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install 'numpy==2.5.1' 'CoolProp==8.0.0'
+
+      - name: Verify narrow root-topology correction scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${SOURCE_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test -f docs/verification/stage7_u3_b2_a1_weak_compression_bridge_v0_1_increment_4f_guard_front_refined_continuation_model_review.md
+          test -f docs/verification/stage7_u3_b2_a1_weak_compression_bridge_v0_1_increment_4f_refinement_evidence_gate_correction.md
+          test -f docs/verification/stage7_u3_b2_a1_weak_compression_bridge_v0_1_increment_4f_guard_front_root_topology_correction.md
+          test -f tools/verification/u3_b2_a1_weak_compression_bridge_full_horizon_guard_front_refined.py
+          test -f tools/verification/u3_b2_a1_weak_compression_bridge_full_horizon_guard_front_refined_evidence_gate.py
+          test -f tools/verification/u3_b2_a1_weak_compression_bridge_full_horizon_guard_front_root_topology.py
+          python -m py_compile \
+            tools/verification/u3_b2_a1_weak_compression_bridge_full_horizon_guard_front_refined.py \
+            tools/verification/u3_b2_a1_weak_compression_bridge_full_horizon_guard_front_refined_evidence_gate.py \
+            tools/verification/u3_b2_a1_weak_compression_bridge_full_horizon_guard_front_root_topology.py
+          mapfile -t actual < <(
+            git diff --name-only "${SCOPE_BASE_SHA}" HEAD | sort
+          )
+          mapfile -t expected < <(printf '%s\n' \
+            '.github/workflows/agent-u3-b2-a1-weak-compression-bridge-increment-4f-root-topology-rerun.yml' \
+            'docs/verification/stage7_u3_b2_a1_weak_compression_bridge_v0_1_increment_4f_guard_front_root_topology_correction.md' \
+            'tools/verification/u3_b2_a1_weak_compression_bridge_full_horizon_guard_front_root_topology.py' | sort)
+          diff -u \
+            <(printf '%s\n' "${expected[@]}") \
+            <(printf '%s\n' "${actual[@]}")
+          git diff --check "${SCOPE_BASE_SHA}" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=no)"
+
+      - name: Download authoritative Increment 3 parent artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ env.PARENT_ARTIFACT_NAME }}
+          path: artifacts/parent-increment-3
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.PARENT_RUN_ID }}
+
+      - name: Download authoritative corrected Increment 4E artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ env.INCREMENT_4E_ARTIFACT_NAME }}
+          path: artifacts/increment-4e
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.INCREMENT_4E_RUN_ID }}
+
+      - name: Download prior failed Increment 4D artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ env.FAILED_INCREMENT_4D_ARTIFACT_NAME }}
+          path: artifacts/failed-increment-4d
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.FAILED_INCREMENT_4D_RUN_ID }}
+
+      - name: Download and verify prior failed Increment 4F artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ env.FAILED_INCREMENT_4F_ARTIFACT_NAME }}
+          path: artifacts/failed-increment-4f
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.FAILED_INCREMENT_4F_RUN_ID }}
+
+      - name: Inspect failed Increment 4F authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          target = Path("artifacts/failed-increment-4f")
+          expected = {
+              "full_horizon_continuation_steps.csv",
+              "full_horizon_continuation_roots.csv",
+              "local_wave_scans.csv",
+              "positive_pressure_scans.csv",
+              "branch_transitions.csv",
+              "probe_series.csv",
+              "full_horizon_states.npz",
+              "parent_verification.json",
+              "increment_4f_authority.json",
+              "pre_guard_front_reproduction.json",
+              "refinement_evidence_gate_correction.json",
+              "summary.json",
+              "report.md",
+              "artifact_sha256.txt",
+          }
+          assert {path.name for path in target.iterdir()} == expected
+          summary = json.loads((target / "summary.json").read_text(encoding="utf-8"))
+          assert summary["source_git_sha"] == "618f49c0a75620751cb517d669a4da868e82f41e"
+          assert summary["solver_step_after"] == 451
+          assert summary["pre_guard_front_reproduction_passed"] is True
+          assert summary["stop_classification"] == "GUARD_FRONT_SCAN_FAILURE"
+          assert "not monotone" in summary["stop_reason"]
+          manifest = {}
+          for line in (target / "artifact_sha256.txt").read_text(encoding="utf-8").splitlines():
+              digest, name = line.split("  ", 1)
+              manifest[name] = digest
+          assert set(manifest) == expected - {"artifact_sha256.txt"}
+          for name, digest in manifest.items():
+              assert hashlib.sha256((target / name).read_bytes()).hexdigest() == digest
+          PY
+
+      - name: Continue branch-aware FvmSolver to full 2L/c0
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-a1-weak-compression-bridge-increment-4f-root-topology
+          rm -rf "${output}"
+          python tools/verification/u3_b2_a1_weak_compression_bridge_full_horizon_guard_front_root_topology.py \
+            --contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json \
+            --b1-contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
+            --model-review-spec docs/verification/stage7_u3_b2_a1_weak_compression_bridge_v0_1_increment_4f_guard_front_refined_continuation_model_review.md \
+            --evidence-gate-correction-spec docs/verification/stage7_u3_b2_a1_weak_compression_bridge_v0_1_increment_4f_refinement_evidence_gate_correction.md \
+            --root-topology-correction-spec docs/verification/stage7_u3_b2_a1_weak_compression_bridge_v0_1_increment_4f_guard_front_root_topology_correction.md \
+            --parent-artifact-dir artifacts/parent-increment-3 \
+            --parent-artifact-digest "${PARENT_ARTIFACT_DIGEST}" \
+            --increment-4e-artifact-dir artifacts/increment-4e \
+            --increment-4e-artifact-digest "${INCREMENT_4E_ARTIFACT_DIGEST}" \
+            --failed-increment-4d-artifact-dir artifacts/failed-increment-4d \
+            --failed-increment-4d-artifact-digest "${FAILED_INCREMENT_4D_ARTIFACT_DIGEST}" \
+            --output-dir "${output}" \
+            --source-git-sha "${SOURCE_SHA}"
+
+      - name: Inspect corrected Increment 4F full-horizon evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import numpy as np
+
+          target = Path(
+              "artifacts/u3-b2-a1-weak-compression-bridge-increment-4f-root-topology"
+          )
+          expected = {
+              "full_horizon_continuation_steps.csv",
+              "full_horizon_continuation_roots.csv",
+              "local_wave_scans.csv",
+              "positive_pressure_scans.csv",
+              "branch_transitions.csv",
+              "probe_series.csv",
+              "full_horizon_states.npz",
+              "parent_verification.json",
+              "increment_4f_authority.json",
+              "pre_guard_front_reproduction.json",
+              "refinement_evidence_gate_correction.json",
+              "root_topology_correction.json",
+              "summary.json",
+              "report.md",
+              "artifact_sha256.txt",
+          }
+          assert {path.name for path in target.iterdir()} == expected
+          summary = json.loads((target / "summary.json").read_text(encoding="utf-8"))
+          assert summary["source_git_sha"] == os.environ["SOURCE_SHA"]
+          assert summary["outcome"] == (
+              "WEAK_COMPRESSION_INCREMENT_4F_FULL_HORIZON_WORKING_SLICE_PASS"
+          )
+          assert summary["increment_4f_working_slice_gate_passed"] is True
+          assert summary["working_vertical_slice_two_l_over_c0_passed"] is True
+          assert summary["pre_guard_front_reproduction_passed"] is True
+          assert summary["guard_front_refinement_gate_passed"] is True
+          assert summary["guard_front_root_topology_correction_applied"] is True
+          assert summary["guard_front_root_topology_gate_passed"] is True
+          assert summary["guard_front_root_topology_corrected_step_count"] > 0
+          assert summary["minimum_root_topology_node_count"] >= 2
+          assert summary["solver_time_after_s"] >= summary["target_two_l_over_c0_time_s"]
+          assert summary["horizon_fraction_reached"] >= 1.0
+          assert abs(summary["horizon_time_error_s"]) <= summary[
+              "horizon_time_roundoff_tolerance_s"
+          ]
+          assert summary["stop_classification"] is None
+          assert summary["stop_reason"] is None
+          assert summary["clear_branch_chatter_detected"] is False
+          assert summary["final_outlet_velocity_m_s"] >= 0.0
+          assert 0.0 <= summary["final_outlet_mach"] < 1.0
+          assert summary["final_outlet_phase"] == "liquid"
+          assert summary["final_minimum_density_kg_m3"] > 0.0
+          assert summary["final_minimum_internal_energy_J_kg"] > 0.0
+          assert summary["final_rho_xv_exact_zero"] is True
+          assert summary["finite_compression_branch_approved"] is False
+          assert summary["full_two_l_over_c0_passed"] is False
+          assert summary["formal_state_promoted"] is False
+          assert summary["u3_b2_finite_pipe_execution_complete"] is False
+          assert summary["single_phase_finite_pipe_coupling_verified"] is False
+          assert summary["u3_b2_verification_benchmark_accepted"] is False
+          assert summary["physical_validation"] is False
+          assert summary["design_use_acceptance"] is False
+          assert summary["production_hem_activation_approved"] is False
+
+          with (target / "full_horizon_continuation_roots.csv").open(
+              newline="", encoding="utf-8"
+          ) as handle:
+              roots = list(csv.DictReader(handle))
+          corrected = [
+              row for row in roots
+              if row["root_topology_correction_applied"] == "True"
+          ]
+          assert corrected
+          assert min(int(row["requested_solver_step"]) for row in corrected) == 452
+          for row in corrected:
+              offsets = json.loads(row["root_topology_requested_offsets_pa_json"])
+              residuals = json.loads(row["root_topology_residuals_kg_s_json"])
+              assert len(offsets) == int(row["root_topology_node_count"])
+              assert len(residuals) == len(offsets)
+              assert len(offsets) >= 2
+              assert all(b > a for a, b in zip(offsets, offsets[1:]))
+              assert all(b <= a for a, b in zip(residuals, residuals[1:]))
+              assert row["root_topology_monotone_nonincreasing"] == "True"
+              assert int(row["root_topology_sign_change_count"]) == 1
+              assert int(row["guard_front_evidence_row_count"]) > len(offsets)
+              assert int(row["guard_front_successful_intermediate_row_count"]) >= 0
+              assert row["failed_b1_state_used_as_root_endpoint"] == "False"
+              assert row["failed_b1_state_used_to_construct_flux"] == "False"
+
+          with (target / "positive_pressure_scans.csv").open(
+              newline="", encoding="utf-8"
+          ) as handle:
+              scans = list(csv.DictReader(handle))
+          assert any(row.get("root_topology_member") == "True" for row in scans)
+          assert any(
+              row.get("scan_node_role") == "GUARD_FRONT_BISECTION"
+              and row.get("evaluation_succeeded") == "True"
+              and row.get("root_topology_member") == "False"
+              for row in scans
+          )
+
+          with np.load(target / "full_horizon_states.npz") as states:
+              assert states["U_start"].shape == (32, 4)
+              assert states["U_final"].shape == (32, 4)
+              assert int(states["solver_step_before"][0]) == 369
+              assert int(states["solver_step_after"][0]) == summary["solver_step_after"]
+              assert float(states["solver_time_after_s"][0]) == summary[
+                  "solver_time_after_s"
+              ]
+
+          reproduction = json.loads(
+              (target / "pre_guard_front_reproduction.json").read_text(encoding="utf-8")
+          )
+          assert reproduction["passed"] is True
+          assert reproduction["compared_rows"] == 82
+          assert reproduction["mismatches"] == []
+
+          correction = json.loads(
+              (target / "root_topology_correction.json").read_text(encoding="utf-8")
+          )
+          assert correction["root_topology_gate_passed"] is True
+          assert correction["b1_behavior_changed"] is False
+          assert correction["intermediate_evidence_discarded"] is False
+          assert correction["intermediate_success_used_as_root_topology"] is False
+          assert correction["failed_state_used_as_root_endpoint"] is False
+          assert correction["failed_state_used_to_construct_flux"] is False
+          assert correction["tolerance_or_scope_changed"] is False
+
+          manifest = {}
+          for line in (target / "artifact_sha256.txt").read_text(encoding="utf-8").splitlines():
+              digest, name = line.split("  ", 1)
+              manifest[name] = digest
+          assert set(manifest) == expected - {"artifact_sha256.txt"}
+          for name, digest in manifest.items():
+              assert hashlib.sha256((target / name).read_bytes()).hexdigest() == digest
+          PY
+
+      - name: Upload corrected Increment 4F evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: u3-b2-a1-weak-compression-bridge-increment-4f-root-topology-${{ github.run_id }}
+          path: artifacts/u3-b2-a1-weak-compression-bridge-increment-4f-root-topology
+          if-no-files-found: warn
