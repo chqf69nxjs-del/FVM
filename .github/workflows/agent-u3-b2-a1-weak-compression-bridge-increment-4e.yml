@@ -1,0 +1,233 @@
+name: Agent U3 B2 A1 Weak Compression Bridge Increment 4E
+
+on:
+  push:
+    branches: [agent/u3-b2-a1-wave-curve-review]
+    paths:
+      - "docs/verification/stage7_u3_b2_a1_weak_compression_bridge_v0_1_increment_4e_b1_guard_front_root_diagnostic_model_review.md"
+      - "tools/verification/u3_b2_a1_weak_compression_bridge_b1_guard_front_root_diagnostic.py"
+      - ".github/workflows/agent-u3-b2-a1-weak-compression-bridge-increment-4e.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: agent-u3-b2-a1-weak-compression-bridge-increment-4e
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src:tools/verification
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONPYCACHEPREFIX: /tmp/u3-b2-a1-weak-compression-inc4e-pycache
+  SOURCE_SHA: ${{ github.sha }}
+  SCOPE_BASE_SHA: cb56cfa0f856dc8f1ebe1463eeb80f2a269aa2a8
+  PARENT_RUN_ID: "31616654684"
+  PARENT_ARTIFACT_NAME: u3-b2-a1-weak-compression-bridge-increment-4d-31616654684
+  PARENT_ARTIFACT_DIGEST: a24c491035bbe296b9ad2cc128fc98302025cc90a03f1bda190ee4d9cb5dbd0c
+
+jobs:
+  diagnose-b1-guard-front-root:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout exact Increment 4E source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Install fixed dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install 'numpy==2.5.1' 'CoolProp==8.0.0'
+
+      - name: Verify fixed source identity and Increment 4E scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${SOURCE_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test -f docs/verification/stage7_u3_b2_a1_weak_compression_bridge_v0_1_increment_4e_b1_guard_front_root_diagnostic_model_review.md
+          test -f tools/verification/u3_b2_a1_weak_compression_bridge_b1_guard_front_root_diagnostic.py
+          python -m py_compile \
+            tools/verification/u3_b2_a1_weak_compression_bridge_b1_guard_front_root_diagnostic.py
+          mapfile -t actual < <(
+            git diff --name-only "${SCOPE_BASE_SHA}" HEAD | sort
+          )
+          mapfile -t expected < <(printf '%s\n' \
+            '.github/workflows/agent-u3-b2-a1-weak-compression-bridge-increment-4e.yml' \
+            'docs/verification/stage7_u3_b2_a1_weak_compression_bridge_v0_1_increment_4e_b1_guard_front_root_diagnostic_model_review.md' \
+            'tools/verification/u3_b2_a1_weak_compression_bridge_b1_guard_front_root_diagnostic.py' | sort)
+          diff -u \
+            <(printf '%s\n' "${expected[@]}") \
+            <(printf '%s\n' "${actual[@]}")
+          git diff --check "${SCOPE_BASE_SHA}" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=no)"
+
+      - name: Download authoritative failed Increment 4D artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ env.PARENT_ARTIFACT_NAME }}
+          path: artifacts/parent-increment-4d
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.PARENT_RUN_ID }}
+
+      - name: Run diagnostic-only Increment 4E
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-a1-weak-compression-bridge-increment-4e
+          rm -rf "${output}"
+          python tools/verification/u3_b2_a1_weak_compression_bridge_b1_guard_front_root_diagnostic.py \
+            --contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json \
+            --b1-contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
+            --model-review-spec docs/verification/stage7_u3_b2_a1_weak_compression_bridge_v0_1_increment_4e_b1_guard_front_root_diagnostic_model_review.md \
+            --parent-artifact-dir artifacts/parent-increment-4d \
+            --parent-artifact-digest "${PARENT_ARTIFACT_DIGEST}" \
+            --output-dir "${output}" \
+            --source-git-sha "${SOURCE_SHA}"
+
+      - name: Inspect Increment 4E evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import numpy as np
+
+          target = Path(
+              "artifacts/u3-b2-a1-weak-compression-bridge-increment-4e"
+          )
+          expected = {
+              "step451_local_wave_scans.csv",
+              "step451_fixed_positive_pressure_scans.csv",
+              "step451_guard_front_bisection.csv",
+              "step451_refined_success_root.csv",
+              "step451_state_identity.npz",
+              "summary.json",
+              "report.md",
+              "artifact_sha256.txt",
+          }
+          assert {path.name for path in target.iterdir()} == expected
+          summary = json.loads(
+              (target / "summary.json").read_text(encoding="utf-8")
+          )
+          assert summary["source_git_sha"] == os.environ["SOURCE_SHA"]
+          assert summary["outcome"] == (
+              "B1_GUARD_FRONT_REFINED_POSITIVE_ROOT_SUPPORTED"
+          )
+          assert summary["increment_4e_continuation_supported"] is True
+          assert summary["increment_4e_diagnostic_classification_complete"] is True
+          assert summary["parent_artifact_verified"] is True
+          assert summary["solver_step_loaded"] == 451
+          assert summary["next_requested_solver_step"] == 452
+          assert summary["state_unchanged"] is True
+          assert summary["fvm_step_452_attempted"] is False
+          assert summary["interior_velocity_m_s"] >= 0.0
+          assert 0.0 <= summary["interior_mach"] < 1.0
+          assert summary["interior_phase"] == "liquid"
+          assert summary["minimum_density_kg_m3"] > 0.0
+          assert summary["minimum_internal_energy_J_kg"] > 0.0
+          assert summary["endpoint_evaluation_succeeded"] is False
+          assert summary["endpoint_formal_outcome"] == (
+              "REVERSE_PRESSURE_OR_FLOW_NOT_SUPPORTED"
+          )
+          assert summary["connected_rarefaction_requested_nodes"] == 0
+          assert summary["connected_rarefaction_admissible_subsonic_nodes"] == 0
+          assert summary["connected_rarefaction_sign_change_count"] == 0
+          assert summary["rarefaction_side_local_sign_change_count"] == 0
+          assert summary["fixed_positive_scan_guard_node_count"] > 0
+          assert summary["fixed_positive_scan_success_node_count"] >= 2
+          assert summary["last_fixed_guard_offset_pa"] < summary["first_fixed_success_offset_pa"]
+          assert summary["guard_front_bisection_iterations"] == 32
+          assert summary["final_lower_guard_offset_pa"] < summary["final_upper_success_offset_pa"]
+          assert summary["final_bracket_width_pa"] > 0.0
+          assert summary["refined_first_success_stagnation_pressure_margin_above_back_pa"] > 0.0
+          assert summary["refined_first_success_residual_kg_s"] >= -1.0e-8
+          assert summary["higher_success_offset_pa"] > summary["refined_first_success_offset_pa"]
+          assert summary["higher_success_residual_kg_s"] <= 1.0e-8
+          assert summary["successful_domain_sign_change_count"] == 1
+          assert summary["root_pressure_pa"] > summary["back_pressure_pa"]
+          assert summary["root_stagnation_pressure_pa"] > summary["back_pressure_pa"]
+          assert 0.0 < summary["root_chi"] <= 1.0e-6
+          assert abs(summary["root_mass_residual_kg_s"]) <= 1.0e-8
+          assert summary["root_local_slope_kg_s_Pa"] < 0.0
+          assert summary["root_velocity_m_s"] >= 0.0
+          assert 0.0 <= summary["root_mach"] < 1.0
+          assert summary["root_phase"] == "liquid"
+          assert summary["root_b1_formal_outcome"] == (
+              "SUCCESS_UNCHOKED_FACE_MAPPING"
+          )
+          assert summary["root_stagnation_pressure_margin_above_back_pa"] > 0.0
+          assert summary["finite_compression_branch_approved"] is False
+          assert summary["full_two_l_over_c0_passed"] is False
+          assert summary["formal_state_promoted"] is False
+          assert summary["u3_b2_finite_pipe_execution_complete"] is False
+          assert summary["single_phase_finite_pipe_coupling_verified"] is False
+          assert summary["u3_b2_verification_benchmark_accepted"] is False
+          assert summary["physical_validation"] is False
+          assert summary["design_use_acceptance"] is False
+          assert summary["production_hem_activation_approved"] is False
+          assert all(
+              value
+              for key, value in summary["checks"].items()
+              if key != "fvm_step_452_attempted"
+          )
+          assert summary["checks"]["fvm_step_452_attempted"] is False
+
+          with (target / "step451_guard_front_bisection.csv").open(
+              newline="", encoding="utf-8"
+          ) as handle:
+              guard_rows = list(csv.DictReader(handle))
+          assert len(guard_rows) == 32
+          assert all(
+              row["midpoint_classification"] in {"B1_GUARD", "B1_SUCCESS"}
+              for row in guard_rows
+          )
+          assert all(
+              float(row["lower_guard_offset_after_pa"])
+              < float(row["upper_success_offset_after_pa"])
+              for row in guard_rows
+          )
+          assert float(guard_rows[-1]["bracket_width_after_pa"]) == summary["final_bracket_width_pa"]
+
+          with np.load(target / "step451_state_identity.npz") as states:
+              before = np.asarray(states["U_before"], dtype=float)
+              after = np.asarray(states["U_after"], dtype=float)
+              assert before.shape == (32, 4)
+              assert np.array_equal(before, after)
+              assert int(states["solver_step_before"][0]) == 451
+              assert int(states["solver_step_after"][0]) == 451
+
+          manifest = {}
+          for line in (target / "artifact_sha256.txt").read_text(
+              encoding="utf-8"
+          ).splitlines():
+              digest, name = line.split("  ", 1)
+              manifest[name] = digest
+          assert set(manifest) == expected - {"artifact_sha256.txt"}
+          for name, digest in manifest.items():
+              assert hashlib.sha256((target / name).read_bytes()).hexdigest() == digest
+          PY
+
+      - name: Upload Increment 4E evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: u3-b2-a1-weak-compression-bridge-increment-4e-${{ github.run_id }}
+          path: artifacts/u3-b2-a1-weak-compression-bridge-increment-4e
+          if-no-files-found: warn
