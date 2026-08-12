@@ -4,8 +4,7 @@ on:
   push:
     branches: [agent/u3-b2-a1-wave-curve-review]
     paths:
-      - "docs/verification/stage7_u3_b2_a1_weak_compression_bridge_v0_1_increment_4f_guard_front_root_topology_correction.md"
-      - "tools/verification/u3_b2_a1_weak_compression_bridge_full_horizon_guard_front_root_topology.py"
+      - "docs/verification/stage7_u3_b2_a1_weak_compression_bridge_v0_1_increment_4f_authority_inspection_correction.md"
       - ".github/workflows/agent-u3-b2-a1-weak-compression-bridge-increment-4f-root-topology-rerun.yml"
   workflow_dispatch:
 
@@ -22,7 +21,7 @@ env:
   PYTHONDONTWRITEBYTECODE: "1"
   PYTHONPYCACHEPREFIX: /tmp/u3-b2-a1-weak-compression-inc4f-topology-pycache
   SOURCE_SHA: ${{ github.sha }}
-  SCOPE_BASE_SHA: 618f49c0a75620751cb517d669a4da868e82f41e
+  SCOPE_BASE_SHA: b8b945baa11bb38c28716a8ff5f96ebd265dd8af
   PARENT_RUN_ID: "31605175607"
   PARENT_ARTIFACT_NAME: u3-b2-a1-weak-compression-bridge-increment-3-rerun-31605175607
   PARENT_ARTIFACT_DIGEST: eaaf54b9012ed2748c1e0d425a238915a030c497517a6651f7f916a8b09ecaf6
@@ -33,8 +32,9 @@ env:
   FAILED_INCREMENT_4D_ARTIFACT_NAME: u3-b2-a1-weak-compression-bridge-increment-4d-31616654684
   FAILED_INCREMENT_4D_ARTIFACT_DIGEST: a24c491035bbe296b9ad2cc128fc98302025cc90a03f1bda190ee4d9cb5dbd0c
   FAILED_INCREMENT_4F_RUN_ID: "31619671593"
+  FAILED_INCREMENT_4F_ARTIFACT_ID: "9150769457"
   FAILED_INCREMENT_4F_ARTIFACT_NAME: u3-b2-a1-weak-compression-bridge-increment-4f-31619671593
-  FAILED_INCREMENT_4F_ARTIFACT_DIGEST: 2d00f5fc739a218657de9cc82d0fb1193649decfa3d4813d15ef0782d8dc6927
+  FAILED_INCREMENT_4F_ARTIFACT_DIGEST: 64ce6c2ee282163a841c3df518f27bd45eac6bf2e3c91a061ff3007bbab09034
 
 jobs:
   rerun-with-root-topology-separation:
@@ -59,12 +59,13 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install 'numpy==2.5.1' 'CoolProp==8.0.0'
 
-      - name: Verify narrow root-topology correction scope
+      - name: Verify authority-correction scope
         shell: bash
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "${SOURCE_SHA}"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test -f docs/verification/stage7_u3_b2_a1_weak_compression_bridge_v0_1_increment_4f_authority_inspection_correction.md
           test -f docs/verification/stage7_u3_b2_a1_weak_compression_bridge_v0_1_increment_4f_guard_front_refined_continuation_model_review.md
           test -f docs/verification/stage7_u3_b2_a1_weak_compression_bridge_v0_1_increment_4f_refinement_evidence_gate_correction.md
           test -f docs/verification/stage7_u3_b2_a1_weak_compression_bridge_v0_1_increment_4f_guard_front_root_topology_correction.md
@@ -79,9 +80,7 @@ jobs:
             git diff --name-only "${SCOPE_BASE_SHA}" HEAD | sort
           )
           mapfile -t expected < <(printf '%s\n' \
-            '.github/workflows/agent-u3-b2-a1-weak-compression-bridge-increment-4f-root-topology-rerun.yml' \
-            'docs/verification/stage7_u3_b2_a1_weak_compression_bridge_v0_1_increment_4f_guard_front_root_topology_correction.md' \
-            'tools/verification/u3_b2_a1_weak_compression_bridge_full_horizon_guard_front_root_topology.py' | sort)
+            '.github/workflows/agent-u3-b2-a1-weak-compression-bridge-increment-4f-root-topology-rerun.yml' | sort)
           diff -u \
             <(printf '%s\n' "${expected[@]}") \
             <(printf '%s\n' "${actual[@]}")
@@ -115,7 +114,7 @@ jobs:
           repository: ${{ github.repository }}
           run-id: ${{ env.FAILED_INCREMENT_4D_RUN_ID }}
 
-      - name: Download and verify prior failed Increment 4F artifact
+      - name: Download prior failed Increment 4F artifact
         uses: actions/download-artifact@v7
         with:
           name: ${{ env.FAILED_INCREMENT_4F_ARTIFACT_NAME }}
@@ -126,12 +125,20 @@ jobs:
 
       - name: Inspect failed Increment 4F authority
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          metadata="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${FAILED_INCREMENT_4F_ARTIFACT_ID}")"
+          test "$(jq -r '.id' <<<"${metadata}")" = "${FAILED_INCREMENT_4F_ARTIFACT_ID}"
+          test "$(jq -r '.name' <<<"${metadata}")" = "${FAILED_INCREMENT_4F_ARTIFACT_NAME}"
+          test "$(jq -r '.expired' <<<"${metadata}")" = "false"
+          test "$(jq -r '.workflow_run.id' <<<"${metadata}")" = "${FAILED_INCREMENT_4F_RUN_ID}"
+          test "$(jq -r '.workflow_run.head_sha' <<<"${metadata}")" = "618f49c0a75620751cb517d669a4da868e82f41e"
+          test "$(jq -r '.digest' <<<"${metadata}")" = "sha256:${FAILED_INCREMENT_4F_ARTIFACT_DIGEST}"
           python - <<'PY'
           import hashlib
           import json
-          import os
           from pathlib import Path
 
           target = Path("artifacts/failed-increment-4f")
@@ -156,8 +163,10 @@ jobs:
           assert summary["source_git_sha"] == "618f49c0a75620751cb517d669a4da868e82f41e"
           assert summary["solver_step_after"] == 451
           assert summary["pre_guard_front_reproduction_passed"] is True
-          assert summary["stop_classification"] == "GUARD_FRONT_SCAN_FAILURE"
-          assert "not monotone" in summary["stop_reason"]
+          assert summary["stop_classification"] == "GuardFrontContinuationStop"
+          assert summary["stop_reason"] == (
+              "GuardFrontContinuationStop: successful-domain compatibility residual is not monotone"
+          )
           manifest = {}
           for line in (target / "artifact_sha256.txt").read_text(encoding="utf-8").splitlines():
               digest, name = line.split("  ", 1)
