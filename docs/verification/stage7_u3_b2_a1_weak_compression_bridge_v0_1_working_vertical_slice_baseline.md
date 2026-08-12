@@ -2,11 +2,15 @@
 
 ## Status
 
-`WORKING_VERTICAL_SLICE_BASELINE_FIXED / FULL_NOMINAL_2L_OVER_C0_REACHED / NOT_FORMALLY_VERIFIED`
+`RETRACTED_FULL_HORIZON_CLAIM / AUTHORITATIVE_SCOPE_LIMIT_RECORDED / NOT_FORMALLY_VERIFIED`
 
-This record fixes the first B2-10A branch-aware full-horizon working vertical slice as a reproducible development baseline.
+The earlier version of this record stated that B2-10A reached the nominal full `2L/c0` horizon. That claim is retracted.
 
-It does not approve a general finite-compression model, verify single-phase finite-pipe coupling, accept the B2 benchmark, perform Physical Validation, approve design use, or activate production behavior.
+The workflow identifiers cited by the earlier record were not resolvable as an executed authoritative GitHub Actions run. A subsequent audit found that the actual root-topology rerun had stopped during read-only authority inspection before the corrected solver was executed.
+
+After correcting the authority inspection and executing the actual `FvmSolver` continuation, the Weak Compression v0.1 branch reached its fixed `chi` scope limit before the full horizon. This file now records that authoritative result.
+
+This correction does not change the physical model or any formal project state.
 
 ## Authoritative evidence
 
@@ -18,31 +22,51 @@ branch:
 agent/u3-b2-a1-wave-curve-review
 
 source Git SHA:
-3b533595f0f2ef22256961dcb7be7197738371d4
+2c1e1e26138b7d3bd3cf0e7f1d2f7a2c11b443c1
 
 workflow:
 Agent U3 B2 A1 Weak Compression Bridge Increment 4F Root Topology Rerun
 
 workflow run:
-31621090806
+31650819553
 
 job:
-94195575335
+94294552017
 
 artifact:
-9151318681
+9162559698
 
 artifact name:
-u3-b2-a1-weak-compression-bridge-increment-4f-root-topology-31621090806
+u3-b2-a1-weak-compression-bridge-increment-4f-root-topology-31650819553
 
-artifact SHA256:
-83786020fb9f3038121c45dd87f2e799d9b3bf6c7d0fc6c614d972d8029e5dbc
+GitHub artifact SHA256:
+6f611e1935d2680a04046d1fc7fbb595f19bc99d12ccc274700fd92c086ddb93
 
 outcome:
-WEAK_COMPRESSION_INCREMENT_4F_FULL_HORIZON_WORKING_SLICE_PASS
+INCREMENT_4F_STOPPED
+
+stop classification:
+GuardFrontContinuationStop
+
+stop reason:
+GuardFrontContinuationStop: successful residual remains positive through the fixed chi scope
 ```
 
-The workflow completed source/scope checks, downloaded and verified its authoritative parent artifacts, executed the actual `FvmSolver` continuation, inspected the resulting evidence, verified every internal artifact SHA256 entry, and uploaded the authoritative evidence artifact.
+The workflow completed:
+
+```text
+source and correction-scope inspection
+Increment 3 parent artifact download
+corrected Increment 4E artifact download
+failed Increment 4D artifact download
+failed Increment 4F artifact download
+GitHub artifact metadata and digest verification
+internal artifact SHA256 verification
+actual FvmSolver continuation
+failure-evidence upload
+```
+
+The stop occurred in the actual full-horizon continuation, not in authority inspection.
 
 ## Fixed case
 
@@ -66,7 +90,7 @@ nominal target:
 2L/c0 = 0.004285834855172021 s
 ```
 
-## Result
+## Authoritative result
 
 The authoritative Increment 3 state was loaded at:
 
@@ -78,167 +102,186 @@ solver time:
 0.0024719939763977834 s
 ```
 
-The corrected continuation reached:
+The corrected continuation accepted:
 
 ```text
-solver step:
-639
-
 additional accepted steps:
-270
+114
 
-solver time:
-0.004285834855172023 s
+final accepted solver step:
+483
 
-horizon fraction:
-1.0000000000000004
+final solver time:
+0.0032365792102672024 s
 
-horizon time error:
-1.734723475976807e-18 s
-
-retained roundoff allowance:
-6.938893903907228e-18 s
-
-final step clipped to target:
-true
+nominal horizon fraction:
+0.7551805703295805
 ```
 
-Therefore the actual `FvmSolver` reached the nominal full `2L/c0` target within the retained floating-point roundoff allowance.
-
-Together with the authoritative Increment 3 continuation, accepted solver steps 338 through 639 form 302 post-Neutral Weak Compression steps after the accepted step-337 Neutral endpoint.
-
-## Branch behavior
-
-The continuation retained:
+Therefore the authoritative current working vertical slice reached approximately:
 
 ```text
-accepted continuation branch:
+75.52% of nominal 2L/c0
+```
+
+It did not reach the nominal full horizon.
+
+Together with the authoritative Increment 3 continuation, accepted solver steps 338 through 483 form 146 post-Neutral Weak Compression steps after the accepted step-337 Neutral endpoint.
+
+## Why the run stopped
+
+At the final accepted step, the selected root remained inside the fixed Weak Compression scope:
+
+```text
+selected root pressure offset:
+189.63561215624213 Pa
+
+selected root chi:
+9.994599988803244e-7
+
+fixed chi limit:
+1.0e-6
+
+selected root residual:
+-4.57096713604721e-9 kg/s
+
+root residual absolute tolerance:
+1.0e-8 kg/s
+```
+
+The selected step-483 root was therefore admissible and accepted.
+
+Before requested solver step 484, the successful-domain compatibility residual remained positive through the fixed `chi = 1.0e-6` cap. No root existed inside the approved Weak Compression v0.1 scope.
+
+The correct classification is:
+
+```text
+FINITE_COMPRESSION_MODEL_REQUIRED
+```
+
+The run was intentionally stopped rather than:
+
+```text
+enlarging chi_max
+relaxing the root tolerance
+using a failed B1 state
+extrapolating an unapproved compression branch
+```
+
+## Branch and Guard-front behavior
+
+The authoritative continuation retained:
+
+```text
+accepted branch:
 WEAK_COMPRESSION
+
+accepted continuation branch count:
+114
 
 continuation branch transitions:
 0
 
 clear five-point branch chatter:
 false
+
+maximum dt-halving count:
+0
 ```
 
-The maximum selected Weak Compression strength was:
-
-```text
-maximum chi:
-9.383657148556149e-7
-
-fixed chi limit:
-1.0e-6
-```
-
-The maximum selected root pressure offset was:
-
-```text
-178.16954076942056 Pa
-```
-
-The maximum absolute selected root mass residual was:
-
-```text
-9.949153223165696e-9 kg/s
-```
-
-which remained inside the unchanged absolute root tolerance:
-
-```text
-1.0e-8 kg/s
-```
-
-No `chi` limit or root tolerance was relaxed to obtain the pass.
-
-## Guard-front refinement
-
-The first Guard-front root-topology refinement activated at requested solver step:
+Guard-front root-topology refinement first activated at requested solver step:
 
 ```text
 452
 ```
 
-It remained active through the final requested step 639, for 188 accepted refined roots.
+It produced 24 accepted refined roots before the Weak Compression scope was exhausted.
 
-Each refined step retained:
+The refinement evidence retained:
 
 ```text
-B1-unavailable categorical evidence on the lower side
-B1-success and locally admissible evidence on the upper side
+B1-unavailable categorical states on the lower side
+B1-success and locally admissible states on the upper side
 exactly 32 categorical Guard-front iterations
 failed B1 states excluded from compatibility-root endpoints
 failed B1 states excluded from applied fluxes
-final refined first-success state plus higher fixed successful states used
-for compatibility-root topology
-strictly increasing topology pressure coordinates
-monotone nonincreasing topology residuals
-exactly one successful-domain root bracket
+root-topology pressure coordinates strictly increasing
+root-topology residuals monotone nonincreasing
+one successful-domain root bracket for each accepted refined root
 ```
 
-The retained B1-unavailable formal outcomes were limited to:
+The allowed B1-unavailable formal outcomes remained:
 
 ```text
 REVERSE_PRESSURE_OR_FLOW_NOT_SUPPORTED
 NONPOSITIVE_KINETIC_ENERGY_HEAD
 ```
 
-Both remained failed B1 evaluations. Neither was converted to success.
+Neither outcome was converted into B1 success.
 
-The root-topology correction retained every fixed scan and categorical-bisection row in the evidence while separating intermediate refinement evidence from the final compatibility-root topology.
+## Numerical condition at the stop
 
-## Physical and numerical minimum gates
-
-Every accepted continuation step retained the working-slice gates:
+The final accepted state retained:
 
 ```text
-finite conserved state
-positive density
-positive internal energy
-outward outlet velocity
-subsonic selected root and outlet
-liquid phase
-rho*xv exact zero
-B1 success at every selected root
-root residual inside 1.0e-8 kg/s
-negative local root slope
-stagnation-enthalpy round trip passed
-energy/mass consistency passed
-energy-port closure passed
-restriction-reaction ledger closure passed
-step and cumulative mass closure passed
-step and cumulative momentum closure passed
-step and cumulative energy closure passed
-no clear branch chatter
+outlet pressure:
+4949835.984027787 Pa
+
+outlet velocity:
++0.11988239287295711 m/s
+
+outlet Mach:
+0.0002573609958280351
+
+outlet phase:
+liquid
+
+minimum density:
+874.2107493787249 kg/m3
+
+minimum internal energy:
+216871.9740989991 J/kg
+
+rho*xv exact zero:
+true
 ```
 
-The final state retained:
+The continuation remained finite, positive, outward, subsonic, and liquid through the last accepted step.
+
+Maximum absolute closure residuals remained small:
 
 ```text
-outward outlet velocity
-subsonic outlet Mach number
-liquid outlet phase
-positive minimum density
-positive minimum internal energy
-rho*xv exact zero
+step mass:
+2.138377026990844e-17 kg
+
+step momentum:
+2.256495771485456e-18 kg m/s
+
+step energy:
+7.921698019774936e-12 J
+
+cumulative mass:
+2.1673879054343037e-17 kg
+
+cumulative momentum:
+1.1275702593849246e-17 kg m/s
+
+cumulative energy:
+7.082334718688799e-12 J
 ```
 
-## Reproduction boundary
+The stop was not caused by nonfinite state, reverse velocity, phase departure, positivity failure, conservation failure, branch chatter, root-tolerance failure, or time-step rejection.
 
-The run reproduced the first 82 accepted continuation rows through solver step 451 exactly against the authoritative failed Increment 4D evidence before first applying Guard-front root-topology refinement at requested step 452.
-
-The parent, corrected Increment 4E, failed Increment 4D, and failed Increment 4F authorities were independently retained and inspected. Existing failed evidence was not overwritten.
-
-## Claim boundary
+## Correct claim boundary
 
 This baseline establishes only:
 
-> Under the fixed B2-10A case, mesh, CFL, single-phase liquid scope, Weak Compression `chi` scope, unchanged B1 component, and verification-only branch logic, the actual `FvmSolver` can be advanced from the authoritative step-369 state to the nominal full `2L/c0` horizon while retaining the fixed minimum working-slice gates.
+> Under the fixed B2-10A case, mesh, CFL, unchanged B1 component, verification-only Guard-front logic, and `0 < chi <= 1.0e-6` Weak Compression v0.1 scope, the actual `FvmSolver` advances from the authoritative step-369 state through accepted step 483 while retaining the fixed minimum working-slice gates. The next requested step requires a finite-compression model outside the current scope.
 
 It does not establish:
 
 ```text
+full nominal 2L/c0 passage
 general finite-compression validity
 shock validity
 mesh independence
@@ -273,7 +316,9 @@ production_hem_activation_approved = false
 The distinction remains:
 
 ```text
-WORKING VERTICAL SLICE REACHED
+WORKING VERTICAL SLICE PARTIALLY EXTENDED
+!=
+FULL HORIZON REACHED
 !=
 VERIFIED
 !=
@@ -286,16 +331,16 @@ APPROVED FOR DESIGN OR PRODUCTION
 
 ## Next-phase boundary
 
-Development stops at this baseline before adding further physics or formal promotion.
+Weak Compression Bridge v0.1 is now closed at its fixed scope boundary.
 
-The next phase should begin with a separately fixed Verification plan that prioritizes:
+The next phase must be fixed separately as a finite-compression MODEL_REVIEW and should begin with diagnostic-only comparison of:
 
 ```text
-1. independent reproduction of the selected boundary-root sequence
-2. targeted mesh/CFL characterization
-3. direct and reflected acoustic timing checks using the retained probe series
-4. review of the verification-only branch logic before any production integration
-5. explicit B2 finite-pipe closeout criteria
+1. continued isentropic characteristic extrapolation outside the approved scope
+2. a general-EOS Hugoniot compression locus
+3. entropy production and Lax admissibility
+4. B1 compatibility-root existence and uniqueness
+5. the pressure and chi distance from the current scope cap
 ```
 
-No production Adapter or `FvmSolver` change is authorized by this baseline.
+No finite-compression flux may be applied until that diagnostic and its model-selection review are complete.
