@@ -1,0 +1,268 @@
+name: Agent U3 B2 A1 Finite Compression Increment 5 Rerun
+
+on:
+  push:
+    branches: [agent/u3-b2-a1-wave-curve-review]
+    paths:
+      - ".github/workflows/agent-u3-b2-a1-finite-compression-increment-5-rerun.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: agent-u3-b2-a1-finite-compression-increment-5-rerun
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src:tools/verification
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONPYCACHEPREFIX: /tmp/u3-b2-a1-finite-compression-inc5-rerun-pycache
+  SOURCE_SHA: ${{ github.sha }}
+  SCOPE_BASE_SHA: b3e557599e63cdcae31f441a584da024af6aef1e
+  PARENT_RUN_ID: "31650819553"
+  PARENT_ARTIFACT_ID: "9162559698"
+  PARENT_ARTIFACT_NAME: u3-b2-a1-weak-compression-bridge-increment-4f-root-topology-31650819553
+  PARENT_ARTIFACT_DIGEST: 6f611e1935d2680a04046d1fc7fbb595f19bc99d12ccc274700fd92c086ddb93
+  FIRST_RUN_ID: "31651694424"
+  FIRST_ARTIFACT_ID: "9162803881"
+  FIRST_ARTIFACT_NAME: u3-b2-a1-finite-compression-increment-5-31651694424
+  FIRST_ARTIFACT_DIGEST: b80161157cbd7e1e3f95df662fc7185caef15d57390e137bb89932ff134edead
+
+jobs:
+  rerun-finite-compression-model-selection:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout exact corrected Increment 5 source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Install fixed dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install 'numpy==2.5.1' 'CoolProp==8.0.0'
+
+      - name: Verify corrected source identity and scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${SOURCE_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test -f docs/verification/stage7_u3_b2_a1_finite_compression_increment_5_hugoniot_model_selection_diagnostic.md
+          test -f docs/verification/stage7_u3_b2_a1_finite_compression_increment_5_numerical_tolerances.md
+          test -f docs/verification/stage7_u3_b2_a1_finite_compression_increment_5_enthalpy_identity_correction.md
+          test -f tools/verification/u3_b2_a1_finite_compression_hugoniot_model_selection.py
+          test -f tools/verification/u3_b2_a1_finite_compression_hugoniot_model_selection_identity_correction.py
+          python -m py_compile \
+            tools/verification/u3_b2_a1_finite_compression_hugoniot_model_selection.py \
+            tools/verification/u3_b2_a1_finite_compression_hugoniot_model_selection_identity_correction.py
+          mapfile -t actual < <(
+            git diff --name-only "${SCOPE_BASE_SHA}" HEAD | sort
+          )
+          mapfile -t expected < <(printf '%s\n' \
+            '.github/workflows/agent-u3-b2-a1-finite-compression-increment-5-rerun.yml' | sort)
+          diff -u \
+            <(printf '%s\n' "${expected[@]}") \
+            <(printf '%s\n' "${actual[@]}")
+          git diff --check "${SCOPE_BASE_SHA}" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=no)"
+
+      - name: Download authoritative step-483 parent artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ env.PARENT_ARTIFACT_NAME }}
+          path: artifacts/parent-step-483
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.PARENT_RUN_ID }}
+
+      - name: Download first Increment 5 diagnostic artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ env.FIRST_ARTIFACT_NAME }}
+          path: artifacts/first-increment-5
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.FIRST_RUN_ID }}
+
+      - name: Verify GitHub artifact authorities
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          parent="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${PARENT_ARTIFACT_ID}")"
+          test "$(jq -r '.id' <<<"${parent}")" = "${PARENT_ARTIFACT_ID}"
+          test "$(jq -r '.name' <<<"${parent}")" = "${PARENT_ARTIFACT_NAME}"
+          test "$(jq -r '.digest' <<<"${parent}")" = "sha256:${PARENT_ARTIFACT_DIGEST}"
+          first="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${FIRST_ARTIFACT_ID}")"
+          test "$(jq -r '.id' <<<"${first}")" = "${FIRST_ARTIFACT_ID}"
+          test "$(jq -r '.name' <<<"${first}")" = "${FIRST_ARTIFACT_NAME}"
+          test "$(jq -r '.digest' <<<"${first}")" = "sha256:${FIRST_ARTIFACT_DIGEST}"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          summary = json.loads(
+              Path("artifacts/first-increment-5/summary.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          assert summary["source_git_sha"] == (
+              "dc9c117a720ba14814e4ff23660d16fe2b7e4736"
+          )
+          assert summary["outcome"] == "ROOT_OR_LEDGER_FAILURE"
+          assert summary["isentropic_root"] is not None
+          assert summary["hugoniot_root"] is None
+          assert summary["cap_hugoniot_residual_kg_s"] is None
+          PY
+
+      - name: Run identity-corrected diagnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-a1-finite-compression-increment-5-rerun
+          rm -rf "${output}"
+          python tools/verification/u3_b2_a1_finite_compression_hugoniot_model_selection_identity_correction.py \
+            --contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json \
+            --b1-contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
+            --model-review-spec docs/verification/stage7_u3_b2_a1_finite_compression_increment_5_hugoniot_model_selection_diagnostic.md \
+            --tolerance-spec docs/verification/stage7_u3_b2_a1_finite_compression_increment_5_numerical_tolerances.md \
+            --identity-correction-spec docs/verification/stage7_u3_b2_a1_finite_compression_increment_5_enthalpy_identity_correction.md \
+            --parent-artifact-dir artifacts/parent-step-483 \
+            --parent-artifact-digest "${PARENT_ARTIFACT_DIGEST}" \
+            --output-dir "${output}" \
+            --source-git-sha "${SOURCE_SHA}"
+
+      - name: Inspect corrected Increment 5 evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import numpy as np
+
+          target = Path(
+              "artifacts/u3-b2-a1-finite-compression-increment-5-rerun"
+          )
+          expected = {
+              "isentropic_extrapolation_scan.csv",
+              "hugoniot_compression_scan.csv",
+              "hugoniot_density_search.csv",
+              "curve_comparison.json",
+              "step483_state_identity.npz",
+              "enthalpy_identity_correction.json",
+              "summary.json",
+              "report.md",
+              "artifact_sha256.txt",
+          }
+          assert {path.name for path in target.iterdir()} == expected
+          summary = json.loads((target / "summary.json").read_text(encoding="utf-8"))
+          allowed = {
+              "FINITE_COMPRESSION_HUGONIOT_ROOT_SUPPORTED_FOR_ONE_STEP_REVIEW",
+              "FINITE_COMPRESSION_ROOT_INSIDE_DIAGNOSTIC_CAP_BUT_MODEL_DISAGREEMENT",
+              "NO_FINITE_COMPRESSION_ROOT_WITHIN_DIAGNOSTIC_CAP",
+              "MULTIPLE_COMPATIBILITY_ROOTS",
+              "LAX_ADMISSIBILITY_FAILURE",
+              "ENTROPY_DECREASE_FAILURE",
+              "ROOT_OR_LEDGER_FAILURE",
+              "STATE_MUTATION_DETECTED",
+          }
+          assert summary["source_git_sha"] == os.environ["SOURCE_SHA"]
+          assert summary["outcome"] in allowed
+          assert summary["diagnostic_classification_complete"] is True
+          assert summary["enthalpy_identity_correction_applied"] is True
+          assert summary["enthalpy_identity_correction_gate_passed"] is True
+          assert summary[
+              "maximum_absolute_identity_accounted_difference_J_kg"
+          ] <= 1.0e-10
+          assert summary["state_unchanged"] is True
+          assert summary["fvm_step_484_attempted"] is False
+          assert summary["finite_compression_flux_applied"] is False
+          assert summary["finite_compression_branch_approved"] is False
+          assert summary["full_two_l_over_c0_passed"] is False
+          assert summary["formal_state_promoted"] is False
+          assert summary["u3_b2_finite_pipe_execution_complete"] is False
+          assert summary["single_phase_finite_pipe_coupling_verified"] is False
+          assert summary["u3_b2_verification_benchmark_accepted"] is False
+          assert summary["physical_validation"] is False
+          assert summary["design_use_acceptance"] is False
+          assert summary["production_hem_activation_approved"] is False
+
+          with (target / "hugoniot_compression_scan.csv").open(
+              newline="", encoding="utf-8"
+          ) as handle:
+              rows = list(csv.DictReader(handle))
+          assert len(rows) == 12
+          successful = [row for row in rows if row["evaluation_succeeded"] == "True"]
+          assert successful
+          assert all(
+              row["hugoniot_identity_accounted_passed"] == "True"
+              for row in successful
+          )
+
+          if summary["outcome"] in {
+              "FINITE_COMPRESSION_HUGONIOT_ROOT_SUPPORTED_FOR_ONE_STEP_REVIEW",
+              "FINITE_COMPRESSION_ROOT_INSIDE_DIAGNOSTIC_CAP_BUT_MODEL_DISAGREEMENT",
+          }:
+              root = summary["hugoniot_root"]
+              assert root is not None
+              assert root["requested_chi"] > 1.0e-6
+              assert root["requested_chi"] <= 1.0e-4
+              assert abs(root["compatibility_residual_kg_s"]) <= 1.0e-8
+              assert root["local_residual_slope_kg_s_Pa"] < 0.0
+              assert root["hugoniot_closure_passed"] is True
+              assert root["hugoniot_identity_accounted_passed"] is True
+              assert root["lax_1_shock_passed"] is True
+              assert root["entropy_bound_passed"] is True
+              assert root["energy_ledger_passed"] is True
+              assert root["reaction_ledger_passed"] is True
+
+          with np.load(target / "step483_state_identity.npz") as states:
+              assert np.array_equal(states["U_before"], states["U_after"])
+              assert int(states["solver_step_before"][0]) == 483
+              assert int(states["solver_step_after"][0]) == 483
+
+          correction = json.loads(
+              (target / "enthalpy_identity_correction.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          assert correction["hugoniot_equations_changed"] is False
+          assert correction["b1_behavior_changed"] is False
+          assert correction["compatibility_root_tolerance_changed"] is False
+          assert correction["diagnostic_chi_cap_changed"] is False
+          assert correction["finite_compression_flux_applied"] is False
+
+          manifest = {}
+          for line in (target / "artifact_sha256.txt").read_text(
+              encoding="utf-8"
+          ).splitlines():
+              digest, name = line.split("  ", 1)
+              manifest[name] = digest
+          assert set(manifest) == expected - {"artifact_sha256.txt"}
+          for name, digest in manifest.items():
+              assert hashlib.sha256((target / name).read_bytes()).hexdigest() == digest
+          PY
+
+      - name: Upload corrected Increment 5 evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: u3-b2-a1-finite-compression-increment-5-rerun-${{ github.run_id }}
+          path: artifacts/u3-b2-a1-finite-compression-increment-5-rerun
+          if-no-files-found: warn
