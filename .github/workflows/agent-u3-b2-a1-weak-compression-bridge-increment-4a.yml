@@ -1,0 +1,164 @@
+name: Agent U3 B2 A1 Weak Compression Bridge Increment 4A
+
+on:
+  push:
+    branches: [agent/u3-b2-a1-wave-curve-review]
+    paths:
+      - "docs/verification/stage7_u3_b2_a1_weak_compression_bridge_v0_1_increment_4a_back_pressure_crossing_diagnostic_model_review.md"
+      - "tools/verification/u3_b2_a1_weak_compression_bridge_back_pressure_crossing_diagnostic.py"
+      - ".github/workflows/agent-u3-b2-a1-weak-compression-bridge-increment-4a.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: agent-u3-b2-a1-weak-compression-bridge-increment-4a
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src:tools/verification
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONPYCACHEPREFIX: /tmp/u3-b2-a1-weak-compression-inc4a-pycache
+  SOURCE_SHA: ${{ github.sha }}
+  PARENT_SOURCE_SHA: 2e9e2c1c3d01fd66d82b3a2ecb036b811e0469b0
+  PARENT_RUN_ID: "31606368597"
+  PARENT_ARTIFACT_NAME: u3-b2-a1-weak-compression-bridge-increment-4-31606368597
+  PARENT_ARTIFACT_DIGEST: 633bffda60db2a886066772e693f83b5d1e4fd8887526d717637232ac7b3a35b
+
+jobs:
+  diagnose-back-pressure-crossing:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout exact diagnostic source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Install fixed dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install 'numpy==2.5.1' 'CoolProp==8.0.0'
+
+      - name: Verify fixed source identity and Increment 4A scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${SOURCE_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          python -m py_compile \
+            tools/verification/u3_b2_a1_weak_compression_bridge_back_pressure_crossing_diagnostic.py
+          mapfile -t actual < <(git diff --name-only "${PARENT_SOURCE_SHA}" HEAD | sort)
+          mapfile -t expected < <(printf '%s\n' \
+            '.github/workflows/agent-u3-b2-a1-weak-compression-bridge-increment-4a.yml' \
+            'docs/verification/stage7_u3_b2_a1_weak_compression_bridge_v0_1_increment_4a_back_pressure_crossing_diagnostic_model_review.md' \
+            'tools/verification/u3_b2_a1_weak_compression_bridge_back_pressure_crossing_diagnostic.py' | sort)
+          diff -u \
+            <(printf '%s\n' "${expected[@]}") \
+            <(printf '%s\n' "${actual[@]}")
+          git diff --check "${PARENT_SOURCE_SHA}" HEAD
+
+      - name: Download authoritative Increment 4 failure artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ env.PARENT_ARTIFACT_NAME }}
+          path: artifacts/parent-increment-4
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.PARENT_RUN_ID }}
+
+      - name: Run diagnostic-only Increment 4A
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-a1-weak-compression-bridge-increment-4a
+          rm -rf "${output}"
+          python tools/verification/u3_b2_a1_weak_compression_bridge_back_pressure_crossing_diagnostic.py \
+            --contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json \
+            --b1-contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
+            --model-review-spec docs/verification/stage7_u3_b2_a1_weak_compression_bridge_v0_1_increment_4a_back_pressure_crossing_diagnostic_model_review.md \
+            --parent-artifact-dir artifacts/parent-increment-4 \
+            --parent-artifact-digest "${PARENT_ARTIFACT_DIGEST}" \
+            --output-dir "${output}" \
+            --source-git-sha "${SOURCE_SHA}"
+
+      - name: Inspect Increment 4A evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import numpy as np
+
+          target = Path("artifacts/u3-b2-a1-weak-compression-bridge-increment-4a")
+          expected = {
+              "step443_local_wave_scans.csv",
+              "step443_positive_pressure_scans.csv",
+              "step443_weak_compression_root.csv",
+              "step443_state_identity.npz",
+              "summary.json",
+              "report.md",
+              "artifact_sha256.txt",
+          }
+          assert {path.name for path in target.iterdir()} == expected
+          summary = json.loads((target / "summary.json").read_text(encoding="utf-8"))
+          assert summary["source_git_sha"] == os.environ["SOURCE_SHA"]
+          assert summary["outcome"] == "BACK_PRESSURE_CROSSING_BRANCH_DOMAIN_CORRECTION_SUPPORTED"
+          assert summary["increment_4a_diagnostic_gate_passed"] is True
+          assert summary["solver_step_loaded"] == 443
+          assert summary["next_requested_solver_step"] == 444
+          assert summary["state_unchanged"] is True
+          assert summary["fvm_step_444_attempted"] is False
+          assert summary["interior_pressure_pa"] <= summary["back_pressure_pa"]
+          assert summary["interior_stagnation_pressure_pa"] > summary["back_pressure_pa"]
+          assert summary["connected_rarefaction_requested_nodes"] == 0
+          assert summary["rarefaction_side_local_sign_change_count"] == 0
+          assert summary["positive_scan_sign_change_count"] == 1
+          assert 0.0 < summary["root_chi"] <= 1.0e-6
+          assert abs(summary["root_mass_residual_kg_s"]) <= 1.0e-8
+          assert summary["root_local_slope_kg_s_Pa"] < 0.0
+          assert summary["root_velocity_m_s"] >= 0.0
+          assert 0.0 <= summary["root_mach"] < 1.0
+          assert summary["root_phase"] == "liquid"
+          assert summary["finite_compression_branch_approved"] is False
+          assert summary["full_two_l_over_c0_passed"] is False
+          assert summary["formal_state_promoted"] is False
+          assert all(
+              value
+              for key, value in summary["checks"].items()
+              if key != "fvm_step_444_attempted"
+          )
+          assert summary["checks"]["fvm_step_444_attempted"] is False
+          with np.load(target / "step443_state_identity.npz") as states:
+              assert np.array_equal(states["U_before"], states["U_after"])
+              assert int(states["solver_step_before"][0]) == 443
+              assert int(states["solver_step_after"][0]) == 443
+          manifest = {}
+          for line in (target / "artifact_sha256.txt").read_text(encoding="utf-8").splitlines():
+              digest, name = line.split("  ", 1)
+              manifest[name] = digest
+          assert set(manifest) == expected - {"artifact_sha256.txt"}
+          for name, digest in manifest.items():
+              assert hashlib.sha256((target / name).read_bytes()).hexdigest() == digest
+          PY
+
+      - name: Upload Increment 4A evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: u3-b2-a1-weak-compression-bridge-increment-4a-${{ github.run_id }}
+          path: artifacts/u3-b2-a1-weak-compression-bridge-increment-4a
+          if-no-files-found: warn
