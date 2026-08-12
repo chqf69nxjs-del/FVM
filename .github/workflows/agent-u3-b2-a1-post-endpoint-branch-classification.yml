@@ -1,0 +1,255 @@
+name: Agent U3 B2 A1 Post Endpoint Branch Classification
+
+on:
+  push:
+    branches: [agent/u3-b2-a1-wave-curve-review]
+    paths:
+      - "docs/verification/stage7_u3_b2_a1_post_endpoint_branch_classification_model_review.md"
+      - "tools/verification/u3_b2_a1_post_endpoint_branch_classification.py"
+      - ".github/workflows/agent-u3-b2-a1-post-endpoint-branch-classification.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-u3-b2-a1-post-endpoint-branch-classification
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src:tools/verification
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONPYCACHEPREFIX: /tmp/u3-b2-a1-post-endpoint-pycache
+  SOURCE_SHA: ${{ github.sha }}
+  PARENT_SOURCE_SHA: b91832d44e1697fc8d78be2a3bee9c64a9defd72
+
+jobs:
+  classify-post-endpoint-branch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout exact model-review source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Install fixed dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install \
+            'numpy==2.5.1' \
+            'CoolProp==8.0.0'
+
+      - name: Verify fixed source identity and MODEL_REVIEW scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${SOURCE_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test -f docs/verification/stage7_u3_b2_a1_post_endpoint_branch_classification_model_review.md
+          python -m py_compile \
+            tools/verification/u3_b2_characteristic_port_diagnostic.py \
+            tools/verification/u3_b2_characteristic_port_root_robustness.py \
+            tools/verification/u3_b2_characteristic_port_root_robustness_v4.py \
+            tools/verification/u3_b2_characteristic_port_dynamic_short_model.py \
+            tools/verification/u3_b2_characteristic_port_dynamic_short_hook.py \
+            tools/verification/u3_b2_characteristic_port_dynamic_short_metrics.py \
+            tools/verification/u3_b2_characteristic_port_two_l_over_c0.py \
+            tools/verification/u3_b2_a1_wave_curve_model.py \
+            tools/verification/u3_b2_a1_wave_curve_checkpoint_review.py \
+            tools/verification/u3_b2_a1_neutral_endpoint_resume.py \
+            tools/verification/u3_b2_a1_post_endpoint_branch_classification.py
+          mapfile -t actual < <(
+            git diff --name-only "${PARENT_SOURCE_SHA}" HEAD | sort
+          )
+          mapfile -t expected < <(printf '%s\n' \
+            '.github/workflows/agent-u3-b2-a1-post-endpoint-branch-classification.yml' \
+            'docs/verification/stage7_u3_b2_a1_post_endpoint_branch_classification_model_review.md' \
+            'tools/verification/u3_b2_a1_post_endpoint_branch_classification.py' | sort)
+          diff -u \
+            <(printf '%s\n' "${expected[@]}") \
+            <(printf '%s\n' "${actual[@]}")
+          git diff --check "${PARENT_SOURCE_SHA}" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=no)"
+
+      - name: Run short post-endpoint branch classification
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-a1-post-endpoint-branch-classification
+          rm -rf "${output}"
+          python tools/verification/u3_b2_a1_post_endpoint_branch_classification.py \
+            --contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json \
+            --b1-contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
+            --model-review-spec docs/verification/stage7_u3_b2_a1_post_endpoint_branch_classification_model_review.md \
+            --output-dir "${output}" \
+            --source-git-sha "${SOURCE_SHA}"
+
+      - name: Inspect post-endpoint classification evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          import numpy as np
+
+          target = Path(
+              "artifacts/u3-b2-a1-post-endpoint-branch-classification"
+          )
+          expected = {
+              "post_endpoint_steps.csv",
+              "local_pressure_scans.csv",
+              "resume_step_337.csv",
+              "post_endpoint_states.npz",
+              "summary.json",
+              "report.md",
+              "artifact_sha256.txt",
+          }
+          assert {path.name for path in target.iterdir()} == expected
+
+          summary = json.loads(
+              (target / "summary.json").read_text(encoding="utf-8")
+          )
+          outcome_a = "OUTCOME_A_NEUTRAL_RAREFACTION_STABLE_32_STEPS"
+          outcome_b = "OUTCOME_B_LOCAL_COMPRESSION_REQUIRED"
+          assert summary["scope"] == (
+              "model_review_only_post_endpoint_short_branch_classification"
+          )
+          assert summary["source_git_sha"] == os.environ["SOURCE_SHA"]
+          assert summary["parent_source_sha"] == os.environ["PARENT_SOURCE_SHA"]
+          assert summary["case_id"] == (
+              "B2-10A_FINITE_PIPE_LIQUID_INVENTORY_CLOSURE"
+          )
+          assert summary["cells"] == 32
+          assert summary["cfl"] == 0.10
+          assert summary["starting_accepted_solver_step"] == 337
+          assert summary["requested_additional_accepted_steps"] == 32
+          assert summary["checkpoint_reproduction_ok"] is True
+          assert summary["neutral_endpoint_step337_gate_passed"] is True
+          assert summary["outcome"] in {outcome_a, outcome_b}
+          assert summary["post_endpoint_classification_gate_passed"] is True
+          assert summary["positive_pressure_continuation_flux_applied"] is False
+          assert summary["finite_compression_branch_approved"] is False
+          assert summary["post_endpoint_multi_step_passed"] is False
+          assert summary["full_two_l_over_c0_passed"] is False
+          assert summary["formal_state_promoted"] is False
+          assert summary["u3_b2_finite_pipe_execution_complete"] is False
+          assert summary["single_phase_finite_pipe_coupling_verified"] is False
+          assert summary["u3_b2_verification_benchmark_accepted"] is False
+          assert summary["physical_validation"] is False
+          assert summary["design_use_acceptance"] is False
+          assert summary["production_hem_activation_approved"] is False
+
+          with (target / "post_endpoint_steps.csv").open(
+              newline="", encoding="utf-8"
+          ) as handle:
+              steps = list(csv.DictReader(handle))
+          with (target / "local_pressure_scans.csv").open(
+              newline="", encoding="utf-8"
+          ) as handle:
+              scans = list(csv.DictReader(handle))
+          with (target / "resume_step_337.csv").open(
+              newline="", encoding="utf-8"
+          ) as handle:
+              resume = list(csv.DictReader(handle))
+          assert len(resume) == 1
+          assert resume[0]["accepted_step"] == "True"
+          assert resume[0]["solver_step_count"] == "337"
+          assert resume[0]["boundary_root_branch"] == "NEUTRAL_ENDPOINT"
+          assert scans
+          assert all(
+              row.get("positive_pressure_continuation_flux_applied") == "False"
+              for row in scans
+          )
+
+          if summary["outcome"] == outcome_a:
+              assert summary["outcome_a_stable_32_steps"] is True
+              assert summary["outcome_b_local_compression_required"] is False
+              assert summary["accepted_additional_steps"] == 32
+              assert summary["final_solver_step"] == 369
+              assert summary["stop_classification"] is None
+              assert summary["stop_reason"] is None
+              assert summary["all_accepted_steps_passed"] is True
+              assert summary["all_accepted_rho_xv_exact_zero"] is True
+              assert summary["any_reverse_velocity_detected"] is False
+              assert summary["any_reverse_flow_guard_triggered"] is False
+              assert len(steps) == 32
+              assert all(row["accepted_step"] == "True" for row in steps)
+              assert all(row["step_passed"] == "True" for row in steps)
+              assert all(
+                  row["branch_classification"]
+                  in {"NEUTRAL_ENDPOINT", "RAREFACTION"}
+                  for row in steps
+              )
+              assert all(
+                  row["positive_pressure_continuation_flux_applied"] == "False"
+                  for row in steps
+              )
+          else:
+              assert summary["outcome_a_stable_32_steps"] is False
+              assert summary["outcome_b_local_compression_required"] is True
+              assert summary["accepted_additional_steps"] < 32
+              assert summary["final_solver_step"] == (
+                  337 + summary["accepted_additional_steps"]
+              )
+              assert summary["stop_classification"] == (
+                  "LOCAL_COMPRESSION_REQUIRED"
+              )
+              stop = steps[-1]
+              assert stop["accepted_step"] == "False"
+              assert stop["branch_classification"] == (
+                  "LOCAL_COMPRESSION_REQUIRED"
+              )
+              assert stop[
+                  "endpoint_within_locked_root_mass_tolerance"
+              ] == "False"
+              assert stop[
+                  "connected_rarefaction_sign_change_count"
+              ] == "0"
+              assert stop[
+                  "rarefaction_side_local_sign_change_count"
+              ] == "0"
+              assert stop["positive_side_local_sign_change_count"] == "1"
+              assert stop[
+                  "positive_pressure_continuation_flux_applied"
+              ] == "False"
+
+          with np.load(target / "post_endpoint_states.npz") as states:
+              assert states["U_step337"].shape == (32, 4)
+              assert states["U_final"].shape == (32, 4)
+              assert int(states["starting_solver_step"][0]) == 337
+              assert int(states["final_solver_step"][0]) == summary[
+                  "final_solver_step"
+              ]
+
+          manifest = {}
+          for line in (target / "artifact_sha256.txt").read_text(
+              encoding="utf-8"
+          ).splitlines():
+              digest, name = line.split("  ", 1)
+              manifest[name] = digest
+          assert set(manifest) == expected - {"artifact_sha256.txt"}
+          for name, digest in manifest.items():
+              assert hashlib.sha256((target / name).read_bytes()).hexdigest() == digest
+          PY
+
+      - name: Upload post-endpoint classification evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: u3-b2-a1-post-endpoint-branch-classification-${{ github.run_id }}
+          path: artifacts/u3-b2-a1-post-endpoint-branch-classification
+          if-no-files-found: warn
