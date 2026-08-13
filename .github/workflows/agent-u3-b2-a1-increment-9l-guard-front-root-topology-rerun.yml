@@ -1,0 +1,268 @@
+name: Agent U3 B2 A1 Increment 9L Guard-Front Root Topology Rerun
+
+on:
+  push:
+    branches: [agent/u3-b2-a1-wave-curve-review]
+    paths:
+      - ".github/workflows/agent-u3-b2-a1-increment-9l-guard-front-root-topology-rerun.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: agent-u3-b2-a1-increment-9l-guard-front-root-topology-rerun
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src:tools/verification
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONPYCACHEPREFIX: /tmp/u3-b2-a1-inc9l-topology-pycache
+  SOURCE_SHA: ${{ github.sha }}
+  TARGET_TIME_S: "0.004285834855172021"
+  FAILED_RUN_ID: "31686545744"
+  FAILED_JOB_ID: "94403827129"
+  FAILED_ARTIFACT_ID: "9175846671"
+  FAILED_ARTIFACT_SHA256: cda10e7ff8663daba089b3ca7a4207f69ed4f38ca7a781786b66a82e2dd0eef1
+  FAILED_SOURCE_SHA: af16ae68d8ce3581416486a3ce55f84441af5623
+  TOPOLOGY_PARENT_RUN_ID: "31619671593"
+  TOPOLOGY_PARENT_JOB_ID: "94191039227"
+  TOPOLOGY_PARENT_ARTIFACT_ID: "9150769457"
+  TOPOLOGY_PARENT_ARTIFACT_SHA256: 2d00f5fc739a218657de9cc82d0fb1193649decfa3d4813d15ef0782d8dc6927
+  TOPOLOGY_PARENT_SOURCE_SHA: 618f49c0a75620751cb517d669a4da868e82f41e
+
+jobs:
+  run-topology-corrected-end-to-end-state-machine:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 300
+    steps:
+      - name: Checkout exact topology-corrected Increment 9L source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Verify topology-correction-only source scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${SOURCE_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test -f docs/verification/stage7_u3_b2_a1_increment_9l_two_state_boundary_state_machine_model_review.md
+          test -f docs/verification/stage7_u3_b2_a1_increment_9l_initial_rarefaction_handoff_correction_model_review.md
+          test -f docs/verification/stage7_u3_b2_a1_increment_9l_guard_front_root_topology_correction_model_review.md
+          test -f tools/verification/u3_b2_a1_increment_9l_two_state_boundary_state_machine.py
+          test -f tools/verification/u3_b2_a1_increment_9l_two_state_boundary_state_machine_v2.py
+          test -f tools/verification/u3_b2_a1_increment_9l_two_state_boundary_state_machine_v3.py
+          test -f tools/verification/u3_b2_a1_weak_compression_bridge_full_horizon_guard_front_root_topology.py
+          python -m py_compile tools/verification/u3_b2_a1_increment_9l_two_state_boundary_state_machine_v3.py
+          mapfile -t actual < <(git diff-tree --no-commit-id --name-only -r HEAD | sort)
+          mapfile -t expected < <(printf '%s\n' '.github/workflows/agent-u3-b2-a1-increment-9l-guard-front-root-topology-rerun.yml' | sort)
+          diff -u <(printf '%s\n' "${expected[@]}") <(printf '%s\n' "${actual[@]}")
+          git diff --check HEAD^
+
+      - name: Install fixed dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install 'numpy==2.5.1' 'CoolProp==8.0.0'
+
+      - name: Verify failed Increment 9L precursor authority
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          failed_run="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${FAILED_RUN_ID}")"
+          test "$(jq -r '.head_sha' <<<"${failed_run}")" = "${FAILED_SOURCE_SHA}"
+          test "$(jq -r '.conclusion' <<<"${failed_run}")" = "failure"
+          failed_jobs="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${FAILED_RUN_ID}/jobs?per_page=100")"
+          test "$(jq --argjson id "${FAILED_JOB_ID}" '[.jobs[] | select(.id == $id and .conclusion == "failure")] | length' <<<"${failed_jobs}")" = "1"
+          failed_artifact="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${FAILED_ARTIFACT_ID}")"
+          test "$(jq -r '.workflow_run.id' <<<"${failed_artifact}")" = "${FAILED_RUN_ID}"
+          test "$(jq -r '.workflow_run.head_sha' <<<"${failed_artifact}")" = "${FAILED_SOURCE_SHA}"
+          test "$(jq -r '.expired' <<<"${failed_artifact}")" = "false"
+          test "$(jq -r '.digest' <<<"${failed_artifact}")" = "sha256:${FAILED_ARTIFACT_SHA256}"
+
+      - name: Verify existing authoritative topology-correction authority
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          run="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${TOPOLOGY_PARENT_RUN_ID}")"
+          test "$(jq -r '.head_sha' <<<"${run}")" = "${TOPOLOGY_PARENT_SOURCE_SHA}"
+          test "$(jq -r '.conclusion' <<<"${run}")" = "failure"
+          jobs="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${TOPOLOGY_PARENT_RUN_ID}/jobs?per_page=100")"
+          test "$(jq --argjson id "${TOPOLOGY_PARENT_JOB_ID}" '[.jobs[] | select(.id == $id and .conclusion == "failure")] | length' <<<"${jobs}")" = "1"
+          artifact="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${TOPOLOGY_PARENT_ARTIFACT_ID}")"
+          test "$(jq -r '.workflow_run.id' <<<"${artifact}")" = "${TOPOLOGY_PARENT_RUN_ID}"
+          test "$(jq -r '.workflow_run.head_sha' <<<"${artifact}")" = "${TOPOLOGY_PARENT_SOURCE_SHA}"
+          test "$(jq -r '.expired' <<<"${artifact}")" = "false"
+          test "$(jq -r '.digest' <<<"${artifact}")" = "sha256:${TOPOLOGY_PARENT_ARTIFACT_SHA256}"
+
+      - name: Run topology-corrected Increment 9L from initial state
+        id: run9lv3
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-a1-increment-9l-guard-front-root-topology
+          rm -rf "${output}"
+          python tools/verification/u3_b2_a1_increment_9l_two_state_boundary_state_machine_v3.py \
+            --contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json \
+            --b1-contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
+            --model-review-spec docs/verification/stage7_u3_b2_a1_increment_9l_two_state_boundary_state_machine_model_review.md \
+            --handoff-correction-spec docs/verification/stage7_u3_b2_a1_increment_9l_initial_rarefaction_handoff_correction_model_review.md \
+            --topology-correction-spec docs/verification/stage7_u3_b2_a1_increment_9l_guard_front_root_topology_correction_model_review.md \
+            --output-dir "${output}" \
+            --source-git-sha "${SOURCE_SHA}"
+
+      - name: Inspect topology-corrected Increment 9L evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv
+          import json
+          import os
+          from pathlib import Path
+
+          target = Path('artifacts/u3-b2-a1-increment-9l-guard-front-root-topology')
+          assert target.is_dir(), 'topology-corrected Increment 9L output missing'
+          summary = json.loads((target / 'summary.json').read_text(encoding='utf-8'))
+          correction = json.loads((target / 'guard_front_root_topology_correction.json').read_text(encoding='utf-8'))
+          with (target / 'step_metrics.csv').open(newline='', encoding='utf-8') as handle:
+              steps = list(csv.DictReader(handle))
+          with (target / 'boundary_state_history.csv').open(newline='', encoding='utf-8') as handle:
+              states = list(csv.DictReader(handle))
+          with (target / 'boundary_transition_events.csv').open(newline='', encoding='utf-8') as handle:
+              boundary_events = list(csv.DictReader(handle))
+          with (target / 'outward_model_transition_events.csv').open(newline='', encoding='utf-8') as handle:
+              model_events = list(csv.DictReader(handle))
+          with (target / 'three_branch_algorithm_transition_events.csv').open(newline='', encoding='utf-8') as handle:
+              handoff_events = list(csv.DictReader(handle))
+          with (target / 'guard_front_root_topology_correction_events.csv').open(newline='', encoding='utf-8') as handle:
+              topology_events = list(csv.DictReader(handle))
+
+          print(json.dumps(summary, indent=2, sort_keys=True))
+          assert summary['source_git_sha'] == os.environ['SOURCE_SHA']
+          assert summary['source_starts_from_initial_state'] is True
+          assert summary['checkpoint_artifact_used'] is False
+          assert summary['single_fvm_solver_instance'] is True
+          assert summary['solver_instance_count'] == 1
+          assert summary['absolute_step_number_transition_condition_used'] is False
+          assert summary['target_two_l_over_c0_time_s'] == float(os.environ['TARGET_TIME_S'])
+          assert summary['increment_9l_state_machine_gate_passed'] is True
+          assert summary['initial_rarefaction_handoff_gate_passed'] is True
+          assert summary['guard_front_root_topology_gate_passed'] is True
+          assert summary['outcome'] == 'INCREMENT_9L_PROVISIONAL_ENGINEERING_END_TO_END_WORKING_SLICE_PASS'
+          assert summary['working_vertical_slice'] is True
+          assert summary['working_vertical_slice_kind'] == 'PROVISIONAL_ENGINEERING_END_TO_END_WORKING_SLICE'
+          assert summary['provisional_engineering_two_l_over_c0_reached'] is True
+          assert summary['target_horizon_reached'] is True
+          assert summary['final_solver_time_s'] == float(os.environ['TARGET_TIME_S'])
+          assert summary['final_step_clipped_to_target'] is True
+          assert summary['accepted_steps_completed'] == len(steps) == len(states) > 0
+
+          assert summary['three_branch_algorithm_transition_event_count'] == len(handoff_events) == 1
+          assert handoff_events[0]['from_algorithm'] == 'CONNECTED_RAREFACTION'
+          assert handoff_events[0]['to_algorithm'] == 'GENERAL_THREE_BRANCH_CLASSIFICATION'
+          assert handoff_events[0]['trigger_classification'] == 'CONNECTED_ROOT_SIGN_CHANGES_ZERO'
+          assert handoff_events[0]['absolute_step_number_trigger_used'] == 'False'
+
+          assert summary['guard_front_root_topology_corrected_step_count'] == len(topology_events) > 0
+          assert summary['guard_front_root_topology_first_corrected_step'] == 452
+          assert correction['failed_run'] == int(os.environ['FAILED_RUN_ID'])
+          assert correction['failed_job'] == int(os.environ['FAILED_JOB_ID'])
+          assert correction['failed_artifact'] == int(os.environ['FAILED_ARTIFACT_ID'])
+          assert correction['failed_artifact_sha256'] == os.environ['FAILED_ARTIFACT_SHA256']
+          assert correction['existing_authoritative_failed_run'] == int(os.environ['TOPOLOGY_PARENT_RUN_ID'])
+          assert correction['existing_authoritative_failed_job'] == int(os.environ['TOPOLOGY_PARENT_JOB_ID'])
+          assert correction['existing_authoritative_failed_artifact'] == int(os.environ['TOPOLOGY_PARENT_ARTIFACT_ID'])
+          assert correction['existing_authoritative_failed_artifact_sha256'] == os.environ['TOPOLOGY_PARENT_ARTIFACT_SHA256']
+          assert correction['root_topology_gate_passed'] is True
+          assert correction['intermediate_evidence_discarded'] is False
+          assert correction['intermediate_success_used_as_root_topology'] is False
+          assert correction['failed_b1_state_used_as_root_endpoint'] is False
+          assert correction['failed_b1_state_used_to_construct_flux'] is False
+          assert correction['b1_changed'] is False
+          assert correction['fvm_solver_changed'] is False
+          assert correction['locked_contract_changed'] is False
+          assert all(row['root_topology_monotone_nonincreasing'] == 'True' for row in topology_events)
+          assert all(int(row['root_topology_sign_change_count']) == 1 for row in topology_events)
+          assert all(row['intermediate_success_used_as_root_topology'] == 'False' for row in topology_events)
+          assert all(row['failed_b1_state_used_as_root_endpoint'] == 'False' for row in topology_events)
+          assert all(row['failed_b1_state_used_to_construct_flux'] == 'False' for row in topology_events)
+
+          assert summary['initial_public_boundary_state'] == 'OUTWARD_FLOW'
+          assert summary['final_public_boundary_state'] == 'ZERO_TRANSFER_CLOSED'
+          assert summary['public_state_transition_count'] == 1
+          assert summary['boundary_transition_event_count'] == len(boundary_events) == 1
+          assert summary['closure_trigger_classification'] == 'NO_ADMISSIBLE_ISLAND'
+          assert boundary_events[0]['from_boundary_state'] == 'OUTWARD_FLOW'
+          assert boundary_events[0]['to_boundary_state'] == 'ZERO_TRANSFER_CLOSED'
+          assert boundary_events[0]['trigger_classification'] == 'NO_ADMISSIBLE_ISLAND'
+          assert boundary_events[0]['absolute_step_number_trigger_used'] == 'False'
+          assert boundary_events[0]['failed_candidate_used_as_root'] == 'False'
+          assert boundary_events[0]['failed_candidate_used_as_flux'] == 'False'
+
+          assert summary['outward_model_transition_event_count'] == len(model_events) == 1
+          assert model_events[0]['from_outward_model'] == 'THREE_BRANCH_WAVE_MODEL'
+          assert model_events[0]['to_outward_model'] == 'GENERAL_EOS_FINITE_COMPRESSION'
+          assert model_events[0]['trigger_classification'] == 'FINITE_COMPRESSION_MODEL_REQUIRED'
+          assert model_events[0]['absolute_step_number_trigger_used'] == 'False'
+          assert summary['outward_internal_model_counts']['GENERAL_EOS_FINITE_COMPRESSION'] > 0
+          assert summary['public_boundary_state_counts']['OUTWARD_FLOW'] > 0
+          assert summary['public_boundary_state_counts']['ZERO_TRANSFER_CLOSED'] > 0
+          assert summary['public_state_reentry_allowed'] is False
+          assert summary['reverse_mass_transfer_supported'] is False
+          assert summary['public_state_chatter_detected'] is False
+          assert summary['right_mass_transfer_exact_zero_all_closed_steps'] is True
+          assert summary['right_energy_transfer_exact_zero_all_closed_steps'] is True
+          assert summary['right_vapor_transfer_exact_zero_all_closed_steps'] is True
+          assert summary['wall_momentum_identity_exact_all_closed_steps'] is True
+          assert summary['final_all_phases_allowed'] is True
+          assert summary['final_rho_xv_exact_zero'] is True
+          assert summary['minimum_density_kg_m3'] > 0.0
+          assert summary['minimum_internal_energy_J_kg'] > 0.0
+          assert summary['stop_classification'] is None
+          assert summary['stop_reason'] is None
+          assert all(row['increment_9l_per_step_engineering_gate_passed'] == 'True' for row in steps)
+
+          formal_false = (
+              'finite_compression_branch_approved',
+              'multi_step_finite_compression_continuation_authorized',
+              'full_two_l_over_c0_passed',
+              'formal_state_promoted',
+              'u3_b2_finite_pipe_execution_complete',
+              'single_phase_finite_pipe_coupling_verified',
+              'u3_b2_verification_benchmark_accepted',
+              'physical_validation',
+              'design_use_acceptance',
+              'production_hem_activation_approved',
+          )
+          assert all(summary[name] is False for name in formal_false)
+          PY
+
+      - name: Upload topology-corrected Increment 9L evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: u3-b2-a1-increment-9l-topology-${{ github.run_id }}
+          path: artifacts/u3-b2-a1-increment-9l-guard-front-root-topology
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Require topology-corrected Increment 9L runner success
+        if: always()
+        shell: bash
+        run: |
+          test "${{ steps.run9lv3.outcome }}" = "success"
