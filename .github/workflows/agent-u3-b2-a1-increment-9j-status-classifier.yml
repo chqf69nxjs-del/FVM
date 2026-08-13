@@ -1,0 +1,42 @@
+name: Agent U3 B2 A1 Increment 9J Status Classifier
+
+on:
+  push:
+    branches: [agent/u3-b2-a1-wave-curve-review]
+    paths:
+      - ".github/workflows/agent-u3-b2-a1-increment-9j-status-classifier.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+env:
+  TARGET_RUN_ID: "31671515041"
+
+jobs:
+  classify:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: agent/u3-b2-a1-wave-curve-review
+          fetch-depth: 0
+      - name: Write status sentinel
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p docs/verification
+          rm -f docs/verification/stage7_u3_b2_a1_increment9j_status_*.txt
+          status="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${TARGET_RUN_ID}" --jq '.status')"
+          conclusion="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${TARGET_RUN_ID}" --jq '.conclusion // "none"')"
+          printf 'run=%s\nstatus=%s\nconclusion=%s\n' \
+            "${TARGET_RUN_ID}" "${status}" "${conclusion}" \
+            > "docs/verification/stage7_u3_b2_a1_increment9j_status_${status}_${conclusion}.txt"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/verification/stage7_u3_b2_a1_increment9j_status_*.txt
+          git commit -m "Classify Increment 9J workflow status"
+          git push origin HEAD:agent/u3-b2-a1-wave-curve-review
