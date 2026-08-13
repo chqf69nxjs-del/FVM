@@ -1,0 +1,237 @@
+name: Agent U3 B2 A1 Increment 9L v5 Evidence Inspection Correction
+
+on:
+  push:
+    branches: [agent/u3-b2-a1-wave-curve-review]
+    paths:
+      - ".github/workflows/agent-u3-b2-a1-increment-9l-v5-evidence-inspection-correction.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: agent-u3-b2-a1-increment-9l-v5-evidence-inspection-correction
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src:tools/verification
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONPYCACHEPREFIX: /tmp/u3-b2-a1-inc9l-inspection-correction-pycache
+  SOURCE_SHA: ${{ github.sha }}
+  RUNNER_RUN_ID: "31690390529"
+  RUNNER_JOB_ID: "94416115006"
+  RUNNER_SOURCE_SHA: bdbbf88b240ff1b839d8a72fa898437efac1e7b8
+  RUNNER_ARTIFACT_ID: "9177683047"
+  RUNNER_ARTIFACT_NAME: u3-b2-a1-increment-9l-v5-31690390529
+  RUNNER_ARTIFACT_SHA256: 0ff366738c855c83d9355c3e18b2cb54f640354a34b96211d85dd205269f6b32
+  TARGET_TIME_S: "0.004285834855172021"
+
+jobs:
+  inspect-immutable-v5-evidence:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout exact inspection-correction source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Verify inspection-only source scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${SOURCE_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test -f docs/verification/stage7_u3_b2_a1_increment_9l_bounded_window_inspection_schema_correction_model_review.md
+          test -f tools/verification/u3_b2_a1_increment_9l_v5_evidence_inspection_correction.py
+          python -m py_compile tools/verification/u3_b2_a1_increment_9l_v5_evidence_inspection_correction.py
+          mapfile -t actual < <(git diff-tree --no-commit-id --name-only -r HEAD | sort)
+          mapfile -t expected < <(printf '%s\n' '.github/workflows/agent-u3-b2-a1-increment-9l-v5-evidence-inspection-correction.yml' | sort)
+          diff -u <(printf '%s\n' "${expected[@]}") <(printf '%s\n' "${actual[@]}")
+          git diff --check HEAD^
+
+      - name: Install fixed inspection dependency
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install 'numpy==2.5.1'
+
+      - name: Verify successful runner and failed old inspection authority
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          run="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${RUNNER_RUN_ID}")"
+          test "$(jq -r '.head_sha' <<<"${run}")" = "${RUNNER_SOURCE_SHA}"
+          test "$(jq -r '.head_branch' <<<"${run}")" = "agent/u3-b2-a1-wave-curve-review"
+          test "$(jq -r '.conclusion' <<<"${run}")" = "failure"
+
+          jobs="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${RUNNER_RUN_ID}/jobs?per_page=100")"
+          test "$(jq --argjson id "${RUNNER_JOB_ID}" '[.jobs[] | select(.id == $id and .conclusion == "failure")] | length' <<<"${jobs}")" = "1"
+          job="$(jq --argjson id "${RUNNER_JOB_ID}" '.jobs[] | select(.id == $id)' <<<"${jobs}")"
+          test "$(jq '[.steps[] | select(.number == 8 and .name == "Run bounded-window Increment 9L from initial state" and .conclusion == "success")] | length' <<<"${job}")" = "1"
+          test "$(jq '[.steps[] | select(.number == 9 and .name == "Inspect bounded-window Increment 9L evidence" and .conclusion == "failure")] | length' <<<"${job}")" = "1"
+          test "$(jq '[.steps[] | select(.number == 10 and .name == "Upload bounded-window Increment 9L evidence" and .conclusion == "success")] | length' <<<"${job}")" = "1"
+          test "$(jq '[.steps[] | select(.number == 11 and .name == "Require bounded-window Increment 9L runner success" and .conclusion == "success")] | length' <<<"${job}")" = "1"
+
+          artifact="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${RUNNER_ARTIFACT_ID}")"
+          test "$(jq -r '.workflow_run.id' <<<"${artifact}")" = "${RUNNER_RUN_ID}"
+          test "$(jq -r '.workflow_run.head_sha' <<<"${artifact}")" = "${RUNNER_SOURCE_SHA}"
+          test "$(jq -r '.name' <<<"${artifact}")" = "${RUNNER_ARTIFACT_NAME}"
+          test "$(jq -r '.expired' <<<"${artifact}")" = "false"
+          digest="$(jq -r '.digest' <<<"${artifact}")"
+          test "${digest}" = "sha256:${RUNNER_ARTIFACT_SHA256}"
+          echo "RUNNER_ARTIFACT_DIGEST=${digest#sha256:}" >> "${GITHUB_ENV}"
+
+      - name: Download exact Increment 9L v5 artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ env.RUNNER_ARTIFACT_NAME }}
+          path: artifacts/source-increment-9l-v5
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.RUNNER_RUN_ID }}
+
+      - name: Run corrected immutable-evidence inspection
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-a1-increment-9l-v5-inspection-correction
+          rm -rf "${output}"
+          python tools/verification/u3_b2_a1_increment_9l_v5_evidence_inspection_correction.py \
+            --source-artifact-dir artifacts/source-increment-9l-v5 \
+            --source-artifact-digest "${RUNNER_ARTIFACT_DIGEST}" \
+            --inspection-correction-spec docs/verification/stage7_u3_b2_a1_increment_9l_bounded_window_inspection_schema_correction_model_review.md \
+            --output-dir "${output}" \
+            --source-git-sha "${SOURCE_SHA}"
+
+      - name: Inspect corrected inspection artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          target = Path('artifacts/u3-b2-a1-increment-9l-v5-inspection-correction')
+          expected = {
+              'inspection_summary.json',
+              'inspection_correction.json',
+              'report.md',
+              'artifact_sha256.txt',
+          }
+          assert {path.name for path in target.iterdir() if path.is_file()} == expected
+          summary = json.loads((target / 'inspection_summary.json').read_text(encoding='utf-8'))
+          correction = json.loads((target / 'inspection_correction.json').read_text(encoding='utf-8'))
+
+          assert summary['inspection_execution_source_git_sha'] == os.environ['SOURCE_SHA']
+          assert summary['status'] == 'IMMUTABLE_SOURCE_ARTIFACT_INSPECTED_PASS'
+          assert summary['outcome'] == 'INCREMENT_9L_V5_EVIDENCE_INSPECTION_CORRECTION_PASS'
+          assert summary['source_git_sha'] == os.environ['RUNNER_SOURCE_SHA']
+          assert summary['source_run'] == int(os.environ['RUNNER_RUN_ID'])
+          assert summary['source_job'] == int(os.environ['RUNNER_JOB_ID'])
+          assert summary['source_artifact'] == int(os.environ['RUNNER_ARTIFACT_ID'])
+          assert summary['source_artifact_name'] == os.environ['RUNNER_ARTIFACT_NAME']
+          assert summary['source_artifact_sha256'] == os.environ['RUNNER_ARTIFACT_SHA256']
+          assert summary['source_summary_outcome'] == 'INCREMENT_9L_PROVISIONAL_ENGINEERING_END_TO_END_WORKING_SLICE_PASS'
+          assert summary['source_working_vertical_slice_kind'] == 'PROVISIONAL_ENGINEERING_END_TO_END_WORKING_SLICE'
+          assert summary['accepted_steps'] == 640
+          assert summary['public_outward_steps'] == 637
+          assert summary['public_closed_steps'] == 3
+          assert summary['handoff_step'] == 337
+          assert summary['finite_model_transition_step'] == 484
+          assert summary['bounded_fallback_first_step'] == 484
+          assert summary['bounded_fallback_last_step'] == 634
+          assert summary['first_trailing_excluded_step'] == 606
+          assert summary['final_seeded_steps'] == [635, 636, 637]
+          assert summary['closure_transition_step'] == 638
+          assert summary['final_solver_step'] == 640
+          assert summary['final_solver_time_s'] == float(os.environ['TARGET_TIME_S'])
+          assert summary['all_source_per_step_gates_passed'] is True
+          assert summary['all_source_conservation_gates_passed'] is True
+          assert summary['all_source_phases_allowed'] is True
+          assert summary['source_rho_xv_exact_zero'] is True
+          assert summary['closed_transfer_identities_exact'] is True
+          assert summary['public_state_transition_count'] == 1
+          assert summary['public_state_chatter_detected'] is False
+          assert summary['public_state_reentry_allowed'] is False
+          assert summary['reverse_mass_transfer_supported'] is False
+          assert summary['corrected_inspection_gate_passed'] is True
+
+          assert correction['inspection_execution_source_git_sha'] == os.environ['SOURCE_SHA']
+          assert correction['source_workflow_run'] == int(os.environ['RUNNER_RUN_ID'])
+          assert correction['source_job'] == int(os.environ['RUNNER_JOB_ID'])
+          assert correction['source_artifact'] == int(os.environ['RUNNER_ARTIFACT_ID'])
+          assert correction['source_artifact_name'] == os.environ['RUNNER_ARTIFACT_NAME']
+          assert correction['source_artifact_sha256'] == os.environ['RUNNER_ARTIFACT_SHA256']
+          assert correction['incorrect_fixed_assertion'] == 'first_fallback_requested_step == 606'
+          assert correction['correct_first_fallback_requested_step'] == 484
+          assert correction['correct_first_fallback_equals_finite_model_transition'] is True
+          assert correction['first_leading_excluded_requested_step'] == 489
+          assert correction['first_guard_front_refinement_requested_step'] == 494
+          assert correction['first_trailing_excluded_requested_step'] == 606
+          assert correction['last_fallback_requested_step'] == 634
+          assert correction['fallback_event_count'] == 151
+          assert correction['final_seeded_finite_compression_steps'] == [635, 636, 637]
+          assert correction['public_closure_transition_requested_step'] == 638
+          assert correction['final_accepted_solver_step'] == 640
+          assert correction['source_runner_gate_passed'] is True
+          assert correction['corrected_inspection_gate_passed'] is True
+          assert correction['source_artifact_modified'] is False
+          assert correction['fvm_rerun_performed'] is False
+          assert correction['root_recomputed'] is False
+          assert correction['state_recomputed'] is False
+          assert correction['physics_changed'] is False
+          assert correction['state_machine_changed'] is False
+          assert correction['bounded_window_algorithm_changed'] is False
+          assert correction['b1_changed'] is False
+          assert correction['production_adapter_changed'] is False
+          assert correction['fvm_solver_changed'] is False
+          assert correction['locked_contract_changed'] is False
+          assert correction['tolerances_changed'] is False
+          assert correction['chi_cap_changed'] is False
+          assert correction['formal_boundary_preserved'] is True
+
+          formal_false = (
+              'finite_compression_branch_approved',
+              'multi_step_finite_compression_continuation_authorized',
+              'full_two_l_over_c0_passed',
+              'formal_state_promoted',
+              'u3_b2_finite_pipe_execution_complete',
+              'single_phase_finite_pipe_coupling_verified',
+              'u3_b2_verification_benchmark_accepted',
+              'physical_validation',
+              'design_use_acceptance',
+              'production_hem_activation_approved',
+          )
+          assert all(summary[name] is False for name in formal_false)
+
+          manifest = {}
+          for line in (target / 'artifact_sha256.txt').read_text(encoding='utf-8').splitlines():
+              digest, name = line.split('  ', 1)
+              manifest[name] = digest
+          assert set(manifest) == expected - {'artifact_sha256.txt'}
+          for name, digest in manifest.items():
+              actual = hashlib.sha256((target / name).read_bytes()).hexdigest()
+              assert actual == digest
+          print(json.dumps(summary, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload inspection-correction evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: u3-b2-a1-increment-9l-v5-inspection-correction-${{ github.run_id }}
+          path: artifacts/u3-b2-a1-increment-9l-v5-inspection-correction
+          if-no-files-found: error
+          retention-days: 90
