@@ -1,0 +1,87 @@
+name: Agent U3 B2 A1 Increment 9 Status Snapshot
+
+on:
+  push:
+    branches: [agent/u3-b2-a1-wave-curve-review]
+    paths:
+      - ".github/workflows/agent-u3-b2-a1-increment-9-status-snapshot.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: agent-u3-b2-a1-increment-9-status-snapshot
+  cancel-in-progress: true
+
+env:
+  TARGET_RUN_ID: "31655395258"
+
+jobs:
+  capture-status:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: agent/u3-b2-a1-wave-curve-review
+          fetch-depth: 0
+
+      - name: Capture exact run, jobs and artifacts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p docs/verification
+          run="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${TARGET_RUN_ID}")"
+          jobs="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${TARGET_RUN_ID}/jobs?per_page=100")"
+          artifacts="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${TARGET_RUN_ID}/artifacts?per_page=100")"
+          jq -n \
+            --arg captured_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --argjson run "${run}" \
+            --argjson jobs "${jobs}" \
+            --argjson artifacts "${artifacts}" \
+            '{
+              captured_at_utc: $captured_at,
+              run: {
+                id: $run.id,
+                status: $run.status,
+                conclusion: $run.conclusion,
+                head_sha: $run.head_sha,
+                created_at: $run.created_at,
+                run_started_at: $run.run_started_at,
+                updated_at: $run.updated_at
+              },
+              jobs: [
+                $jobs.jobs[] | {
+                  id,
+                  name,
+                  status,
+                  conclusion,
+                  started_at,
+                  completed_at,
+                  steps: [.steps[] | {name, status, conclusion, number}]
+                }
+              ],
+              artifacts: [
+                $artifacts.artifacts[] | {
+                  id,
+                  name,
+                  size_in_bytes,
+                  expired,
+                  created_at,
+                  digest
+                }
+              ]
+            }' > docs/verification/stage7_u3_b2_a1_increment9_run_status.json
+
+      - name: Commit snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/verification/stage7_u3_b2_a1_increment9_run_status.json
+          git commit -m "Record Increment 9 workflow status snapshot"
+          git push origin HEAD:agent/u3-b2-a1-wave-curve-review
