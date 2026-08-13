@@ -1,0 +1,51 @@
+name: Agent U3 B2 A1 Increment 9M A0 Model Manager Rerun
+
+on:
+  push:
+    branches: [agent/u3-b2-a1-increment-9m-model-manager]
+    paths:
+      - ".github/workflows/agent-u3-b2-a1-increment-9m-a0-model-manager-rerun.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: src
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  test-a0:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+      - name: Compile source
+        run: |
+          git diff --check 13eb508f3b4f2beeba64cb3e2b5c2a84ab8e8f78 HEAD
+          git diff --exit-code 13eb508f3b4f2beeba64cb3e2b5c2a84ab8e8f78 -- src/liquid_gas_transient/__init__.py
+          python -m py_compile src/liquid_gas_transient/physics_model_manager.py
+      - name: Run unit semantics
+        run: |
+          python -m pip install 'pytest==9.1.1'
+          python -m pytest -q \
+            tests/test_physics_model_manager_core.py \
+            tests/test_physics_model_manager_observation.py \
+            tests/test_physics_model_manager_rejections.py \
+            tests/test_physics_model_manager_independence.py
+      - name: Check sample transitions
+        run: |
+          python - <<'PY'
+          from liquid_gas_transient.physics_model_manager import FINITE_COMPRESSION_MODEL_REQUIRED, NO_ADMISSIBLE_ISLAND, PhysicsBoundaryModelManager
+          manager = PhysicsBoundaryModelManager()
+          manager.activate_finite_compression(trigger_classification=FINITE_COMPRESSION_MODEL_REQUIRED, observed_solver_step=484)
+          manager.close_zero_transfer(trigger_classification=NO_ADMISSIBLE_ISLAND, observed_solver_step=638)
+          assert [event.sequence for event in manager.transition_history] == [1, 2]
+          assert all(not event.absolute_step_number_trigger_used for event in manager.transition_history)
+          assert manager.selection.boundary_regime.value == 'ZERO_TRANSFER_CLOSED'
+          PY
