@@ -1,0 +1,364 @@
+name: Agent U3 B2 A1 Finite Compression Increment 9J Broad Schema Correction Rerun
+
+on:
+  push:
+    branches: [agent/u3-b2-a1-wave-curve-review]
+    paths:
+      - ".github/workflows/agent-u3-b2-a1-finite-compression-increment-9j-broad-schema-correction-rerun.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: agent-u3-b2-a1-finite-compression-increment-9j-broad-schema-correction-rerun
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src:tools/verification
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONPYCACHEPREFIX: /tmp/u3-b2-a1-inc9j-broad-schema-correction-pycache
+  SOURCE_SHA: ${{ github.sha }}
+  PARENT_RUN_ID: "31670285271"
+  PARENT_JOB_ID: "94353300958"
+  PARENT_ARTIFACT_ID: "9169437776"
+  PARENT_ARTIFACT_NAME: u3-b2-a1-finite-compression-increment-9i-root-schema-31670285271
+  PARENT_ARTIFACT_SHA256: ed48b82be9f6cc8d6e081a416ab2b61bd97401782279506d83c8afd4d173f5d3
+  PARENT_SOURCE_SHA: c89a992d69c2985fc081fe3750c5b27136d3941e
+  PARENT_EXPECTED_TIME_S: "0.004269583083221582"
+  PARENT_STATE_SHA256: 7d2633e58adcc36e7ea7a1204af95455f5e8942e2c4e9a6dbf76cf437efd2a25
+  FAILED_SCHEMA_RUN_ID: "31675938522"
+  FAILED_SCHEMA_JOB_ID: "94370412069"
+
+jobs:
+  diagnose-zero-flow-endpoint:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 300
+    steps:
+      - name: Checkout exact schema-correction source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Verify correction-only source scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${SOURCE_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test -f docs/verification/stage7_u3_b2_a1_finite_compression_increment_9j_zero_flow_endpoint_diagnostic_model_review.md
+          test -f docs/verification/stage7_u3_b2_a1_finite_compression_increment_9j_parent_authority_binding_correction_model_review.md
+          test -f docs/verification/stage7_u3_b2_a1_finite_compression_increment_9j_broad_candidate_stagnation_schema_correction_model_review.md
+          test -f tools/verification/u3_b2_a1_finite_compression_step637_zero_flow_endpoint_diagnostic_v2.py
+          test -f tools/verification/u3_b2_a1_finite_compression_step637_zero_flow_endpoint_diagnostic_v3.py
+          test -f tools/verification/u3_b2_a1_finite_compression_step637_zero_flow_endpoint_diagnostic_v4.py
+          python -m py_compile \
+            tools/verification/u3_b2_a1_finite_compression_step637_zero_flow_endpoint_diagnostic_v2.py \
+            tools/verification/u3_b2_a1_finite_compression_step637_zero_flow_endpoint_diagnostic_v3.py \
+            tools/verification/u3_b2_a1_finite_compression_step637_zero_flow_endpoint_diagnostic_v4.py
+          mapfile -t actual < <(
+            git diff-tree --no-commit-id --name-only -r HEAD | sort
+          )
+          mapfile -t expected < <(printf '%s\n' \
+            '.github/workflows/agent-u3-b2-a1-finite-compression-increment-9j-broad-schema-correction-rerun.yml' | sort)
+          diff -u \
+            <(printf '%s\n' "${expected[@]}") \
+            <(printf '%s\n' "${actual[@]}")
+          git diff --check HEAD^
+          test -z "$(git status --porcelain=v1 --untracked-files=no)"
+
+      - name: Install fixed dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install 'numpy==2.5.1' 'CoolProp==8.0.0'
+
+      - name: Download authoritative Increment 9I artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ env.PARENT_ARTIFACT_NAME }}
+          path: artifacts/parent-increment-9i
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.PARENT_RUN_ID }}
+
+      - name: Verify immutable parent and failed-run identities
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          run_metadata="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${PARENT_RUN_ID}")"
+          test "$(jq -r '.id' <<<"${run_metadata}")" = "${PARENT_RUN_ID}"
+          test "$(jq -r '.head_sha' <<<"${run_metadata}")" = "${PARENT_SOURCE_SHA}"
+          test "$(jq -r '.head_branch' <<<"${run_metadata}")" = "agent/u3-b2-a1-wave-curve-review"
+
+          jobs_metadata="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${PARENT_RUN_ID}/jobs?per_page=100")"
+          test "$(jq --argjson id "${PARENT_JOB_ID}" '[.jobs[] | select(.id == $id)] | length' <<<"${jobs_metadata}")" = "1"
+
+          artifact_metadata="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${PARENT_ARTIFACT_ID}")"
+          test "$(jq -r '.id' <<<"${artifact_metadata}")" = "${PARENT_ARTIFACT_ID}"
+          test "$(jq -r '.name' <<<"${artifact_metadata}")" = "${PARENT_ARTIFACT_NAME}"
+          test "$(jq -r '.expired' <<<"${artifact_metadata}")" = "false"
+          test "$(jq -r '.workflow_run.id' <<<"${artifact_metadata}")" = "${PARENT_RUN_ID}"
+          test "$(jq -r '.workflow_run.head_sha' <<<"${artifact_metadata}")" = "${PARENT_SOURCE_SHA}"
+          digest="$(jq -r '.digest' <<<"${artifact_metadata}")"
+          test "${digest}" = "sha256:${PARENT_ARTIFACT_SHA256}"
+          echo "PARENT_ARTIFACT_DIGEST=${digest#sha256:}" >> "${GITHUB_ENV}"
+
+          failed_run="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${FAILED_SCHEMA_RUN_ID}")"
+          test "$(jq -r '.id' <<<"${failed_run}")" = "${FAILED_SCHEMA_RUN_ID}"
+          test "$(jq -r '.conclusion' <<<"${failed_run}")" = "failure"
+          failed_jobs="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${FAILED_SCHEMA_RUN_ID}/jobs?per_page=100")"
+          test "$(jq --argjson id "${FAILED_SCHEMA_JOB_ID}" '[.jobs[] | select(.id == $id and .conclusion == "failure")] | length' <<<"${failed_jobs}")" = "1"
+
+      - name: Run schema-corrected diagnostic-only Increment 9J
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-a1-finite-compression-increment-9j-broad-schema-correction
+          rm -rf "${output}"
+          python tools/verification/u3_b2_a1_finite_compression_step637_zero_flow_endpoint_diagnostic_v4.py \
+            --contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json \
+            --b1-contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
+            --model-review-spec docs/verification/stage7_u3_b2_a1_finite_compression_increment_9j_zero_flow_endpoint_diagnostic_model_review.md \
+            --authority-correction-spec docs/verification/stage7_u3_b2_a1_finite_compression_increment_9j_parent_authority_binding_correction_model_review.md \
+            --schema-correction-spec docs/verification/stage7_u3_b2_a1_finite_compression_increment_9j_broad_candidate_stagnation_schema_correction_model_review.md \
+            --parent-artifact-dir artifacts/parent-increment-9i \
+            --parent-artifact-digest "${PARENT_ARTIFACT_DIGEST}" \
+            --output-dir "${output}" \
+            --source-git-sha "${SOURCE_SHA}"
+
+      - name: Inspect schema-corrected Increment 9J evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv
+          import hashlib
+          import json
+          import math
+          import os
+          from pathlib import Path
+
+          import numpy as np
+
+          target = Path(
+              "artifacts/u3-b2-a1-finite-compression-increment-9j-broad-schema-correction"
+          )
+          expected = {
+              "step637_fixed_scan.csv",
+              "step637_ultrafine_scan.csv",
+              "step637_broad_endpoint_scan.csv",
+              "step637_lower_boundary_refinement.csv",
+              "step637_upper_boundary_refinement.csv",
+              "step637_root_topology.csv",
+              "step637_selected_root.csv",
+              "step637_stagnation_pressure_endpoint_bisection.csv",
+              "step637_velocity_endpoint_bisection.csv",
+              "step637_stagnation_pressure_endpoint.csv",
+              "step637_velocity_endpoint.csv",
+              "step637_state_identity.npz",
+              "authority_verification.json",
+              "broad_candidate_stagnation_schema_correction.json",
+              "summary.json",
+              "report.md",
+              "artifact_sha256.txt",
+          }
+          assert target.is_dir()
+          assert {path.name for path in target.iterdir()} == expected
+
+          summary = json.loads(
+              (target / "summary.json").read_text(encoding="utf-8")
+          )
+          correction = json.loads(
+              (
+                  target
+                  / "broad_candidate_stagnation_schema_correction.json"
+              ).read_text(encoding="utf-8")
+          )
+          supported = {
+              "ULTRAFINE_ADMISSIBLE_ISLAND_WITH_UNIQUE_ROOT_SUPPORTED",
+              "ZERO_FLOW_ENDPOINT_WITHIN_COMPATIBILITY_TOLERANCE_SUPPORTED_FOR_BRANCH_REVIEW",
+          }
+          assert summary["source_git_sha"] == os.environ["SOURCE_SHA"]
+          assert summary["parent_source_sha"] == os.environ["PARENT_SOURCE_SHA"]
+          assert summary["parent_run"] == int(os.environ["PARENT_RUN_ID"])
+          assert summary["parent_job"] == int(os.environ["PARENT_JOB_ID"])
+          assert summary["parent_artifact"] == int(os.environ["PARENT_ARTIFACT_ID"])
+          assert summary["parent_artifact_sha256"] == os.environ["PARENT_ARTIFACT_SHA256"]
+          assert summary["parent_artifact_verified"] is True
+          assert summary["outcome"] in supported
+          assert summary["increment_9j_diagnostic_classification_complete"] is True
+          assert summary["solver_step_loaded"] == 637
+          assert summary["next_requested_solver_step"] == 638
+          assert summary["solver_time_s"] == float(os.environ["PARENT_EXPECTED_TIME_S"])
+          assert summary["state_sha256_before"] == os.environ["PARENT_STATE_SHA256"]
+          assert summary["state_sha256_after"] == os.environ["PARENT_STATE_SHA256"]
+          assert summary["state_unchanged"] is True
+          assert summary["fvm_step_638_attempted"] is False
+          assert summary["fixed_scan_node_count"] == 12
+          assert summary["ultrafine_node_count"] == 4097
+          assert summary["broad_node_count"] == 513
+          assert summary["broad_candidate_stagnation_schema_correction_applied"] is True
+          assert summary["broad_candidate_stagnation_schema_correction_gate_passed"] is True
+          assert summary["compatibility_root_topology_uses_only_admissible_success"] is True
+          assert summary["failed_b1_state_used_as_compatibility_root_endpoint"] is False
+          assert summary["failed_b1_state_used_to_construct_flux"] is False
+          assert summary["excluded_candidate_used_only_for_scalar_topology"] is True
+
+          formal_false = (
+              "finite_compression_branch_approved",
+              "multi_step_finite_compression_continuation_authorized",
+              "full_two_l_over_c0_passed",
+              "formal_state_promoted",
+              "u3_b2_finite_pipe_execution_complete",
+              "single_phase_finite_pipe_coupling_verified",
+              "u3_b2_verification_benchmark_accepted",
+              "physical_validation",
+              "design_use_acceptance",
+              "production_hem_activation_approved",
+          )
+          assert all(summary[name] is False for name in formal_false)
+
+          assert correction["failed_workflow_run"] == int(
+              os.environ["FAILED_SCHEMA_RUN_ID"]
+          )
+          assert correction["failed_job"] == int(
+              os.environ["FAILED_SCHEMA_JOB_ID"]
+          )
+          assert correction["correction_gate_passed"] is True
+          assert correction["broad_node_count"] == 513
+          assert correction["broad_schema_completed_count"] > 0
+          assert correction["broad_b1_face_stagnation_count"] > 0
+          assert correction["completed_rows_retain_b1_unavailable_status"] is True
+          assert correction["successful_face_stagnation_fields_retained"] is True
+          assert correction["candidate_outcome_and_admissibility_fields_unchanged"] is True
+          assert correction["compatibility_root_topology_uses_only_admissible_success"] is True
+          assert correction["selected_root_uses_only_admissible_success"] is True
+          assert correction["failed_b1_state_used_as_compatibility_root_endpoint"] is False
+          assert correction["failed_b1_state_used_to_construct_flux"] is False
+          assert correction["hugoniot_equations_changed"] is False
+          assert correction["b1_behavior_changed"] is False
+          assert correction["production_adapter_changed"] is False
+          assert correction["fvm_solver_changed"] is False
+          assert correction["locked_contract_changed"] is False
+          assert correction["root_tolerance_changed"] is False
+          assert correction["velocity_tolerance_changed"] is False
+          assert correction["chi_scope_changed"] is False
+          assert correction["scan_node_counts_changed"] is False
+
+          def truth(value):
+              return str(value).strip().lower() == "true"
+
+          with (target / "step637_broad_endpoint_scan.csv").open(
+              newline="", encoding="utf-8"
+          ) as handle:
+              broad = list(csv.DictReader(handle))
+          assert len(broad) == 513
+          completed = [
+              row
+              for row in broad
+              if truth(row["endpoint_stagnation_schema_completed"])
+          ]
+          retained = [
+              row
+              for row in broad
+              if row["endpoint_stagnation_pressure_source"]
+              == "B1_FACE_RECONSTRUCTION"
+          ]
+          assert len(completed) == correction["broad_schema_completed_count"]
+          assert len(retained) == correction["broad_b1_face_stagnation_count"]
+          assert all(
+              row["candidate_classification"] == "EXCLUDED_B1_UNAVAILABLE"
+              and not truth(row["evaluation_succeeded"])
+              and not truth(row["local_candidate_admissible"])
+              and row["compatibility_residual_kg_s"] == ""
+              and row["endpoint_stagnation_pressure_source"]
+              == "CANDIDATE_CONSERVED_COOLPROP_RECONSTRUCTION"
+              for row in completed
+          )
+          assert all(
+              math.isfinite(float(row["stagnation_pressure_pa"]))
+              and float(row["stagnation_pressure_pa"]) > 0.0
+              and math.isfinite(float(row["stagnation_pressure_margin_pa"]))
+              for row in broad
+          )
+
+          if summary["outcome"] == (
+              "ULTRAFINE_ADMISSIBLE_ISLAND_WITH_UNIQUE_ROOT_SUPPORTED"
+          ):
+              assert summary["ultrafine_actual_continuation_supported"] is True
+              assert summary["zero_flow_branch_review_supported"] is False
+              assert summary["ultrafine_admissible_island_count"] == 1
+              assert summary["ultrafine_admissible_island_node_count"] >= 2
+              assert summary["root_topology_sign_change_count"] == 1
+              root = summary["selected_root"]
+              assert root["root_gate_passed"] is True
+              assert 1.0e-6 < root["chi"] <= 1.0e-4
+              assert abs(root["residual_kg_s"]) <= 1.0e-8
+              assert root["local_slope_kg_s_Pa"] < 0.0
+              assert root["velocity_m_s"] >= 0.0
+              assert 0.0 <= root["mach"] < 1.0
+              assert root["phase"] == "liquid"
+          else:
+              assert summary["ultrafine_actual_continuation_supported"] is False
+              assert summary["zero_flow_branch_review_supported"] is True
+              assert summary["ultrafine_admissible_island_count"] == 0
+              assert summary["stagnation_pressure_endpoint_bracket_count"] == 1
+              assert abs(
+                  summary["stagnation_pressure_endpoint_pipe_mass_rate_kg_s"]
+              ) <= 1.0e-8
+              assert summary["stagnation_pressure_endpoint_velocity_m_s"] >= -summary[
+                  "velocity_zero_tolerance_m_s"
+              ]
+              assert 0.0 <= summary["stagnation_pressure_endpoint_mach"] < 1.0
+              assert summary["stagnation_pressure_endpoint_phase"] == "liquid"
+
+          with np.load(target / "step637_state_identity.npz") as states:
+              assert np.array_equal(states["U_before"], states["U_after"])
+              assert int(states["solver_step_before"][0]) == 637
+              assert int(states["solver_step_after"][0]) == 637
+              assert float(states["solver_time_before_s"][0]) == float(
+                  os.environ["PARENT_EXPECTED_TIME_S"]
+              )
+              assert float(states["solver_time_after_s"][0]) == float(
+                  os.environ["PARENT_EXPECTED_TIME_S"]
+              )
+
+          authority = json.loads(
+              (target / "authority_verification.json").read_text(encoding="utf-8")
+          )
+          assert authority["source_sha"] == os.environ["PARENT_SOURCE_SHA"]
+          assert authority["workflow_run"] == int(os.environ["PARENT_RUN_ID"])
+          assert authority["job"] == int(os.environ["PARENT_JOB_ID"])
+          assert authority["artifact"] == int(os.environ["PARENT_ARTIFACT_ID"])
+          assert authority["artifact_sha256"] == os.environ["PARENT_ARTIFACT_SHA256"]
+          assert authority["internal_manifest_verified"] is True
+          assert authority["state_identity_verified"] is True
+
+          manifest = {}
+          for line in (target / "artifact_sha256.txt").read_text(
+              encoding="utf-8"
+          ).splitlines():
+              digest, name = line.split("  ", 1)
+              manifest[name] = digest
+          assert set(manifest) == expected - {"artifact_sha256.txt"}
+          for name, digest in manifest.items():
+              assert hashlib.sha256((target / name).read_bytes()).hexdigest() == digest
+          PY
+
+      - name: Upload schema-corrected Increment 9J evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: u3-b2-a1-finite-compression-increment-9j-broad-schema-correction-${{ github.run_id }}
+          path: artifacts/u3-b2-a1-finite-compression-increment-9j-broad-schema-correction
+          if-no-files-found: warn
