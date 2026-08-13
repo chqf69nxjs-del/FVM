@@ -55,3 +55,5 @@ jobs:
             tests/test_physics_model_manager_rejections.py \
             tests/test_physics_model_manager_independence.py \
             tests/test_increment_9m_a1_delegate_composition.py
+
+# rerun after correcting the A1 test parametrization
