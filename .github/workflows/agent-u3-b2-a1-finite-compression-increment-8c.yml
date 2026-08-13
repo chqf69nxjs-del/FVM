@@ -1,0 +1,227 @@
+name: Agent U3 B2 A1 Finite Compression Increment 8C
+
+on:
+  push:
+    branches: [agent/u3-b2-a1-wave-curve-review]
+    paths:
+      - ".github/workflows/agent-u3-b2-a1-finite-compression-increment-8c.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: agent-u3-b2-a1-finite-compression-increment-8c
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src:tools/verification
+  PYTHONDONTWRITEBYTECODE: "1"
+  SOURCE_SHA: ${{ github.sha }}
+  SCOPE_BASE_SHA: 6d7de93b5f6277b5764ece626e1a592c525260fc
+  PARENT_RUN_ID: "31662867986"
+  PARENT_ARTIFACT_NAME: u3-b2-a1-finite-compression-increment-8b-import-fix-31662867986
+  PARENT_ARTIFACT_DIGEST: e5a126047df4d55da36e53dfc0333ea08cc339f15ca9dac9fd2b6decb0b7405f
+
+jobs:
+  continue-eight-guard-front-hugoniot-steps:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout exact Increment 8C source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Verify fixed 8-step scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${SOURCE_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test -f docs/verification/stage7_u3_b2_a1_finite_compression_increment_8c_guard_front_8_step_model_review.md
+          test -f docs/verification/stage7_u3_b2_a1_finite_compression_increment_8c_b1_contract_binding_correction.md
+          test -f tools/verification/u3_b2_a1_finite_compression_guard_front_8_step.py
+          test -f tools/verification/u3_b2_a1_finite_compression_guard_front_8_step_b1_contract_fix.py
+          python -m py_compile \
+            tools/verification/u3_b2_a1_finite_compression_guard_front_8_step.py \
+            tools/verification/u3_b2_a1_finite_compression_guard_front_8_step_b1_contract_fix.py
+          mapfile -t actual < <(git diff --name-only "${SCOPE_BASE_SHA}" HEAD | sort)
+          mapfile -t expected < <(printf '%s\n' \
+            '.github/workflows/agent-u3-b2-a1-finite-compression-increment-8c.yml' | sort)
+          diff -u <(printf '%s\n' "${expected[@]}") <(printf '%s\n' "${actual[@]}")
+          git diff --check "${SCOPE_BASE_SHA}" HEAD
+
+      - name: Install fixed dependencies
+        run: python -m pip install 'numpy==2.5.1' 'CoolProp==8.0.0'
+
+      - name: Download authoritative Increment 8B parent
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ env.PARENT_ARTIFACT_NAME }}
+          path: artifacts/parent-increment-8b
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.PARENT_RUN_ID }}
+
+      - name: Run eight actual Guard-front Hugoniot steps
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-a1-finite-compression-increment-8c
+          rm -rf "${output}"
+          python tools/verification/u3_b2_a1_finite_compression_guard_front_8_step_b1_contract_fix.py \
+            --contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json \
+            --b1-contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
+            --model-review-spec docs/verification/stage7_u3_b2_a1_finite_compression_increment_8c_guard_front_8_step_model_review.md \
+            --parent-artifact-dir artifacts/parent-increment-8b \
+            --parent-artifact-digest "${PARENT_ARTIFACT_DIGEST}" \
+            --output-dir "${output}" \
+            --source-git-sha "${SOURCE_SHA}"
+
+      - name: Inspect Increment 8C evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import numpy as np
+
+          target = Path(
+              "artifacts/u3-b2-a1-finite-compression-increment-8c"
+          )
+          expected = {
+              "finite_compression_steps.csv",
+              "finite_compression_roots.csv",
+              "hugoniot_fixed_scans.csv",
+              "guard_front_refinement.csv",
+              "root_topology.csv",
+              "hugoniot_density_search.csv",
+              "branch_sequence.csv",
+              "finite_compression_8_step_states.npz",
+              "authority_verification.json",
+              "stop_evidence.json",
+              "summary.json",
+              "report.md",
+              "artifact_sha256.txt",
+          }
+          assert {path.name for path in target.iterdir()} == expected
+          summary = json.loads((target / "summary.json").read_text())
+          assert summary["source_git_sha"] == os.environ["SOURCE_SHA"]
+          assert summary["outcome"] == (
+              "FINITE_COMPRESSION_INCREMENT_8C_GUARD_FRONT_8_STEP_PASS"
+          )
+          assert summary["increment_8c_8_step_gate_passed"] is True
+          assert summary["parent_artifact_verified"] is True
+          assert summary["starting_solver_step"] == 494
+          assert summary["accepted_steps_completed"] == 8
+          assert summary["final_solver_step"] == 502
+          assert summary["final_solver_time_s"] > summary["starting_solver_time_s"]
+          assert summary["branch_sequence"] == [
+              "FINITE_COMPRESSION_HUGONIOT"
+          ] * 8
+          assert summary["branch_transition_count"] == 0
+          assert 1.0e-6 < summary["minimum_root_requested_chi"]
+          assert summary["maximum_root_requested_chi"] <= 1.0e-4
+          assert summary["maximum_absolute_root_mass_residual_kg_s"] <= 1.0e-8
+          assert summary["minimum_root_local_slope_kg_s_Pa"] < 0.0
+          assert summary["maximum_root_mach"] < 1.0
+          assert summary["minimum_root_velocity_m_s"] >= 0.0
+          assert summary["minimum_root_entropy_delta_J_kg_K"] >= -1.0e-7
+          assert summary["minimum_accepted_dt_s"] > 0.0
+          assert summary["maximum_halving_count"] >= 0
+          assert summary["final_outlet_velocity_m_s"] >= 0.0
+          assert 0.0 <= summary["final_outlet_mach"] < 1.0
+          assert summary["final_outlet_phase"] == "liquid"
+          assert summary["final_minimum_density_kg_m3"] > 0.0
+          assert summary["final_minimum_internal_energy_J_kg"] > 0.0
+          assert summary["final_rho_xv_exact_zero"] is True
+          assert summary["stop_classification"] is None
+          assert summary["stop_reason"] is None
+          assert summary["solver_step_503_authorized"] is False
+          assert summary["finite_compression_branch_approved"] is False
+          assert summary["full_two_l_over_c0_passed"] is False
+          assert summary["formal_state_promoted"] is False
+
+          with (target / "finite_compression_steps.csv").open(
+              newline="", encoding="utf-8"
+          ) as handle:
+              steps = list(csv.DictReader(handle))
+          with (target / "finite_compression_roots.csv").open(
+              newline="", encoding="utf-8"
+          ) as handle:
+              roots = list(csv.DictReader(handle))
+          assert len(steps) == 8
+          assert len(roots) == 8
+          assert [int(row["solver_step_count"]) for row in steps] == list(
+              range(495, 503)
+          )
+          assert all(
+              row["increment_8c_per_step_gate_passed"] == "True"
+              and row["branch_classification"] == (
+                  "FINITE_COMPRESSION_HUGONIOT"
+              )
+              and row["diagnostic_classification"] == (
+                  "FINITE_COMPRESSION_GUARD_FRONT_REFINEMENT_SUPPORTED"
+              )
+              and row["guard_front_refinement_applied"] == "True"
+              and int(row["guard_front_iterations"]) == 48
+              and row["root_topology_monotone_nonincreasing"] == "True"
+              and int(row["root_topology_sign_change_count"]) == 1
+              and row["failed_b1_state_used_as_root_endpoint"] == "False"
+              and row["failed_b1_state_used_to_construct_flux"] == "False"
+              and row["root_hugoniot_identity_accounted_passed"] == "True"
+              and row["root_lax_1_shock_passed"] == "True"
+              and row["rho_xv_exact_zero"] == "True"
+              for row in steps
+          )
+          assert all(
+              row["root_gate_passed"] == "True"
+              and row["root_b1_formal_outcome"] == (
+                  "SUCCESS_UNCHOKED_FACE_MAPPING"
+              )
+              and row["root_topology_monotone_nonincreasing"] == "True"
+              and int(row["root_topology_sign_change_count"]) == 1
+              for row in roots
+          )
+
+          with np.load(target / "finite_compression_8_step_states.npz") as states:
+              before = np.asarray(states["U_before"], dtype=float)
+              after = np.asarray(states["U_after"], dtype=float)
+              assert before.shape == (32, 4)
+              assert after.shape == (32, 4)
+              assert not np.array_equal(before, after)
+              assert int(states["solver_step_before"][0]) == 494
+              assert int(states["solver_step_after"][0]) == 502
+
+          stop = json.loads((target / "stop_evidence.json").read_text())
+          assert stop["classification"] is None
+          assert stop["reason"] is None
+
+          manifest = {}
+          for line in (target / "artifact_sha256.txt").read_text().splitlines():
+              digest, name = line.split("  ", 1)
+              manifest[name] = digest
+          assert set(manifest) == expected - {"artifact_sha256.txt"}
+          for name, digest in manifest.items():
+              assert hashlib.sha256((target / name).read_bytes()).hexdigest() == digest
+          PY
+
+      - name: Upload Increment 8C evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: u3-b2-a1-finite-compression-increment-8c-${{ github.run_id }}
+          path: artifacts/u3-b2-a1-finite-compression-increment-8c
+          if-no-files-found: warn
