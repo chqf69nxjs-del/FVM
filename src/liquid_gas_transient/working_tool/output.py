@@ -9,7 +9,7 @@ from typing import Any, Mapping
 
 import numpy as np
 
-from .results import WorkingToolResult
+from .results import RESERVED_SUMMARY_KEYS, WorkingToolResult
 
 
 RESULT_FILENAMES = (
@@ -18,6 +18,21 @@ RESULT_FILENAMES = (
     "transitions.csv",
     "warnings.csv",
     "state_history.npz",
+)
+
+VERIFICATION_ONLY_SUMMARY_KEYS = frozenset(
+    {
+        "workflow_run",
+        "workflow_job",
+        "artifact_id",
+        "artifact_sha256",
+        "parent_workflow_run",
+        "parent_workflow_job",
+        "parent_artifact_id",
+        "parent_artifact_sha256",
+        "exact_increment_9l_behavioral_equivalence_passed",
+        "increment_9m_a2_exact_increment_9l_behavioral_equivalence_passed",
+    }
 )
 
 
@@ -37,10 +52,17 @@ def write_result_package(result: WorkingToolResult, output_dir: Path | str) -> P
 
     if not isinstance(result, WorkingToolResult):
         raise TypeError("result must be WorkingToolResult")
+    forbidden = (RESERVED_SUMMARY_KEYS | VERIFICATION_ONLY_SUMMARY_KEYS).intersection(
+        result.summary
+    )
+    if forbidden:
+        raise ValueError(f"result summary uses reserved public keys: {sorted(forbidden)}")
+
     output = Path(output_dir)
     output.mkdir(parents=True, exist_ok=True)
 
     summary = {
+        **dict(result.summary),
         "schema_version": result.schema_version,
         "case_id": result.case_id,
         "model_profile": result.model_profile.value,
@@ -49,12 +71,12 @@ def write_result_package(result: WorkingToolResult, output_dir: Path | str) -> P
         "validated": False,
         "design_use_approved": False,
         "warning_codes": [warning.code for warning in result.warnings],
-        **dict(result.summary),
     }
     (output / "summary.json").write_text(
         json.dumps(summary, indent=2, sort_keys=True, allow_nan=False) + "\n",
         encoding="utf-8",
     )
+
     _write_rows(output / "history.csv", result.history)
     _write_rows(
         output / "transitions.csv",
