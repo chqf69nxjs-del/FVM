@@ -1,0 +1,265 @@
+name: Agent U3 B2 A1 Finite Compression Increment 9H Seeded Island One Step
+
+on:
+  push:
+    branches: [agent/u3-b2-a1-wave-curve-review]
+    paths:
+      - ".github/workflows/agent-u3-b2-a1-finite-compression-increment-9h-seeded-island-one-step.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: agent-u3-b2-a1-finite-compression-increment-9h-seeded-island-one-step
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src:tools/verification
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONPYCACHEPREFIX: /tmp/u3-b2-a1-finite-compression-inc9h-pycache
+  SOURCE_SHA: ${{ github.sha }}
+  SCOPE_BASE_SHA: c39fc7b7e801c73cc28e0b80288ac942729f6468
+  PARENT_RUN_ID: "31668593946"
+  PARENT_ARTIFACT_ID: "9168897325"
+  PARENT_ARTIFACT_NAME: u3-b2-a1-finite-compression-increment-9f-bounded-full-horizon-31668593946
+  PARENT_ARTIFACT_DIGEST: b4603bca6306ef3da1fe3a2fe5ff6e58bc2be599d8a040831445dd579b647288
+  DIAGNOSTIC_RUN_ID: "31669167528"
+  DIAGNOSTIC_ARTIFACT_ID: "9169064374"
+  DIAGNOSTIC_ARTIFACT_NAME: u3-b2-a1-finite-compression-increment-9g-float-31669167528
+  DIAGNOSTIC_ARTIFACT_DIGEST: d18a0d33ca7a157338a8ddc364edfe5aad89e413720627e7bf02e19c1b32b689
+
+jobs:
+  advance-seeded-island-one-step:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout exact Increment 9H source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Verify fixed source identity and Increment 9H scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${SOURCE_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test -f docs/verification/stage7_u3_b2_a1_finite_compression_increment_9h_seeded_island_one_step_model_review.md
+          test -f tools/verification/u3_b2_a1_finite_compression_seeded_island_one_step.py
+          python -m py_compile \
+            tools/verification/u3_b2_a1_finite_compression_seeded_island_one_step.py
+          mapfile -t actual < <(
+            git diff --name-only "${SCOPE_BASE_SHA}" HEAD | sort
+          )
+          mapfile -t expected < <(printf '%s\n' \
+            '.github/workflows/agent-u3-b2-a1-finite-compression-increment-9h-seeded-island-one-step.yml' | sort)
+          diff -u \
+            <(printf '%s\n' "${expected[@]}") \
+            <(printf '%s\n' "${actual[@]}")
+          git diff --check "${SCOPE_BASE_SHA}" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=no)"
+
+      - name: Install fixed dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install 'numpy==2.5.1' 'CoolProp==8.0.0'
+
+      - name: Download authoritative step-635 state artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ env.PARENT_ARTIFACT_NAME }}
+          path: artifacts/parent-increment-9f
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.PARENT_RUN_ID }}
+
+      - name: Download authoritative Increment 9G diagnostic artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ env.DIAGNOSTIC_ARTIFACT_NAME }}
+          path: artifacts/diagnostic-increment-9g
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.DIAGNOSTIC_RUN_ID }}
+
+      - name: Verify GitHub artifact metadata
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          parent="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${PARENT_ARTIFACT_ID}")"
+          diagnostic="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${DIAGNOSTIC_ARTIFACT_ID}")"
+          test "$(jq -r '.id' <<<"${parent}")" = "${PARENT_ARTIFACT_ID}"
+          test "$(jq -r '.name' <<<"${parent}")" = "${PARENT_ARTIFACT_NAME}"
+          test "$(jq -r '.workflow_run.id' <<<"${parent}")" = "${PARENT_RUN_ID}"
+          test "$(jq -r '.workflow_run.head_sha' <<<"${parent}")" = "85933c7061d45ef13cf846c958469b44fe1e3d64"
+          test "$(jq -r '.digest' <<<"${parent}")" = "sha256:${PARENT_ARTIFACT_DIGEST}"
+          test "$(jq -r '.id' <<<"${diagnostic}")" = "${DIAGNOSTIC_ARTIFACT_ID}"
+          test "$(jq -r '.name' <<<"${diagnostic}")" = "${DIAGNOSTIC_ARTIFACT_NAME}"
+          test "$(jq -r '.workflow_run.id' <<<"${diagnostic}")" = "${DIAGNOSTIC_RUN_ID}"
+          test "$(jq -r '.workflow_run.head_sha' <<<"${diagnostic}")" = "0eab5c8e53a8e875b01e88e0cfc6a3c915c90689"
+          test "$(jq -r '.digest' <<<"${diagnostic}")" = "sha256:${DIAGNOSTIC_ARTIFACT_DIGEST}"
+
+      - name: Run one actual seeded-island FvmSolver step
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-a1-finite-compression-increment-9h
+          rm -rf "${output}"
+          python tools/verification/u3_b2_a1_finite_compression_seeded_island_one_step.py \
+            --contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json \
+            --b1-contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
+            --model-review-spec docs/verification/stage7_u3_b2_a1_finite_compression_increment_9h_seeded_island_one_step_model_review.md \
+            --parent-artifact-dir artifacts/parent-increment-9f \
+            --parent-artifact-digest "${PARENT_ARTIFACT_DIGEST}" \
+            --diagnostic-artifact-dir artifacts/diagnostic-increment-9g \
+            --diagnostic-artifact-digest "${DIAGNOSTIC_ARTIFACT_DIGEST}" \
+            --output-dir "${output}" \
+            --source-git-sha "${SOURCE_SHA}"
+
+      - name: Inspect Increment 9H evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          import numpy as np
+
+          target = Path(
+              "artifacts/u3-b2-a1-finite-compression-increment-9h"
+          )
+          expected = {
+              "recomputed_fixed_scan.csv",
+              "recomputed_seeded_interval_scan.csv",
+              "recomputed_lower_boundary.csv",
+              "recomputed_upper_boundary.csv",
+              "recomputed_root_topology.csv",
+              "recomputed_density_search.csv",
+              "selected_root.csv",
+              "finite_compression_one_step.csv",
+              "finite_compression_one_step_states.npz",
+              "authority_verification.json",
+              "summary.json",
+              "report.md",
+              "artifact_sha256.txt",
+          }
+          assert {path.name for path in target.iterdir()} == expected
+          summary = json.loads(
+              (target / "summary.json").read_text(encoding="utf-8")
+          )
+          assert summary["source_git_sha"] == os.environ["SOURCE_SHA"]
+          assert summary["outcome"] == (
+              "FINITE_COMPRESSION_INCREMENT_9H_SEEDED_ISLAND_ONE_STEP_PASS"
+          )
+          assert summary["increment_9h_one_step_gate_passed"] is True
+          assert summary["diagnostic_authority_verified"] is True
+          assert summary["root_authority_comparison_passed"] is True
+          assert summary["solver_step_before"] == 635
+          assert summary["solver_step_after"] == 636
+          assert summary["solver_time_before_s"] == 0.004256164770712251
+          assert summary["solver_time_after_s"] > summary["solver_time_before_s"]
+          assert summary["accepted_dt_s"] > 0.0
+          assert summary["root_gate_passed"] is True
+          assert 1.0e-6 < summary["root_requested_chi"] <= 1.0e-4
+          assert abs(summary["root_mass_residual_kg_s"]) <= 1.0e-8
+          assert summary["root_local_slope_kg_s_Pa"] < 0.0
+          assert summary["root_velocity_m_s"] >= 0.0
+          assert 0.0 <= summary["root_mach"] < 1.0
+          assert summary["root_phase"] == "liquid"
+          assert summary["final_outlet_velocity_m_s"] >= 0.0
+          assert 0.0 <= summary["final_outlet_mach"] < 1.0
+          assert summary["final_outlet_phase"] == "liquid"
+          assert summary["final_minimum_density_kg_m3"] > 0.0
+          assert summary["final_minimum_internal_energy_J_kg"] > 0.0
+          assert summary["final_rho_xv_exact_zero"] is True
+          assert summary["solver_step_637_authorized"] is False
+          assert summary["finite_compression_branch_approved"] is False
+          assert summary["full_two_l_over_c0_passed"] is False
+          assert summary["formal_state_promoted"] is False
+
+          with (target / "finite_compression_one_step.csv").open(
+              newline="", encoding="utf-8"
+          ) as handle:
+              rows = list(csv.DictReader(handle))
+          assert len(rows) == 1
+          row = rows[0]
+          assert row["accepted_step"] == "True"
+          assert row["step_passed"] == "True"
+          assert row["increment_9h_one_step_gate_passed"] == "True"
+          assert row["branch_classification"] == (
+              "FINITE_COMPRESSION_HUGONIOT"
+          )
+          assert row["diagnostic_classification"] == (
+              "SEEDED_ADMISSIBLE_ISLAND_WITH_UNIQUE_ROOT_SUPPORTED"
+          )
+          assert row["seeded_interval_scan_applied"] == "True"
+          assert int(row["seeded_interval_node_count"]) == 129
+          assert int(row["root_topology_sign_change_count"]) == 1
+          assert row[
+              "failed_or_inadmissible_state_used_as_root_endpoint"
+          ] == "False"
+          assert row[
+              "failed_or_inadmissible_state_used_to_construct_flux"
+          ] == "False"
+          assert row["reverse_flow_guard_triggered"] == "False"
+          assert row["reverse_velocity_detected"] == "False"
+          assert row["rho_xv_exact_zero"] == "True"
+
+          with np.load(
+              target / "finite_compression_one_step_states.npz"
+          ) as states:
+              before = np.asarray(states["U_before"], dtype=float)
+              after = np.asarray(states["U_after"], dtype=float)
+              assert before.shape == (32, 4)
+              assert after.shape == (32, 4)
+              assert not np.array_equal(before, after)
+              assert int(states["solver_step_before"][0]) == 635
+              assert int(states["solver_step_after"][0]) == 636
+
+          authority = json.loads(
+              (target / "authority_verification.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          assert authority["accepted_state_parent_verified"] is True
+          assert authority["diagnostic_authority_verified"] is True
+          assert authority["root_authority_comparison"]["passed"] is True
+          assert authority["b1_behavior_changed"] is False
+          assert authority["local_admissibility_rule_changed"] is False
+          assert authority["excluded_state_used_as_root_endpoint"] is False
+          assert authority["excluded_state_used_to_construct_flux"] is False
+          assert authority["tolerance_or_scope_changed"] is False
+
+          manifest = {}
+          for line in (target / "artifact_sha256.txt").read_text(
+              encoding="utf-8"
+          ).splitlines():
+              digest, name = line.split("  ", 1)
+              manifest[name] = digest
+          assert set(manifest) == expected - {"artifact_sha256.txt"}
+          for name, digest in manifest.items():
+              assert hashlib.sha256((target / name).read_bytes()).hexdigest() == digest
+          PY
+
+      - name: Upload Increment 9H evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: u3-b2-a1-finite-compression-increment-9h-one-step-${{ github.run_id }}
+          path: artifacts/u3-b2-a1-finite-compression-increment-9h
+          if-no-files-found: warn
