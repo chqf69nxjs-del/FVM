@@ -1,0 +1,305 @@
+name: Agent U3 B2 A1 Finite Compression Increment 9F Bounded Full Horizon
+
+on:
+  push:
+    branches: [agent/u3-b2-a1-wave-curve-review]
+    paths:
+      - ".github/workflows/agent-u3-b2-a1-finite-compression-increment-9f-bounded-full-horizon.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: agent-u3-b2-a1-finite-compression-increment-9f-bounded-full-horizon
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src:tools/verification
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONPYCACHEPREFIX: /tmp/u3-b2-a1-finite-compression-inc9f-pycache
+  SOURCE_SHA: ${{ github.sha }}
+  SCOPE_BASE_SHA: 6e8dba02de07b5ad15f5afc9d32273335ce6ab47
+  PRIMARY_RUN_ID: "31667618448"
+  PRIMARY_ARTIFACT_ID: "9168542012"
+  PRIMARY_ARTIFACT_NAME: u3-b2-a1-finite-compression-increment-9d-dynamic-full-horizon-31667618448
+  PRIMARY_ARTIFACT_DIGEST: 3d9fe84b8e9dfcdab73971c39651093bc565230db8ac461e77a26a9a53a16da7
+  DIAGNOSTIC_RUN_ID: "31668258876"
+  DIAGNOSTIC_ARTIFACT_ID: "9168751076"
+  DIAGNOSTIC_ARTIFACT_NAME: u3-b2-a1-finite-compression-increment-9e-admissibility-31668258876
+  DIAGNOSTIC_ARTIFACT_DIGEST: 9a5e3c500ba379370827276ce5b098ca51e81e49685b1fab5e4dabbcbf16baaa
+
+jobs:
+  continue-bounded-window-to-full-horizon:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout exact Increment 9F source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Verify fixed source identity and Increment 9F scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${SOURCE_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test -f docs/verification/stage7_u3_b2_a1_finite_compression_increment_9f_bounded_window_full_horizon_model_review.md
+          test -f tools/verification/u3_b2_a1_finite_compression_bounded_window_full_horizon.py
+          python -m py_compile \
+            tools/verification/u3_b2_a1_finite_compression_bounded_window_full_horizon.py
+          mapfile -t actual < <(
+            git diff --name-only "${SCOPE_BASE_SHA}" HEAD | sort
+          )
+          mapfile -t expected < <(printf '%s\n' \
+            '.github/workflows/agent-u3-b2-a1-finite-compression-increment-9f-bounded-full-horizon.yml' | sort)
+          diff -u \
+            <(printf '%s\n' "${expected[@]}") \
+            <(printf '%s\n' "${actual[@]}")
+          git diff --check "${SCOPE_BASE_SHA}" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=no)"
+
+      - name: Install fixed dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install 'numpy==2.5.1' 'CoolProp==8.0.0'
+
+      - name: Download authoritative step-605 state artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ env.PRIMARY_ARTIFACT_NAME }}
+          path: artifacts/primary-increment-9d
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.PRIMARY_RUN_ID }}
+
+      - name: Download authoritative Increment 9E diagnostic artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ env.DIAGNOSTIC_ARTIFACT_NAME }}
+          path: artifacts/diagnostic-increment-9e
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.DIAGNOSTIC_RUN_ID }}
+
+      - name: Verify GitHub artifact metadata
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          primary="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${PRIMARY_ARTIFACT_ID}")"
+          diagnostic="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${DIAGNOSTIC_ARTIFACT_ID}")"
+          test "$(jq -r '.id' <<<"${primary}")" = "${PRIMARY_ARTIFACT_ID}"
+          test "$(jq -r '.name' <<<"${primary}")" = "${PRIMARY_ARTIFACT_NAME}"
+          test "$(jq -r '.workflow_run.id' <<<"${primary}")" = "${PRIMARY_RUN_ID}"
+          test "$(jq -r '.workflow_run.head_sha' <<<"${primary}")" = "bc4b8102400f1d0741ea85156b71c64a7258c658"
+          test "$(jq -r '.digest' <<<"${primary}")" = "sha256:${PRIMARY_ARTIFACT_DIGEST}"
+          test "$(jq -r '.id' <<<"${diagnostic}")" = "${DIAGNOSTIC_ARTIFACT_ID}"
+          test "$(jq -r '.name' <<<"${diagnostic}")" = "${DIAGNOSTIC_ARTIFACT_NAME}"
+          test "$(jq -r '.workflow_run.id' <<<"${diagnostic}")" = "${DIAGNOSTIC_RUN_ID}"
+          test "$(jq -r '.workflow_run.head_sha' <<<"${diagnostic}")" = "4b96bee28a6abeb1080256d965be408ebd565d37"
+          test "$(jq -r '.digest' <<<"${diagnostic}")" = "sha256:${DIAGNOSTIC_ARTIFACT_DIGEST}"
+
+      - name: Continue actual FvmSolver to nominal full horizon
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-a1-finite-compression-increment-9f
+          rm -rf "${output}"
+          python tools/verification/u3_b2_a1_finite_compression_bounded_window_full_horizon.py \
+            --contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json \
+            --b1-contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
+            --model-review-spec docs/verification/stage7_u3_b2_a1_finite_compression_increment_9f_bounded_window_full_horizon_model_review.md \
+            --primary-artifact-dir artifacts/primary-increment-9d \
+            --primary-artifact-digest "${PRIMARY_ARTIFACT_DIGEST}" \
+            --diagnostic-artifact-dir artifacts/diagnostic-increment-9e \
+            --diagnostic-artifact-digest "${DIAGNOSTIC_ARTIFACT_DIGEST}" \
+            --output-dir "${output}" \
+            --source-git-sha "${SOURCE_SHA}"
+
+      - name: Inspect Increment 9F evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          import numpy as np
+
+          target = Path(
+              "artifacts/u3-b2-a1-finite-compression-increment-9f"
+          )
+          expected = {
+              "finite_compression_steps.csv",
+              "finite_compression_roots.csv",
+              "hugoniot_fixed_scans.csv",
+              "guard_front_refinement.csv",
+              "root_topology.csv",
+              "hugoniot_density_search.csv",
+              "branch_sequence.csv",
+              "finite_compression_full_horizon_states.npz",
+              "authority_verification.json",
+              "bounded_window_authority.json",
+              "stop_evidence.json",
+              "summary.json",
+              "report.md",
+              "artifact_sha256.txt",
+          }
+          assert {path.name for path in target.iterdir()} == expected
+          summary = json.loads(
+              (target / "summary.json").read_text(encoding="utf-8")
+          )
+          assert summary["source_git_sha"] == os.environ["SOURCE_SHA"]
+          assert summary["outcome"] == (
+              "FINITE_COMPRESSION_INCREMENT_9F_BOUNDED_WINDOW_FULL_HORIZON_WORKING_SLICE_PASS"
+          )
+          assert summary["increment_9f_full_horizon_gate_passed"] is True
+          assert summary[
+              "working_vertical_slice_two_l_over_c0_reached"
+          ] is True
+          assert summary["parent_artifact_verified"] is True
+          assert summary["increment_9e_authority_verified"] is True
+          assert summary["increment_9e_outcome"] == (
+              "BOUNDED_B1_SUCCESS_WINDOW_WITH_UNIQUE_ROOT_SUPPORTED"
+          )
+          assert summary["starting_solver_step"] == 605
+          assert summary["additional_accepted_steps"] > 0
+          assert 605 < summary["final_solver_step"] <= 700
+          assert summary["target_horizon_reached"] is True
+          assert summary["final_step_clipped_to_target"] is True
+          assert summary["final_solver_time_s"] >= summary[
+              "target_two_l_over_c0_time_s"
+          ]
+          assert abs(summary["horizon_time_error_s"]) <= summary[
+              "horizon_time_roundoff_tolerance_s"
+          ]
+          assert summary["horizon_fraction_reached"] >= 1.0
+          assert summary["branch_sequence"] == [
+              "FINITE_COMPRESSION_HUGONIOT"
+          ] * summary["additional_accepted_steps"]
+          assert summary["branch_transition_count"] == 0
+          assert summary["clear_branch_chatter_detected"] is False
+          assert summary["bounded_success_window_step_count"] > 0
+          assert summary["bounded_window_trailing_excluded_row_count"] > 0
+          assert summary["minimum_root_requested_chi"] > 1.0e-6
+          assert summary["maximum_root_requested_chi"] <= 1.0e-4
+          assert summary["maximum_absolute_root_mass_residual_kg_s"] <= 1.0e-8
+          assert summary["minimum_root_local_slope_kg_s_Pa"] < 0.0
+          assert summary["maximum_root_mach"] < 1.0
+          assert summary["minimum_root_velocity_m_s"] >= 0.0
+          assert summary["minimum_root_entropy_delta_J_kg_K"] >= -1.0e-7
+          assert summary[
+              "minimum_root_stagnation_pressure_margin_above_back_pa"
+          ] > 0.0
+          assert summary["minimum_accepted_dt_s"] > 0.0
+          assert summary["final_outlet_velocity_m_s"] >= 0.0
+          assert 0.0 <= summary["final_outlet_mach"] < 1.0
+          assert summary["final_outlet_phase"] == "liquid"
+          assert summary["final_minimum_density_kg_m3"] > 0.0
+          assert summary["final_minimum_internal_energy_J_kg"] > 0.0
+          assert summary["final_rho_xv_exact_zero"] is True
+          assert summary["stop_classification"] is None
+          assert summary["stop_reason"] is None
+          assert summary["finite_compression_branch_approved"] is False
+          assert summary["full_two_l_over_c0_passed"] is False
+          assert summary["formal_state_promoted"] is False
+
+          with (target / "finite_compression_steps.csv").open(
+              newline="", encoding="utf-8"
+          ) as handle:
+              steps = list(csv.DictReader(handle))
+          with (target / "finite_compression_roots.csv").open(
+              newline="", encoding="utf-8"
+          ) as handle:
+              roots = list(csv.DictReader(handle))
+          n = summary["additional_accepted_steps"]
+          assert len(steps) == n
+          assert len(roots) == n
+          assert int(steps[0]["solver_step_count"]) == 606
+          assert int(steps[-1]["solver_step_count"]) == summary[
+              "final_solver_step"
+          ]
+          assert steps[-1]["step_clipped_to_target"] == "True"
+          assert all(
+              row["increment_9d_per_step_gate_passed"] == "True"
+              for row in steps
+          )
+          assert all(
+              row["root_gate_passed"] == "True"
+              and row["root_b1_formal_outcome"] == (
+                  "SUCCESS_UNCHOKED_FACE_MAPPING"
+              )
+              for row in roots
+          )
+
+          with (target / "hugoniot_fixed_scans.csv").open(
+              newline="", encoding="utf-8"
+          ) as handle:
+              fixed = list(csv.DictReader(handle))
+          assert any(
+              row.get("bounded_window_classification")
+              == "EXCLUDED_LOCAL_INADMISSIBLE"
+              for row in fixed
+          )
+          assert any(
+              row.get("bounded_window_classification")
+              == "ADMISSIBLE_SUCCESS"
+              for row in fixed
+          )
+
+          with np.load(
+              target / "finite_compression_full_horizon_states.npz"
+          ) as states:
+              assert states["U_before"].shape == (32, 4)
+              assert states["U_after"].shape == (32, 4)
+              assert int(states["solver_step_before"][0]) == 605
+              assert int(states["solver_step_after"][0]) == summary[
+                  "final_solver_step"
+              ]
+              assert float(states["solver_time_after_s"][0]) == summary[
+                  "final_solver_time_s"
+              ]
+
+          authority = json.loads(
+              (target / "bounded_window_authority.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          assert authority["b1_behavior_changed"] is False
+          assert authority["local_admissibility_rule_changed"] is False
+          assert authority["excluded_state_used_as_root_endpoint"] is False
+          assert authority["excluded_state_used_to_construct_flux"] is False
+          assert authority["tolerance_or_scope_changed"] is False
+
+          manifest = {}
+          for line in (target / "artifact_sha256.txt").read_text(
+              encoding="utf-8"
+          ).splitlines():
+              digest, name = line.split("  ", 1)
+              manifest[name] = digest
+          assert set(manifest) == expected - {"artifact_sha256.txt"}
+          for name, digest in manifest.items():
+              assert hashlib.sha256((target / name).read_bytes()).hexdigest() == digest
+          PY
+
+      - name: Upload Increment 9F evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: u3-b2-a1-finite-compression-increment-9f-bounded-full-horizon-${{ github.run_id }}
+          path: artifacts/u3-b2-a1-finite-compression-increment-9f
+          if-no-files-found: warn
