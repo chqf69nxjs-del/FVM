@@ -77,7 +77,11 @@ class FakeIncrement9LHook:
         if action == "fail":
             raise FakeDelegateStop("MULTIPLE_ROOTS")
         if action == "mismatch":
-            self._install("OUTWARD_FLOW", "GENERAL_EOS_FINITE_COMPRESSION", "BAD")
+            self._install(
+                "OUTWARD_FLOW",
+                "GENERAL_EOS_FINITE_COMPRESSION",
+                "BAD",
+            )
             return
         self._install("OUTWARD_FLOW", "THREE_BRANCH_WAVE_MODEL", "WEAK")
 
@@ -195,7 +199,7 @@ def test_observed_step_is_evidence_only(observed_step: int) -> None:
 
 
 @pytest.mark.parametrize(
-    (plan, expected),
+    "plan,expected",
     [
         ({"three": "fail"}, "MULTIPLE_ROOTS"),
         ({"three": "wrong_trigger"}, "TRANSITION_TRIGGER_MISMATCH"),
