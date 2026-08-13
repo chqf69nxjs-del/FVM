@@ -1,0 +1,230 @@
+name: Agent U3 B2 A1 Finite Compression Increment 9G Float Rerun
+
+on:
+  push:
+    branches: [agent/u3-b2-a1-wave-curve-review]
+    paths:
+      - ".github/workflows/agent-u3-b2-a1-finite-compression-increment-9g-float-rerun.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: agent-u3-b2-a1-finite-compression-increment-9g-float-rerun
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src:tools/verification
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONPYCACHEPREFIX: /tmp/u3-b2-a1-finite-compression-inc9g-rerun-pycache
+  SOURCE_SHA: ${{ github.sha }}
+  SCOPE_BASE_SHA: 953cbacfd349cbe72ba5bc2aebe174cff27b2b34
+  PARENT_RUN_ID: "31668593946"
+  PARENT_ARTIFACT_ID: "9168897325"
+  PARENT_ARTIFACT_NAME: u3-b2-a1-finite-compression-increment-9f-bounded-full-horizon-31668593946
+  PARENT_ARTIFACT_DIGEST: b4603bca6306ef3da1fe3a2fe5ff6e58bc2be599d8a040831445dd579b647288
+
+jobs:
+  rerun-seeded-island-diagnostic:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout exact corrected Increment 9G source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Verify narrow float-resolution correction scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${SOURCE_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test -f docs/verification/stage7_u3_b2_a1_finite_compression_increment_9g_seeded_admissible_island_diagnostic_model_review.md
+          test -f docs/verification/stage7_u3_b2_a1_finite_compression_increment_9g_float_resolution_boundary_correction.md
+          test -f tools/verification/u3_b2_a1_finite_compression_step635_seeded_island_diagnostic.py
+          test -f tools/verification/u3_b2_a1_finite_compression_step635_seeded_island_float_fix.py
+          python -m py_compile \
+            tools/verification/u3_b2_a1_finite_compression_step635_seeded_island_diagnostic.py \
+            tools/verification/u3_b2_a1_finite_compression_step635_seeded_island_float_fix.py
+          mapfile -t actual < <(
+            git diff --name-only "${SCOPE_BASE_SHA}" HEAD | sort
+          )
+          mapfile -t expected < <(printf '%s\n' \
+            '.github/workflows/agent-u3-b2-a1-finite-compression-increment-9g-float-rerun.yml' | sort)
+          diff -u \
+            <(printf '%s\n' "${expected[@]}") \
+            <(printf '%s\n' "${actual[@]}")
+          git diff --check "${SCOPE_BASE_SHA}" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=no)"
+
+      - name: Install fixed dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install 'numpy==2.5.1' 'CoolProp==8.0.0'
+
+      - name: Download authoritative failed Increment 9F artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ env.PARENT_ARTIFACT_NAME }}
+          path: artifacts/parent-increment-9f
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.PARENT_RUN_ID }}
+
+      - name: Verify parent GitHub artifact metadata
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          metadata="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${PARENT_ARTIFACT_ID}")"
+          test "$(jq -r '.id' <<<"${metadata}")" = "${PARENT_ARTIFACT_ID}"
+          test "$(jq -r '.name' <<<"${metadata}")" = "${PARENT_ARTIFACT_NAME}"
+          test "$(jq -r '.workflow_run.id' <<<"${metadata}")" = "${PARENT_RUN_ID}"
+          test "$(jq -r '.workflow_run.head_sha' <<<"${metadata}")" = "85933c7061d45ef13cf846c958469b44fe1e3d64"
+          test "$(jq -r '.digest' <<<"${metadata}")" = "sha256:${PARENT_ARTIFACT_DIGEST}"
+
+      - name: Run corrected diagnostic-only seeded-island review
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-a1-finite-compression-increment-9g-rerun
+          rm -rf "${output}"
+          python tools/verification/u3_b2_a1_finite_compression_step635_seeded_island_float_fix.py \
+            --contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json \
+            --b1-contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
+            --model-review-spec docs/verification/stage7_u3_b2_a1_finite_compression_increment_9g_seeded_admissible_island_diagnostic_model_review.md \
+            --correction-spec docs/verification/stage7_u3_b2_a1_finite_compression_increment_9g_float_resolution_boundary_correction.md \
+            --parent-artifact-dir artifacts/parent-increment-9f \
+            --parent-artifact-digest "${PARENT_ARTIFACT_DIGEST}" \
+            --output-dir "${output}" \
+            --source-git-sha "${SOURCE_SHA}"
+
+      - name: Inspect corrected Increment 9G evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          import numpy as np
+
+          target = Path(
+              "artifacts/u3-b2-a1-finite-compression-increment-9g-rerun"
+          )
+          expected = {
+              "step635_fixed_scan.csv",
+              "step635_seeded_interval_scan.csv",
+              "step635_lower_boundary_refinement.csv",
+              "step635_upper_boundary_refinement.csv",
+              "step635_root_topology.csv",
+              "step635_hugoniot_density_search.csv",
+              "step635_selected_root.csv",
+              "step635_state_identity.npz",
+              "authority_verification.json",
+              "float_resolution_correction_authority.json",
+              "summary.json",
+              "report.md",
+              "artifact_sha256.txt",
+          }
+          assert {path.name for path in target.iterdir()} == expected
+          summary = json.loads(
+              (target / "summary.json").read_text(encoding="utf-8")
+          )
+          assert summary["source_git_sha"] == os.environ["SOURCE_SHA"]
+          assert summary["outcome"] == (
+              "SEEDED_ADMISSIBLE_ISLAND_WITH_UNIQUE_ROOT_SUPPORTED"
+          )
+          assert summary["increment_9g_diagnostic_gate_passed"] is True
+          assert summary["increment_9g_rerun_gate_passed"] is True
+          assert summary["actual_continuation_supported"] is True
+          assert summary["float_resolution_boundary_correction_applied"] is True
+          assert summary["admissible_island_count"] == 1
+          assert summary["admissible_island_node_count"] >= 2
+          assert summary["root_topology_monotone_nonincreasing"] is True
+          assert summary["root_topology_sign_change_count"] == 1
+          assert summary["selected_root_gate_passed"] is True
+          assert 1.0e-6 < summary["selected_root_chi"] <= 1.0e-4
+          assert abs(summary["selected_root_residual_kg_s"]) <= 1.0e-8
+          assert summary["selected_root_velocity_m_s"] >= 0.0
+          assert 0.0 <= summary["selected_root_mach"] < 1.0
+          assert summary["selected_root_phase"] == "liquid"
+          assert summary["state_unchanged"] is True
+          assert summary["fvm_step_636_attempted"] is False
+
+          for key in (
+              "lower_boundary_resolution_statistics",
+              "upper_boundary_resolution_statistics",
+          ):
+              stats = summary[key]
+              assert stats["logical_iteration_count"] == 48
+              assert stats["candidate_evaluated_iteration_count"] > 0
+              assert stats["float_resolution_hold_iteration_count"] > 0
+              assert stats["first_float_resolution_hold_iteration"] is not None
+              assert stats["final_width_chi"] > 0.0
+              assert stats["final_adjacent_representable_values"] is True
+
+          for name in (
+              "step635_lower_boundary_refinement.csv",
+              "step635_upper_boundary_refinement.csv",
+          ):
+              with (target / name).open(newline="", encoding="utf-8") as handle:
+                  rows = list(csv.DictReader(handle))
+              assert len(rows) == 48
+              actions = [row["boundary_action"] for row in rows]
+              assert "CANDIDATE_EVALUATED" in actions
+              assert "FLOAT_RESOLUTION_HOLD" in actions
+              first_hold = actions.index("FLOAT_RESOLUTION_HOLD")
+              assert all(
+                  action == "FLOAT_RESOLUTION_HOLD"
+                  for action in actions[first_hold:]
+              )
+
+          with np.load(target / "step635_state_identity.npz") as states:
+              assert np.array_equal(states["U_before"], states["U_after"])
+              assert int(states["solver_step_before"][0]) == 635
+              assert int(states["solver_step_after"][0]) == 635
+
+          authority = json.loads(
+              (target / "float_resolution_correction_authority.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          assert authority["b1_behavior_changed"] is False
+          assert authority["local_admissibility_rule_changed"] is False
+          assert authority["candidate_category_changed"] is False
+          assert authority["root_tolerance_changed"] is False
+          assert authority["diagnostic_interval_or_nodes_changed"] is False
+
+          manifest = {}
+          for line in (target / "artifact_sha256.txt").read_text(
+              encoding="utf-8"
+          ).splitlines():
+              digest, name = line.split("  ", 1)
+              manifest[name] = digest
+          assert set(manifest) == expected - {"artifact_sha256.txt"}
+          for name, digest in manifest.items():
+              assert hashlib.sha256((target / name).read_bytes()).hexdigest() == digest
+          PY
+
+      - name: Upload corrected Increment 9G evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: u3-b2-a1-finite-compression-increment-9g-float-${{ github.run_id }}
+          path: artifacts/u3-b2-a1-finite-compression-increment-9g-rerun
+          if-no-files-found: warn
