@@ -1,0 +1,248 @@
+name: Agent U3 B2 A1 Finite Compression Increment 9E Admissibility Rerun
+
+on:
+  push:
+    branches: [agent/u3-b2-a1-wave-curve-review]
+    paths:
+      - ".github/workflows/agent-u3-b2-a1-finite-compression-increment-9e-admissibility-rerun.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: agent-u3-b2-a1-finite-compression-increment-9e-admissibility-rerun
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src:tools/verification
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONPYCACHEPREFIX: /tmp/u3-b2-a1-finite-compression-inc9e-rerun-pycache
+  SOURCE_SHA: ${{ github.sha }}
+  SCOPE_BASE_SHA: de043021a863291d85ce21b3e3de9c62663136bd
+  PARENT_RUN_ID: "31667618448"
+  PARENT_ARTIFACT_ID: "9168542012"
+  PARENT_ARTIFACT_NAME: u3-b2-a1-finite-compression-increment-9d-dynamic-full-horizon-31667618448
+  PARENT_ARTIFACT_DIGEST: 3d9fe84b8e9dfcdab73971c39651093bc565230db8ac461e77a26a9a53a16da7
+
+jobs:
+  rerun-bounded-window-diagnostic:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout exact corrected Increment 9E source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Verify narrow admissibility-correction scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${SOURCE_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test -f docs/verification/stage7_u3_b2_a1_finite_compression_increment_9e_bounded_b1_success_window_diagnostic_model_review.md
+          test -f docs/verification/stage7_u3_b2_a1_finite_compression_increment_9e_upper_boundary_local_admissibility_correction.md
+          test -f tools/verification/u3_b2_a1_finite_compression_step605_bounded_success_window_diagnostic.py
+          test -f tools/verification/u3_b2_a1_finite_compression_step605_bounded_success_window_admissibility_fix.py
+          python -m py_compile \
+            tools/verification/u3_b2_a1_finite_compression_step605_bounded_success_window_diagnostic.py \
+            tools/verification/u3_b2_a1_finite_compression_step605_bounded_success_window_admissibility_fix.py
+          mapfile -t actual < <(
+            git diff --name-only "${SCOPE_BASE_SHA}" HEAD | sort
+          )
+          mapfile -t expected < <(printf '%s\n' \
+            '.github/workflows/agent-u3-b2-a1-finite-compression-increment-9e-admissibility-rerun.yml' | sort)
+          diff -u \
+            <(printf '%s\n' "${expected[@]}") \
+            <(printf '%s\n' "${actual[@]}")
+          git diff --check "${SCOPE_BASE_SHA}" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=no)"
+
+      - name: Install fixed dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install 'numpy==2.5.1' 'CoolProp==8.0.0'
+
+      - name: Download authoritative failed Increment 9D artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ env.PARENT_ARTIFACT_NAME }}
+          path: artifacts/parent-increment-9d
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.PARENT_RUN_ID }}
+
+      - name: Verify parent GitHub artifact metadata
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          metadata="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${PARENT_ARTIFACT_ID}")"
+          test "$(jq -r '.id' <<<"${metadata}")" = "${PARENT_ARTIFACT_ID}"
+          test "$(jq -r '.name' <<<"${metadata}")" = "${PARENT_ARTIFACT_NAME}"
+          test "$(jq -r '.expired' <<<"${metadata}")" = "false"
+          test "$(jq -r '.workflow_run.id' <<<"${metadata}")" = "${PARENT_RUN_ID}"
+          test "$(jq -r '.workflow_run.head_sha' <<<"${metadata}")" = "bc4b8102400f1d0741ea85156b71c64a7258c658"
+          test "$(jq -r '.digest' <<<"${metadata}")" = "sha256:${PARENT_ARTIFACT_DIGEST}"
+
+      - name: Run corrected diagnostic-only bounded-window review
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-a1-finite-compression-increment-9e-rerun
+          rm -rf "${output}"
+          python tools/verification/u3_b2_a1_finite_compression_step605_bounded_success_window_admissibility_fix.py \
+            --contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json \
+            --b1-contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
+            --model-review-spec docs/verification/stage7_u3_b2_a1_finite_compression_increment_9e_bounded_b1_success_window_diagnostic_model_review.md \
+            --correction-spec docs/verification/stage7_u3_b2_a1_finite_compression_increment_9e_upper_boundary_local_admissibility_correction.md \
+            --parent-artifact-dir artifacts/parent-increment-9d \
+            --parent-artifact-digest "${PARENT_ARTIFACT_DIGEST}" \
+            --output-dir "${output}" \
+            --source-git-sha "${SOURCE_SHA}"
+
+      - name: Inspect corrected Increment 9E evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          import numpy as np
+
+          target = Path(
+              "artifacts/u3-b2-a1-finite-compression-increment-9e-rerun"
+          )
+          expected = {
+              "step605_fixed_scan.csv",
+              "step605_lower_boundary_refinement.csv",
+              "step605_upper_boundary_refinement.csv",
+              "step605_root_topology.csv",
+              "step605_hugoniot_density_search.csv",
+              "step605_selected_root.csv",
+              "step605_state_identity.npz",
+              "authority_verification.json",
+              "admissibility_correction_authority.json",
+              "summary.json",
+              "report.md",
+              "artifact_sha256.txt",
+          }
+          assert {path.name for path in target.iterdir()} == expected
+          summary = json.loads(
+              (target / "summary.json").read_text(encoding="utf-8")
+          )
+          assert summary["source_git_sha"] == os.environ["SOURCE_SHA"]
+          assert summary["outcome"] == (
+              "BOUNDED_B1_SUCCESS_WINDOW_WITH_UNIQUE_ROOT_SUPPORTED"
+          )
+          assert summary["increment_9e_diagnostic_gate_passed"] is True
+          assert summary["increment_9e_rerun_gate_passed"] is True
+          assert summary["actual_continuation_supported"] is True
+          assert summary[
+              "upper_boundary_local_admissibility_correction_applied"
+          ] is True
+          assert summary[
+              "upper_boundary_b1_success_local_inadmissible_midpoint_count"
+          ] > 0
+          assert summary[
+              "upper_boundary_b1_success_local_admissible_midpoint_count"
+          ] > 0
+          assert summary["upper_boundary_unexpected_classifications"] == []
+          assert summary["solver_step_loaded"] == 605
+          assert summary["next_requested_solver_step"] == 606
+          assert summary["state_unchanged"] is True
+          assert summary["fvm_step_606_attempted"] is False
+          assert summary["success_window_count"] == 1
+          assert summary["leading_unavailable_node_count"] > 0
+          assert summary["fixed_success_node_count"] > 0
+          assert summary["trailing_unavailable_node_count"] > 0
+          assert summary["lower_boundary_iterations"] == 48
+          assert summary["upper_boundary_iterations"] == 48
+          assert summary["root_topology_monotone_nonincreasing"] is True
+          assert summary["root_topology_sign_change_count"] == 1
+          assert 1.0e-6 < summary["selected_root_chi"] <= 1.0e-4
+          assert abs(summary["selected_root_residual_kg_s"]) <= 1.0e-8
+          assert summary["selected_root_local_slope_kg_s_Pa"] < 0.0
+          assert summary["selected_root_velocity_m_s"] >= 0.0
+          assert 0.0 <= summary["selected_root_mach"] < 1.0
+          assert summary["selected_root_phase"] == "liquid"
+          assert summary["selected_root_gate_passed"] is True
+          assert summary["finite_compression_branch_approved"] is False
+          assert summary["full_two_l_over_c0_passed"] is False
+          assert summary["formal_state_promoted"] is False
+
+          with (target / "step605_upper_boundary_refinement.csv").open(
+              newline="", encoding="utf-8"
+          ) as handle:
+              rows = list(csv.DictReader(handle))
+          assert len(rows) == 48
+          allowed = {
+              "B1_UNAVAILABLE",
+              "B1_SUCCESS_LOCAL_INADMISSIBLE",
+              "B1_SUCCESS_LOCAL_ADMISSIBLE",
+          }
+          assert all(row["boundary_classification"] in allowed for row in rows)
+          for row in rows:
+              classification = row["boundary_classification"]
+              if classification == "B1_SUCCESS_LOCAL_ADMISSIBLE":
+                  assert row["evaluation_succeeded"] == "True"
+                  assert row["local_candidate_admissible"] == "True"
+              elif classification == "B1_SUCCESS_LOCAL_INADMISSIBLE":
+                  assert row["evaluation_succeeded"] == "True"
+                  assert row["local_candidate_admissible"] == "False"
+              else:
+                  assert classification == "B1_UNAVAILABLE"
+                  assert row["evaluation_succeeded"] == "False"
+
+          with np.load(target / "step605_state_identity.npz") as states:
+              assert np.array_equal(states["U_before"], states["U_after"])
+              assert int(states["solver_step_before"][0]) == 605
+              assert int(states["solver_step_after"][0]) == 605
+
+          authority = json.loads(
+              (target / "admissibility_correction_authority.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          assert authority["b1_behavior_changed"] is False
+          assert authority["local_admissibility_rule_changed"] is False
+          assert authority[
+              "failed_or_inadmissible_state_used_as_root_endpoint"
+          ] is False
+          assert authority[
+              "failed_or_inadmissible_state_used_to_construct_flux"
+          ] is False
+          assert authority["tolerance_or_scope_changed"] is False
+
+          manifest = {}
+          for line in (target / "artifact_sha256.txt").read_text(
+              encoding="utf-8"
+          ).splitlines():
+              digest, name = line.split("  ", 1)
+              manifest[name] = digest
+          assert set(manifest) == expected - {"artifact_sha256.txt"}
+          for name, digest in manifest.items():
+              assert hashlib.sha256((target / name).read_bytes()).hexdigest() == digest
+          PY
+
+      - name: Upload corrected Increment 9E evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: u3-b2-a1-finite-compression-increment-9e-admissibility-${{ github.run_id }}
+          path: artifacts/u3-b2-a1-finite-compression-increment-9e-rerun
+          if-no-files-found: warn
