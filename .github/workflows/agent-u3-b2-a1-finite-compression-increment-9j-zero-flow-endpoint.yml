@@ -1,0 +1,260 @@
+name: Agent U3 B2 A1 Finite Compression Increment 9J Zero Flow Endpoint
+
+on:
+  push:
+    branches: [agent/u3-b2-a1-wave-curve-review]
+    paths:
+      - ".github/workflows/agent-u3-b2-a1-finite-compression-increment-9j-zero-flow-endpoint.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: agent-u3-b2-a1-finite-compression-increment-9j-zero-flow-endpoint
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src:tools/verification
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONPYCACHEPREFIX: /tmp/u3-b2-a1-finite-compression-inc9j-pycache
+  SOURCE_SHA: ${{ github.sha }}
+  PARENT_RUN_ID: "31670285271"
+  PARENT_JOB_ID: "94353300958"
+  PARENT_ARTIFACT_ID: "9169437776"
+  PARENT_ARTIFACT_NAME: u3-b2-a1-finite-compression-increment-9i-root-schema-31670285271
+  PARENT_SOURCE_SHA: 8d0568abd827684562783393650d6f63f3aa390f
+
+jobs:
+  diagnose-zero-flow-endpoint:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 300
+    steps:
+      - name: Checkout exact Increment 9J source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Verify fixed source identity and Increment 9J scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${SOURCE_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test -f docs/verification/stage7_u3_b2_a1_finite_compression_increment_9j_zero_flow_endpoint_diagnostic_model_review.md
+          test -f tools/verification/u3_b2_a1_finite_compression_step637_zero_flow_endpoint_diagnostic_v2.py
+          python -m py_compile \
+            tools/verification/u3_b2_a1_finite_compression_step637_zero_flow_endpoint_diagnostic_v2.py
+          mapfile -t actual < <(
+            git diff-tree --no-commit-id --name-only -r HEAD | sort
+          )
+          mapfile -t expected < <(printf '%s\n' \
+            '.github/workflows/agent-u3-b2-a1-finite-compression-increment-9j-zero-flow-endpoint.yml' | sort)
+          diff -u \
+            <(printf '%s\n' "${expected[@]}") \
+            <(printf '%s\n' "${actual[@]}")
+          git diff --check HEAD^
+          test -z "$(git status --porcelain=v1 --untracked-files=no)"
+
+      - name: Install fixed dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install 'numpy==2.5.1' 'CoolProp==8.0.0'
+
+      - name: Download authoritative failed Increment 9I artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ env.PARENT_ARTIFACT_NAME }}
+          path: artifacts/parent-increment-9i
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.PARENT_RUN_ID }}
+
+      - name: Verify and bind parent GitHub artifact metadata
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          metadata="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${PARENT_ARTIFACT_ID}")"
+          test "$(jq -r '.id' <<<"${metadata}")" = "${PARENT_ARTIFACT_ID}"
+          test "$(jq -r '.name' <<<"${metadata}")" = "${PARENT_ARTIFACT_NAME}"
+          test "$(jq -r '.expired' <<<"${metadata}")" = "false"
+          test "$(jq -r '.workflow_run.id' <<<"${metadata}")" = "${PARENT_RUN_ID}"
+          test "$(jq -r '.workflow_run.head_sha' <<<"${metadata}")" = "${PARENT_SOURCE_SHA}"
+          digest="$(jq -r '.digest' <<<"${metadata}")"
+          case "${digest}" in
+            sha256:*) ;;
+            *) echo "unexpected artifact digest: ${digest}" >&2; exit 1 ;;
+          esac
+          echo "PARENT_ARTIFACT_DIGEST=${digest#sha256:}" >> "${GITHUB_ENV}"
+
+      - name: Run diagnostic-only ultrafine and zero-flow endpoint review
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-a1-finite-compression-increment-9j
+          rm -rf "${output}"
+          python tools/verification/u3_b2_a1_finite_compression_step637_zero_flow_endpoint_diagnostic_v2.py \
+            --contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json \
+            --b1-contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
+            --model-review-spec docs/verification/stage7_u3_b2_a1_finite_compression_increment_9j_zero_flow_endpoint_diagnostic_model_review.md \
+            --parent-artifact-dir artifacts/parent-increment-9i \
+            --parent-artifact-digest "${PARENT_ARTIFACT_DIGEST}" \
+            --output-dir "${output}" \
+            --source-git-sha "${SOURCE_SHA}"
+
+      - name: Inspect Increment 9J classification evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          import numpy as np
+
+          target = Path(
+              "artifacts/u3-b2-a1-finite-compression-increment-9j"
+          )
+          expected = {
+              "step637_fixed_scan.csv",
+              "step637_ultrafine_scan.csv",
+              "step637_broad_endpoint_scan.csv",
+              "step637_lower_boundary_refinement.csv",
+              "step637_upper_boundary_refinement.csv",
+              "step637_root_topology.csv",
+              "step637_selected_root.csv",
+              "step637_stagnation_pressure_endpoint_bisection.csv",
+              "step637_velocity_endpoint_bisection.csv",
+              "step637_stagnation_pressure_endpoint.csv",
+              "step637_velocity_endpoint.csv",
+              "step637_state_identity.npz",
+              "authority_verification.json",
+              "summary.json",
+              "report.md",
+              "artifact_sha256.txt",
+          }
+          assert {path.name for path in target.iterdir()} == expected
+          summary = json.loads(
+              (target / "summary.json").read_text(encoding="utf-8")
+          )
+          supported = {
+              "ULTRAFINE_ADMISSIBLE_ISLAND_WITH_UNIQUE_ROOT_SUPPORTED",
+              "ZERO_FLOW_ENDPOINT_WITHIN_COMPATIBILITY_TOLERANCE_SUPPORTED_FOR_BRANCH_REVIEW",
+          }
+          assert summary["source_git_sha"] == os.environ["SOURCE_SHA"]
+          assert summary["outcome"] in supported
+          assert summary[
+              "increment_9j_diagnostic_classification_complete"
+          ] is True
+          assert summary["parent_artifact_verified"] is True
+          assert summary["solver_step_loaded"] == 637
+          assert summary["next_requested_solver_step"] == 638
+          assert summary["state_unchanged"] is True
+          assert summary["fvm_step_638_attempted"] is False
+          assert summary["interior_velocity_m_s"] >= 0.0
+          assert 0.0 <= summary["interior_mach"] < 1.0
+          assert summary["interior_phase"] == "liquid"
+          assert summary["fixed_scan_node_count"] == 12
+          assert summary["ultrafine_node_count"] == 4097
+          assert summary["broad_node_count"] == 513
+          assert summary["finite_compression_branch_approved"] is False
+          assert summary[
+              "multi_step_finite_compression_continuation_authorized"
+          ] is False
+          assert summary["full_two_l_over_c0_passed"] is False
+          assert summary["formal_state_promoted"] is False
+          assert summary["u3_b2_finite_pipe_execution_complete"] is False
+          assert summary["single_phase_finite_pipe_coupling_verified"] is False
+          assert summary["u3_b2_verification_benchmark_accepted"] is False
+          assert summary["physical_validation"] is False
+          assert summary["design_use_acceptance"] is False
+          assert summary["production_hem_activation_approved"] is False
+
+          if summary["outcome"] == (
+              "ULTRAFINE_ADMISSIBLE_ISLAND_WITH_UNIQUE_ROOT_SUPPORTED"
+          ):
+              assert summary["ultrafine_actual_continuation_supported"] is True
+              assert summary["zero_flow_branch_review_supported"] is False
+              assert summary["ultrafine_admissible_island_count"] == 1
+              assert summary["ultrafine_admissible_island_node_count"] >= 2
+              assert summary["root_topology_sign_change_count"] == 1
+              root = summary["selected_root"]
+              assert root["root_gate_passed"] is True
+              assert 1.0e-6 < root["chi"] <= 1.0e-4
+              assert abs(root["residual_kg_s"]) <= 1.0e-8
+              assert root["local_slope_kg_s_Pa"] < 0.0
+              assert root["velocity_m_s"] >= 0.0
+              assert 0.0 <= root["mach"] < 1.0
+              assert root["phase"] == "liquid"
+          else:
+              assert summary["outcome"] == (
+                  "ZERO_FLOW_ENDPOINT_WITHIN_COMPATIBILITY_TOLERANCE_SUPPORTED_FOR_BRANCH_REVIEW"
+              )
+              assert summary["ultrafine_actual_continuation_supported"] is False
+              assert summary["zero_flow_branch_review_supported"] is True
+              assert summary["ultrafine_admissible_island_count"] == 0
+              assert summary[
+                  "stagnation_pressure_endpoint_bracket_count"
+              ] == 1
+              assert abs(
+                  summary[
+                      "stagnation_pressure_endpoint_pipe_mass_rate_kg_s"
+                  ]
+              ) <= 1.0e-8
+              assert summary[
+                  "stagnation_pressure_endpoint_velocity_m_s"
+              ] >= -summary["velocity_zero_tolerance_m_s"]
+              assert 0.0 <= summary[
+                  "stagnation_pressure_endpoint_mach"
+              ] < 1.0
+              assert summary[
+                  "stagnation_pressure_endpoint_phase"
+              ] == "liquid"
+
+          with np.load(target / "step637_state_identity.npz") as states:
+              assert np.array_equal(states["U_before"], states["U_after"])
+              assert int(states["solver_step_before"][0]) == 637
+              assert int(states["solver_step_after"][0]) == 637
+
+          authority = json.loads(
+              (target / "authority_verification.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          assert authority["source_sha"] == os.environ["PARENT_SOURCE_SHA"]
+          assert authority["workflow_run"] == int(os.environ["PARENT_RUN_ID"])
+          assert authority["job"] == int(os.environ["PARENT_JOB_ID"])
+          assert authority["artifact"] == int(os.environ["PARENT_ARTIFACT_ID"])
+          assert authority["internal_manifest_verified"] is True
+          assert authority["state_identity_verified"] is True
+
+          manifest = {}
+          for line in (target / "artifact_sha256.txt").read_text(
+              encoding="utf-8"
+          ).splitlines():
+              digest, name = line.split("  ", 1)
+              manifest[name] = digest
+          assert set(manifest) == expected - {"artifact_sha256.txt"}
+          for name, digest in manifest.items():
+              assert hashlib.sha256((target / name).read_bytes()).hexdigest() == digest
+          PY
+
+      - name: Upload Increment 9J evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: u3-b2-a1-finite-compression-increment-9j-zero-flow-${{ github.run_id }}
+          path: artifacts/u3-b2-a1-finite-compression-increment-9j
+          if-no-files-found: warn
