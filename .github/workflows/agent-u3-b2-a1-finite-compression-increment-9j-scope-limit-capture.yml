@@ -1,0 +1,199 @@
+name: Agent U3 B2 A1 Increment 9J Scope Limit Capture
+
+on:
+  push:
+    branches: [agent/u3-b2-a1-wave-curve-review]
+    paths:
+      - ".github/workflows/agent-u3-b2-a1-finite-compression-increment-9j-scope-limit-capture.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: agent-u3-b2-a1-increment-9j-scope-limit-capture
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src:tools/verification
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONPYCACHEPREFIX: /tmp/u3-b2-a1-inc9j-scope-capture-pycache
+  SOURCE_SHA: ${{ github.sha }}
+  PARENT_RUN_ID: "31670285271"
+  PARENT_JOB_ID: "94353300958"
+  PARENT_ARTIFACT_ID: "9169437776"
+  PARENT_ARTIFACT_NAME: u3-b2-a1-finite-compression-increment-9i-root-schema-31670285271
+  PARENT_ARTIFACT_SHA256: ed48b82be9f6cc8d6e081a416ab2b61bd97401782279506d83c8afd4d173f5d3
+  PARENT_SOURCE_SHA: c89a992d69c2985fc081fe3750c5b27136d3941e
+  PARENT_EXPECTED_TIME_S: "0.004269583083221582"
+  PARENT_STATE_SHA256: 7d2633e58adcc36e7ea7a1204af95455f5e8942e2c4e9a6dbf76cf437efd2a25
+  UNSUPPORTED_RUN_ID: "31676910126"
+  UNSUPPORTED_JOB_ID: "94373367790"
+  UNSUPPORTED_SOURCE_SHA: c194068a0c64b46b915b5f31c12a3ec80c7cbbe8
+
+jobs:
+  capture-scope-limit:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 300
+    steps:
+      - name: Checkout exact capture source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Verify capture-only source scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${SOURCE_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test -f docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json
+          test -f docs/verification/stage7_u3_b1_critical_state_contract_v1.json
+          test -f docs/verification/stage7_u3_b2_a1_finite_compression_increment_9j_zero_flow_endpoint_diagnostic_model_review.md
+          test -f docs/verification/stage7_u3_b2_a1_finite_compression_increment_9j_parent_authority_binding_correction_model_review.md
+          test -f docs/verification/stage7_u3_b2_a1_finite_compression_increment_9j_broad_candidate_stagnation_schema_correction_model_review.md
+          test -f docs/verification/stage7_u3_b2_a1_finite_compression_increment_9j_scope_limit_fail_closed_model_review.md
+          test -f tools/verification/u3_b2_a1_finite_compression_step637_zero_flow_endpoint_diagnostic_v2.py
+          test -f tools/verification/u3_b2_a1_finite_compression_step637_zero_flow_endpoint_diagnostic_v4.py
+          test -f tools/verification/u3_b2_a1_finite_compression_step637_scope_limit_capture_v1.py
+          python -m py_compile tools/verification/u3_b2_a1_finite_compression_step637_scope_limit_capture_v1.py
+          mapfile -t actual < <(git diff-tree --no-commit-id --name-only -r HEAD | sort)
+          mapfile -t expected < <(printf '%s\n' '.github/workflows/agent-u3-b2-a1-finite-compression-increment-9j-scope-limit-capture.yml' | sort)
+          diff -u <(printf '%s\n' "${expected[@]}") <(printf '%s\n' "${actual[@]}")
+          git diff --check HEAD^
+
+      - name: Install fixed dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install 'numpy==2.5.1' 'CoolProp==8.0.0'
+
+      - name: Download authoritative Increment 9I artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ env.PARENT_ARTIFACT_NAME }}
+          path: artifacts/parent-increment-9i
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.PARENT_RUN_ID }}
+
+      - name: Verify immutable authority and unsupported precursor
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          parent_run="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${PARENT_RUN_ID}")"
+          test "$(jq -r '.head_sha' <<<"${parent_run}")" = "${PARENT_SOURCE_SHA}"
+          artifact="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${PARENT_ARTIFACT_ID}")"
+          test "$(jq -r '.workflow_run.id' <<<"${artifact}")" = "${PARENT_RUN_ID}"
+          test "$(jq -r '.workflow_run.head_sha' <<<"${artifact}")" = "${PARENT_SOURCE_SHA}"
+          test "$(jq -r '.name' <<<"${artifact}")" = "${PARENT_ARTIFACT_NAME}"
+          test "$(jq -r '.expired' <<<"${artifact}")" = "false"
+          digest="$(jq -r '.digest' <<<"${artifact}")"
+          test "${digest}" = "sha256:${PARENT_ARTIFACT_SHA256}"
+          echo "PARENT_ARTIFACT_DIGEST=${digest#sha256:}" >> "${GITHUB_ENV}"
+
+          unsupported="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${UNSUPPORTED_RUN_ID}")"
+          test "$(jq -r '.head_sha' <<<"${unsupported}")" = "${UNSUPPORTED_SOURCE_SHA}"
+          test "$(jq -r '.conclusion' <<<"${unsupported}")" = "failure"
+          jobs="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${UNSUPPORTED_RUN_ID}/jobs?per_page=100")"
+          test "$(jq --argjson id "${UNSUPPORTED_JOB_ID}" '[.jobs[] | select(.id == $id and .conclusion == "failure")] | length' <<<"${jobs}")" = "1"
+
+      - name: Capture expected fail-closed Increment 9J evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-a1-finite-compression-increment-9j-scope-limit-capture
+          rm -rf "${output}"
+          python tools/verification/u3_b2_a1_finite_compression_step637_scope_limit_capture_v1.py \
+            --contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json \
+            --b1-contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
+            --model-review-spec docs/verification/stage7_u3_b2_a1_finite_compression_increment_9j_zero_flow_endpoint_diagnostic_model_review.md \
+            --authority-correction-spec docs/verification/stage7_u3_b2_a1_finite_compression_increment_9j_parent_authority_binding_correction_model_review.md \
+            --schema-correction-spec docs/verification/stage7_u3_b2_a1_finite_compression_increment_9j_broad_candidate_stagnation_schema_correction_model_review.md \
+            --scope-decision-spec docs/verification/stage7_u3_b2_a1_finite_compression_increment_9j_scope_limit_fail_closed_model_review.md \
+            --parent-artifact-dir artifacts/parent-increment-9i \
+            --parent-artifact-digest "${PARENT_ARTIFACT_DIGEST}" \
+            --output-dir "${output}" \
+            --source-git-sha "${SOURCE_SHA}"
+
+      - name: Inspect captured scope decision
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          target = Path('artifacts/u3-b2-a1-finite-compression-increment-9j-scope-limit-capture')
+          summary = json.loads((target / 'summary.json').read_text(encoding='utf-8'))
+          decision = json.loads((target / 'scope_limit_decision.json').read_text(encoding='utf-8'))
+
+          assert summary['source_git_sha'] == os.environ['SOURCE_SHA']
+          assert summary['parent_source_sha'] == os.environ['PARENT_SOURCE_SHA']
+          assert summary['parent_run'] == int(os.environ['PARENT_RUN_ID'])
+          assert summary['parent_job'] == int(os.environ['PARENT_JOB_ID'])
+          assert summary['parent_artifact'] == int(os.environ['PARENT_ARTIFACT_ID'])
+          assert summary['parent_artifact_sha256'] == os.environ['PARENT_ARTIFACT_SHA256']
+          assert summary['state_sha256_before'] == os.environ['PARENT_STATE_SHA256']
+          assert summary['state_sha256_after'] == os.environ['PARENT_STATE_SHA256']
+          assert summary['solver_time_s'] == float(os.environ['PARENT_EXPECTED_TIME_S'])
+          assert summary['solver_step_loaded'] == 637
+          assert summary['next_requested_solver_step'] == 638
+          assert summary['fvm_step_638_attempted'] is False
+          assert summary['state_unchanged'] is True
+          assert summary['outcome'] == 'ZERO_FLOW_ENDPOINT_OUTSIDE_COMPATIBILITY_TOLERANCE'
+          assert summary['scope_limit_supported'] is True
+          assert summary['scope_limit_decision_complete'] is True
+          assert summary['scope_capture_gate_passed'] is True
+          assert summary['ultrafine_continuation_gate_passed'] is False
+          assert summary['zero_flow_endpoint_gate_passed'] is False
+          assert summary['fixed_scan_node_count'] == 12
+          assert summary['ultrafine_node_count'] == 4097
+          assert summary['broad_node_count'] == 513
+          assert summary['failed_zero_flow_compatibility_conditions']
+
+          assert decision['decision'] == 'A1_NEAR_ZERO_FLOW_TRANSITION_NOT_APPROVED_FAIL_CLOSED'
+          assert decision['status'] == 'FAIL_CLOSED_SCOPE_LIMIT_CAPTURED'
+          assert decision['scope_capture_gate_passed'] is True
+          assert decision['step_638_authorized'] is False
+          assert decision['zero_flow_branch_implementation_authorized'] is False
+
+          formal_false = (
+              'finite_compression_branch_approved',
+              'multi_step_finite_compression_continuation_authorized',
+              'full_two_l_over_c0_passed',
+              'formal_state_promoted',
+              'u3_b2_finite_pipe_execution_complete',
+              'single_phase_finite_pipe_coupling_verified',
+              'u3_b2_verification_benchmark_accepted',
+              'physical_validation',
+              'design_use_acceptance',
+              'production_hem_activation_approved',
+          )
+          assert all(summary[name] is False for name in formal_false)
+          print(json.dumps({
+              'outcome': summary['outcome'],
+              'failed_zero_flow_compatibility_conditions': summary['failed_zero_flow_compatibility_conditions'],
+              'scope_capture_gate_passed': summary['scope_capture_gate_passed'],
+              'state_unchanged': summary['state_unchanged'],
+              'step_638_attempted': summary['fvm_step_638_attempted'],
+          }, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload immutable scope-limit evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: u3-b2-a1-finite-compression-increment-9j-scope-limit-${{ github.run_id }}
+          path: artifacts/u3-b2-a1-finite-compression-increment-9j-scope-limit-capture
+          if-no-files-found: error
+          retention-days: 90
