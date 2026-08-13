@@ -1,0 +1,284 @@
+name: Agent U3 B2 A1 Increment 9M A2 Live FVM Composition
+
+on:
+  push:
+    branches: [agent/u3-b2-a1-9m-a2]
+    paths:
+      - ".github/workflows/agent-u3-b2-a1-increment-9m-a2-live-fvm-composition.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: agent-u3-b2-a1-increment-9m-a2-live-fvm-composition
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src:tools/verification
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONPYCACHEPREFIX: /tmp/u3-b2-a1-inc9m-a2-pycache
+  SOURCE_SHA: ${{ github.sha }}
+  A1_HEAD: 2bbc9c8aa8c25b134c03d5c4f3b3408a8b9a5bc1
+  TARGET_TIME_S: "0.004285834855172021"
+  PARENT_SOURCE_SHA: 512723f35addb63fd55f86468c69feb6d24fd457
+  PARENT_RUN_ID: "31700264132"
+  PARENT_JOB_ID: "94447447243"
+  PARENT_ARTIFACT_ID: "9181655488"
+  PARENT_ARTIFACT_NAME: u3-b2-a1-increment-9l-state-based-clean-31700264132
+  PARENT_ARTIFACT_SHA256: 36b8276998871e2939fc7755644d5910689838d78f967e025d2e5ce08f0b89f3
+  PARENT_STARTING_STATE_SHA256: deaae67e672d92fb1da7c40b1a7a03d904b58f35db12bcec81008b55f9014c21
+  PARENT_FINAL_STATE_SHA256: 8e73e394f3101840c73c278bbc4521ec4fefeebaee4c7f0db774d87013fd5014
+  A1_RUN_ID: "31716110925"
+  A1_JOB_ID: "94501160218"
+  A1_SOURCE_SHA: f75c0674829253aff319fa0b6cc3c3354650d83e
+
+jobs:
+  run-a2-live-composition:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 300
+    steps:
+      - name: Checkout exact Increment 9M A2 source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Verify A2 source scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${SOURCE_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git diff --check "${A1_HEAD}" HEAD
+          git diff --exit-code "${A1_HEAD}" HEAD -- \
+            src/liquid_gas_transient/physics_model_manager.py \
+            src/liquid_gas_transient/__init__.py \
+            tools/verification/u3_b2_a1_increment_9m_a1_delegate_composition.py \
+            tools/verification/u3_b2_a1_increment_9l_two_state_boundary_state_machine.py \
+            tools/verification/u3_b2_a1_increment_9l_two_state_boundary_state_machine_v2.py \
+            tools/verification/u3_b2_a1_increment_9l_two_state_boundary_state_machine_v3.py \
+            tools/verification/u3_b2_a1_increment_9l_two_state_boundary_state_machine_v4.py \
+            tools/verification/u3_b2_a1_increment_9l_two_state_boundary_state_machine_v5.py
+          test -f docs/verification/stage7_u3_b2_a1_increment_9m_a2_live_fvm_composition_model_review.md
+          test -f tools/verification/u3_b2_a1_increment_9m_a2_live_fvm_composition.py
+          python -m py_compile tools/verification/u3_b2_a1_increment_9m_a2_live_fvm_composition.py
+
+      - name: Verify wrapper-only integration structure
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          source = Path('tools/verification/u3_b2_a1_increment_9m_a2_live_fvm_composition.py').read_text()
+          assert 'class ModelManagedLiveFvmHook' in source
+          assert 'ModelManagedIncrement9LDelegateComposer' in source
+          assert 'self._install_context(context=context, U=U, t=float(t))' in source
+          assert 'PARENT_FINAL_STATE_SHA256' in source
+          for forbidden in (
+              'step == 484',
+              'step == 638',
+              'def _prepare_three_branch(',
+              'def _prepare_finite(',
+              'def _prepare_closed(',
+          ):
+              assert forbidden not in source
+          PY
+
+      - name: Install fixed dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install \
+            'numpy==2.5.1' \
+            'CoolProp==8.0.0' \
+            'pytest==9.1.1'
+
+      - name: Verify A1 and Increment 9L parent authority
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          a1_run="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${A1_RUN_ID}")"
+          test "$(jq -r '.head_sha' <<<"${a1_run}")" = "${A1_SOURCE_SHA}"
+          test "$(jq -r '.conclusion' <<<"${a1_run}")" = "success"
+          a1_jobs="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${A1_RUN_ID}/jobs?per_page=100")"
+          test "$(jq --argjson id "${A1_JOB_ID}" '[.jobs[] | select(.id == $id and .conclusion == "success")] | length' <<<"${a1_jobs}")" = "1"
+
+          parent_run="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${PARENT_RUN_ID}")"
+          test "$(jq -r '.head_sha' <<<"${parent_run}")" = "${PARENT_SOURCE_SHA}"
+          test "$(jq -r '.conclusion' <<<"${parent_run}")" = "success"
+          parent_jobs="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${PARENT_RUN_ID}/jobs?per_page=100")"
+          test "$(jq --argjson id "${PARENT_JOB_ID}" '[.jobs[] | select(.id == $id and .conclusion == "success")] | length' <<<"${parent_jobs}")" = "1"
+          artifact="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${PARENT_ARTIFACT_ID}")"
+          test "$(jq -r '.workflow_run.id' <<<"${artifact}")" = "${PARENT_RUN_ID}"
+          test "$(jq -r '.workflow_run.head_sha' <<<"${artifact}")" = "${PARENT_SOURCE_SHA}"
+          test "$(jq -r '.name' <<<"${artifact}")" = "${PARENT_ARTIFACT_NAME}"
+          test "$(jq -r '.expired' <<<"${artifact}")" = "false"
+          test "$(jq -r '.digest' <<<"${artifact}")" = "sha256:${PARENT_ARTIFACT_SHA256}"
+
+          rm -rf parent-authority parent-authority.zip parent-authority-runtime.json
+          mkdir -p parent-authority
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${PARENT_ARTIFACT_ID}/zip" > parent-authority.zip
+          unzip -q parent-authority.zip -d parent-authority
+          (cd parent-authority && sha256sum -c artifact_sha256.txt)
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          parent = Path('parent-authority')
+          summary = json.loads((parent / 'summary.json').read_text(encoding='utf-8'))
+          assert summary['source_git_sha'] == os.environ['PARENT_SOURCE_SHA']
+          assert summary['starting_state_sha256'] == os.environ['PARENT_STARTING_STATE_SHA256']
+          assert summary['final_state_sha256'] == os.environ['PARENT_FINAL_STATE_SHA256']
+          assert summary['accepted_steps_completed'] == 640
+          assert summary['final_solver_time_s'] == float(os.environ['TARGET_TIME_S'])
+          authority = {
+              'live_metadata_verified': True,
+              'source_git_sha': os.environ['PARENT_SOURCE_SHA'],
+              'workflow_run': int(os.environ['PARENT_RUN_ID']),
+              'workflow_job': int(os.environ['PARENT_JOB_ID']),
+              'artifact_id': int(os.environ['PARENT_ARTIFACT_ID']),
+              'artifact_name': os.environ['PARENT_ARTIFACT_NAME'],
+              'artifact_sha256': os.environ['PARENT_ARTIFACT_SHA256'],
+              'artifact_expired': False,
+              'internal_manifest_verified': True,
+          }
+          Path('parent-authority-runtime.json').write_text(
+              json.dumps(authority, indent=2, sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          PY
+
+      - name: Re-run focused A0 and A1 semantics
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/test_physics_model_manager_core.py \
+            tests/test_physics_model_manager_observation.py \
+            tests/test_physics_model_manager_rejections.py \
+            tests/test_physics_model_manager_independence.py \
+            tests/test_increment_9m_a1_delegate_composition.py
+
+      - name: Run Increment 9M A2 from locked initial state
+        id: run9ma2
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-a1-increment-9m-a2-live-fvm-composition
+          rm -rf "${output}"
+          python tools/verification/u3_b2_a1_increment_9m_a2_live_fvm_composition.py \
+            --contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json \
+            --b1-contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
+            --model-review-spec docs/verification/stage7_u3_b2_a1_increment_9l_two_state_boundary_state_machine_model_review.md \
+            --handoff-correction-spec docs/verification/stage7_u3_b2_a1_increment_9l_initial_rarefaction_handoff_correction_model_review.md \
+            --topology-correction-spec docs/verification/stage7_u3_b2_a1_increment_9l_guard_front_root_topology_correction_model_review.md \
+            --authority-correction-spec docs/verification/stage7_u3_b2_a1_increment_9l_guard_front_topology_authority_binding_correction_model_review.md \
+            --bounded-window-correction-spec docs/verification/stage7_u3_b2_a1_increment_9l_finite_compression_bounded_window_fallback_correction_model_review.md \
+            --a1-model-review-spec docs/verification/stage7_u3_b2_a1_increment_9m_a1_delegate_composition_model_review.md \
+            --a2-model-review-spec docs/verification/stage7_u3_b2_a1_increment_9m_a2_live_fvm_composition_model_review.md \
+            --parent-artifact-dir parent-authority \
+            --parent-authority-json parent-authority-runtime.json \
+            --output-dir "${output}" \
+            --source-git-sha "${SOURCE_SHA}"
+
+      - name: Inspect Increment 9M A2 exact equivalence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv
+          import json
+          import os
+          from pathlib import Path
+
+          target = Path('artifacts/u3-b2-a1-increment-9m-a2-live-fvm-composition')
+          assert target.is_dir(), 'Increment 9M A2 output missing'
+          summary = json.loads((target / 'summary.json').read_text(encoding='utf-8'))
+          comparison = json.loads((target / 'increment_9m_a2_behavioral_comparison.json').read_text(encoding='utf-8'))
+          integration = json.loads((target / 'increment_9m_a2_live_composition.json').read_text(encoding='utf-8'))
+          with (target / 'model_manager_transition_events.csv').open(newline='', encoding='utf-8') as handle:
+              manager_events = list(csv.DictReader(handle))
+          with (target / 'model_manager_selection_history.csv').open(newline='', encoding='utf-8') as handle:
+              selection_history = list(csv.DictReader(handle))
+          with (target / 'model_manager_context_restoration.csv').open(newline='', encoding='utf-8') as handle:
+              restorations = list(csv.DictReader(handle))
+
+          print(json.dumps(summary, indent=2, sort_keys=True))
+          assert summary['source_git_sha'] == os.environ['SOURCE_SHA']
+          assert summary['outcome'] == 'INCREMENT_9M_A2_EXACT_INCREMENT_9L_BEHAVIORAL_EQUIVALENCE_PASS'
+          assert summary['increment_9m_a2_model_managed_live_fvm_composition'] is True
+          assert summary['increment_9m_a2_exact_increment_9l_behavioral_equivalence_passed'] is True
+          assert summary['increment_9m_a2_parent_authority_gate_passed'] is True
+          assert summary['increment_9m_a2_manager_transition_gate_passed'] is True
+          assert summary['increment_9m_a2_context_restoration_gate_passed'] is True
+          assert summary['starting_state_sha256'] == os.environ['PARENT_STARTING_STATE_SHA256']
+          assert summary['final_state_sha256'] == os.environ['PARENT_FINAL_STATE_SHA256']
+          assert summary['accepted_steps_completed'] == 640
+          assert summary['final_solver_step'] == 640
+          assert summary['final_solver_time_s'] == float(os.environ['TARGET_TIME_S'])
+          assert summary['horizon_time_error_s'] == 0.0
+          assert summary['public_boundary_state_counts'] == {'OUTWARD_FLOW': 637, 'ZERO_TRANSFER_CLOSED': 3}
+          assert summary['increment_9m_a2_manager_transition_count'] == len(manager_events) == 2
+          assert summary['increment_9m_a2_selection_history_count'] == len(selection_history) == 3
+          assert summary['increment_9m_a2_context_restoration_count'] == len(restorations) == 640
+          assert all(row['restoration_gate_passed'] == 'True' for row in restorations)
+          assert [row['axis'] for row in manager_events] == ['outward_flow_model', 'boundary_regime']
+          assert [row['trigger_classification'] for row in manager_events] == [
+              'FINITE_COMPRESSION_MODEL_REQUIRED',
+              'NO_ADMISSIBLE_ISLAND',
+          ]
+          assert all(row['absolute_step_number_trigger_used'] == 'False' for row in manager_events)
+          assert comparison['parent_authority_gate_passed'] is True
+          assert comparison['manager_transition_gate_passed'] is True
+          assert comparison['successful_context_restoration_gate_passed'] is True
+          assert comparison['exact_increment_9l_behavioral_equivalence_passed'] is True
+          assert all(row['exact_match'] for row in comparison['exact_field_comparison'].values())
+          assert all(row['exact_match'] for row in comparison['exact_file_comparison'].values())
+          assert integration['physics_flux_modified_by_manager'] is False
+          assert integration['context_restored_without_root_reconstruction'] is True
+          assert integration['checkpoint_state_used'] is False
+          assert integration['absolute_step_number_transition_condition_used'] is False
+
+          formal_false = (
+              'finite_compression_branch_approved',
+              'multi_step_finite_compression_continuation_authorized',
+              'full_two_l_over_c0_passed',
+              'formal_state_promoted',
+              'u3_b2_finite_pipe_execution_complete',
+              'single_phase_finite_pipe_coupling_verified',
+              'u3_b2_verification_benchmark_accepted',
+              'physical_validation',
+              'design_use_acceptance',
+              'production_hem_activation_approved',
+          )
+          assert all(summary[name] is False for name in formal_false)
+          PY
+
+      - name: Upload Increment 9M A2 evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: u3-b2-a1-increment-9m-a2-${{ github.run_id }}
+          path: artifacts/u3-b2-a1-increment-9m-a2-live-fvm-composition
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Require Increment 9M A2 runner success
+        if: always()
+        shell: bash
+        run: |
+          test "${{ steps.run9ma2.outcome }}" = "success"
