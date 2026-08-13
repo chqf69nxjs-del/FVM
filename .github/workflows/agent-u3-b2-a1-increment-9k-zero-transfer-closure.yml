@@ -1,0 +1,200 @@
+name: Agent U3 B2 A1 Increment 9K Zero Transfer Closure
+
+on:
+  push:
+    branches: [agent/u3-b2-a1-wave-curve-review]
+    paths:
+      - ".github/workflows/agent-u3-b2-a1-increment-9k-zero-transfer-closure.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: agent-u3-b2-a1-increment-9k-zero-transfer-closure
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src:tools/verification
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONPYCACHEPREFIX: /tmp/u3-b2-a1-inc9k-zero-transfer-pycache
+  SOURCE_SHA: ${{ github.sha }}
+  PARENT_RUN_ID: "31670285271"
+  PARENT_JOB_ID: "94353300958"
+  PARENT_ARTIFACT_ID: "9169437776"
+  PARENT_ARTIFACT_NAME: u3-b2-a1-finite-compression-increment-9i-root-schema-31670285271
+  PARENT_ARTIFACT_SHA256: ed48b82be9f6cc8d6e081a416ab2b61bd97401782279506d83c8afd4d173f5d3
+  PARENT_SOURCE_SHA: c89a992d69c2985fc081fe3750c5b27136d3941e
+  PARENT_STATE_SHA256: 7d2633e58adcc36e7ea7a1204af95455f5e8942e2c4e9a6dbf76cf437efd2a25
+  TARGET_TIME_S: "0.004285834855172021"
+
+jobs:
+  run-zero-transfer-closure:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    steps:
+      - name: Checkout exact Increment 9K source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Verify Increment 9K source scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${SOURCE_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test -f docs/verification/stage7_u3_b2_a1_increment_9k_provisional_zero_transfer_closure_model_review.md
+          test -f tools/verification/u3_b2_a1_increment_9k_zero_transfer_closure.py
+          python -m py_compile tools/verification/u3_b2_a1_increment_9k_zero_transfer_closure.py
+          mapfile -t actual < <(git diff-tree --no-commit-id --name-only -r HEAD | sort)
+          mapfile -t expected < <(printf '%s\n' '.github/workflows/agent-u3-b2-a1-increment-9k-zero-transfer-closure.yml' | sort)
+          diff -u <(printf '%s\n' "${expected[@]}") <(printf '%s\n' "${actual[@]}")
+          git diff --check HEAD^
+
+      - name: Install fixed dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install 'numpy==2.5.1' 'CoolProp==8.0.0'
+
+      - name: Download authoritative Increment 9I artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ env.PARENT_ARTIFACT_NAME }}
+          path: artifacts/parent-increment-9i
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.PARENT_RUN_ID }}
+
+      - name: Verify parent artifact authority
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          run="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${PARENT_RUN_ID}")"
+          test "$(jq -r '.head_sha' <<<"${run}")" = "${PARENT_SOURCE_SHA}"
+          artifact="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${PARENT_ARTIFACT_ID}")"
+          test "$(jq -r '.workflow_run.id' <<<"${artifact}")" = "${PARENT_RUN_ID}"
+          test "$(jq -r '.workflow_run.head_sha' <<<"${artifact}")" = "${PARENT_SOURCE_SHA}"
+          test "$(jq -r '.name' <<<"${artifact}")" = "${PARENT_ARTIFACT_NAME}"
+          test "$(jq -r '.expired' <<<"${artifact}")" = "false"
+          digest="$(jq -r '.digest' <<<"${artifact}")"
+          test "${digest}" = "sha256:${PARENT_ARTIFACT_SHA256}"
+          echo "PARENT_ARTIFACT_DIGEST=${digest#sha256:}" >> "${GITHUB_ENV}"
+
+      - name: Run provisional zero-transfer closure
+        id: run9k
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-a1-increment-9k-zero-transfer-closure
+          rm -rf "${output}"
+          python tools/verification/u3_b2_a1_increment_9k_zero_transfer_closure.py \
+            --contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json \
+            --model-review-spec docs/verification/stage7_u3_b2_a1_increment_9k_provisional_zero_transfer_closure_model_review.md \
+            --parent-artifact-dir artifacts/parent-increment-9i \
+            --parent-artifact-digest "${PARENT_ARTIFACT_DIGEST}" \
+            --output-dir "${output}" \
+            --source-git-sha "${SOURCE_SHA}"
+
+      - name: Inspect Increment 9K engineering evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv
+          import json
+          import os
+          from pathlib import Path
+
+          target = Path('artifacts/u3-b2-a1-increment-9k-zero-transfer-closure')
+          assert target.is_dir(), 'Increment 9K output directory missing'
+          summary = json.loads((target / 'summary.json').read_text(encoding='utf-8'))
+          with (target / 'zero_transfer_steps.csv').open(newline='', encoding='utf-8') as handle:
+              rows = list(csv.DictReader(handle))
+
+          assert summary['source_git_sha'] == os.environ['SOURCE_SHA']
+          assert summary['parent_source_sha'] == os.environ['PARENT_SOURCE_SHA']
+          assert summary['parent_run'] == int(os.environ['PARENT_RUN_ID'])
+          assert summary['parent_job'] == int(os.environ['PARENT_JOB_ID'])
+          assert summary['parent_artifact'] == int(os.environ['PARENT_ARTIFACT_ID'])
+          assert summary['parent_artifact_sha256'] == os.environ['PARENT_ARTIFACT_SHA256']
+          assert summary['parent_state_sha256'] == os.environ['PARENT_STATE_SHA256']
+          assert summary['starting_state_sha256'] == os.environ['PARENT_STATE_SHA256']
+          assert summary['starting_solver_step'] == 637
+          assert summary['starting_solver_time_s'] == 0.004269583083221582
+          assert summary['target_two_l_over_c0_time_s'] == float(os.environ['TARGET_TIME_S'])
+          assert summary['technical_issue'] == 'TECHNICAL_ISSUE_A1_NEAR_ZERO_FLOW_BRANCH_TRANSITION'
+          assert summary['increment_9k_engineering_gate_passed'] is True
+          assert summary['outcome'] == 'INCREMENT_9K_PROVISIONAL_ENGINEERING_WORKING_SLICE_PASS'
+          assert summary['working_vertical_slice'] is True
+          assert summary['working_vertical_slice_kind'] == 'PROVISIONAL_ENGINEERING_WORKING_SLICE'
+          assert summary['provisional_engineering_two_l_over_c0_reached'] is True
+          assert summary['final_step_clipped_to_target'] is True
+          assert summary['final_solver_time_s'] == float(os.environ['TARGET_TIME_S'])
+          assert summary['final_solver_step'] > 637
+          assert summary['additional_accepted_steps'] == len(rows) > 0
+          assert summary['branch_sequence'] == ['ZERO_TRANSFER_CLOSED'] * len(rows)
+          assert summary['transition_from_parent_finite_compression_to_zero_transfer'] is True
+          assert summary['zero_transfer_branch_reentry_allowed'] is False
+          assert summary['reverse_mass_transfer_supported'] is False
+          assert summary['right_mass_transfer_exact_zero_all_steps'] is True
+          assert summary['right_energy_transfer_exact_zero_all_steps'] is True
+          assert summary['right_vapor_transfer_exact_zero_all_steps'] is True
+          assert summary['wall_momentum_identity_exact_all_steps'] is True
+          assert summary['final_all_phases_allowed'] is True
+          assert summary['final_rho_xv_exact_zero'] is True
+          assert summary['minimum_density_kg_m3'] > 0.0
+          assert summary['minimum_internal_energy_J_kg'] > 0.0
+          assert summary['stop_classification'] is None
+          assert summary['stop_reason'] is None
+          assert all(row['increment_9k_per_step_engineering_gate_passed'] == 'True' for row in rows)
+          assert all(float(row['right_external_mass_flux_kg_m2_s']) == 0.0 for row in rows)
+          assert all(float(row['right_external_energy_flux_W_m2']) == 0.0 for row in rows)
+          assert all(float(row['right_external_vapor_flux_kg_m2_s']) == 0.0 for row in rows)
+          assert all(float(row['momentum_wall_identity_residual_pa']) == 0.0 for row in rows)
+
+          formal_false = (
+              'finite_compression_branch_approved',
+              'multi_step_finite_compression_continuation_authorized',
+              'full_two_l_over_c0_passed',
+              'formal_state_promoted',
+              'u3_b2_finite_pipe_execution_complete',
+              'single_phase_finite_pipe_coupling_verified',
+              'u3_b2_verification_benchmark_accepted',
+              'physical_validation',
+              'design_use_acceptance',
+              'production_hem_activation_approved',
+          )
+          assert all(summary[name] is False for name in formal_false)
+          print(json.dumps({
+              'outcome': summary['outcome'],
+              'accepted_steps': summary['additional_accepted_steps'],
+              'final_solver_step': summary['final_solver_step'],
+              'final_solver_time_s': summary['final_solver_time_s'],
+              'final_outlet_pressure_pa': summary['final_outlet_pressure_pa'],
+              'final_outlet_velocity_m_s': summary['final_outlet_velocity_m_s'],
+              'reverse_outlet_velocity_observed': summary['reverse_outlet_velocity_observed'],
+              'max_step_mass_residual_kg': summary['maximum_absolute_step_mass_residual_kg'],
+              'max_step_energy_residual_J': summary['maximum_absolute_step_energy_residual_J'],
+          }, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload Increment 9K evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: u3-b2-a1-increment-9k-zero-transfer-${{ github.run_id }}
+          path: artifacts/u3-b2-a1-increment-9k-zero-transfer-closure
+          if-no-files-found: warn
+          retention-days: 90
