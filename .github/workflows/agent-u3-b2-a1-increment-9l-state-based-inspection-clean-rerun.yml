@@ -1,0 +1,240 @@
+name: Agent U3 B2 A1 Increment 9L State-Based Inspection Clean Rerun
+
+on:
+  push:
+    branches: [agent/u3-b2-a1-wave-curve-review]
+    paths:
+      - ".github/workflows/agent-u3-b2-a1-increment-9l-state-based-inspection-clean-rerun.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: agent-u3-b2-a1-increment-9l-state-based-inspection-clean-rerun
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src:tools/verification
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONPYCACHEPREFIX: /tmp/u3-b2-a1-inc9l-state-inspection-pycache
+  SOURCE_SHA: ${{ github.sha }}
+  TARGET_TIME_S: "0.004285834855172021"
+  PRECURSOR_RUN_ID: "31690390529"
+  PRECURSOR_JOB_ID: "94416115006"
+  PRECURSOR_SOURCE_SHA: bdbbf88b240ff1b839d8a72fa898437efac1e7b8
+  PRECURSOR_ARTIFACT_ID: "9177683047"
+  PRECURSOR_ARTIFACT_NAME: u3-b2-a1-increment-9l-v5-31690390529
+  PRECURSOR_ARTIFACT_SHA256: 0ff366738c855c83d9355c3e18b2cb54f640354a34b96211d85dd205269f6b32
+
+jobs:
+  run-state-based-clean-inspection:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 300
+    steps:
+      - name: Checkout exact clean-inspection source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Verify inspection-correction source scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${SOURCE_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test -f docs/verification/stage7_u3_b2_a1_increment_9l_state_based_inspection_correction.md
+          test -f tools/verification/u3_b2_a1_increment_9l_two_state_boundary_state_machine_v5.py
+          python -m py_compile tools/verification/u3_b2_a1_increment_9l_two_state_boundary_state_machine_v5.py
+          mapfile -t actual < <(git diff-tree --no-commit-id --name-only -r HEAD | sort)
+          mapfile -t expected < <(printf '%s\n' '.github/workflows/agent-u3-b2-a1-increment-9l-state-based-inspection-clean-rerun.yml' | sort)
+          diff -u <(printf '%s\n' "${expected[@]}") <(printf '%s\n' "${actual[@]}")
+          git diff --check HEAD^
+
+      - name: Install fixed dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install 'numpy==2.5.1' 'CoolProp==8.0.0'
+
+      - name: Verify failed-inspection precursor authority
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          run="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${PRECURSOR_RUN_ID}")"
+          test "$(jq -r '.head_sha' <<<"${run}")" = "${PRECURSOR_SOURCE_SHA}"
+          test "$(jq -r '.conclusion' <<<"${run}")" = "failure"
+          jobs="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${PRECURSOR_RUN_ID}/jobs?per_page=100")"
+          test "$(jq --argjson id "${PRECURSOR_JOB_ID}" '[.jobs[] | select(.id == $id and .conclusion == "failure")] | length' <<<"${jobs}")" = "1"
+          artifact="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${PRECURSOR_ARTIFACT_ID}")"
+          test "$(jq -r '.workflow_run.id' <<<"${artifact}")" = "${PRECURSOR_RUN_ID}"
+          test "$(jq -r '.workflow_run.head_sha' <<<"${artifact}")" = "${PRECURSOR_SOURCE_SHA}"
+          test "$(jq -r '.name' <<<"${artifact}")" = "${PRECURSOR_ARTIFACT_NAME}"
+          test "$(jq -r '.expired' <<<"${artifact}")" = "false"
+          test "$(jq -r '.digest' <<<"${artifact}")" = "sha256:${PRECURSOR_ARTIFACT_SHA256}"
+
+      - name: Run Increment 9L from locked initial state
+        id: run9lclean
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-a1-increment-9l-state-based-clean
+          rm -rf "${output}"
+          python tools/verification/u3_b2_a1_increment_9l_two_state_boundary_state_machine_v5.py \
+            --contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json \
+            --b1-contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
+            --model-review-spec docs/verification/stage7_u3_b2_a1_increment_9l_two_state_boundary_state_machine_model_review.md \
+            --handoff-correction-spec docs/verification/stage7_u3_b2_a1_increment_9l_initial_rarefaction_handoff_correction_model_review.md \
+            --topology-correction-spec docs/verification/stage7_u3_b2_a1_increment_9l_guard_front_root_topology_correction_model_review.md \
+            --authority-correction-spec docs/verification/stage7_u3_b2_a1_increment_9l_guard_front_topology_authority_binding_correction_model_review.md \
+            --bounded-window-correction-spec docs/verification/stage7_u3_b2_a1_increment_9l_finite_compression_bounded_window_fallback_correction_model_review.md \
+            --output-dir "${output}" \
+            --source-git-sha "${SOURCE_SHA}"
+
+      - name: Inspect Increment 9L by state and causal ordering
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv
+          import json
+          import os
+          from pathlib import Path
+
+          target = Path('artifacts/u3-b2-a1-increment-9l-state-based-clean')
+          assert target.is_dir(), 'Increment 9L clean output missing'
+          summary = json.loads((target / 'summary.json').read_text(encoding='utf-8'))
+          bounded = json.loads((target / 'finite_compression_bounded_window_fallback_correction.json').read_text(encoding='utf-8'))
+          with (target / 'step_metrics.csv').open(newline='', encoding='utf-8') as handle:
+              steps = list(csv.DictReader(handle))
+          with (target / 'boundary_transition_events.csv').open(newline='', encoding='utf-8') as handle:
+              boundary_events = list(csv.DictReader(handle))
+          with (target / 'outward_model_transition_events.csv').open(newline='', encoding='utf-8') as handle:
+              model_events = list(csv.DictReader(handle))
+          with (target / 'finite_compression_bounded_window_fallback_events.csv').open(newline='', encoding='utf-8') as handle:
+              bounded_events = list(csv.DictReader(handle))
+
+          print(json.dumps(summary, indent=2, sort_keys=True))
+
+          # End-to-end execution gates.
+          assert summary['source_git_sha'] == os.environ['SOURCE_SHA']
+          assert summary['source_starts_from_initial_state'] is True
+          assert summary['checkpoint_artifact_used'] is False
+          assert summary['single_fvm_solver_instance'] is True
+          assert summary['solver_instance_count'] == 1
+          assert summary['absolute_step_number_transition_condition_used'] is False
+          assert summary['increment_9l_state_machine_gate_passed'] is True
+          assert summary['working_vertical_slice'] is True
+          assert summary['working_vertical_slice_kind'] == 'PROVISIONAL_ENGINEERING_END_TO_END_WORKING_SLICE'
+          assert summary['target_horizon_reached'] is True
+          assert summary['provisional_engineering_two_l_over_c0_reached'] is True
+          assert summary['final_solver_time_s'] == float(os.environ['TARGET_TIME_S'])
+          assert summary['horizon_time_error_s'] == 0.0
+          assert summary['final_step_clipped_to_target'] is True
+          assert summary['stop_classification'] is None
+          assert summary['stop_reason'] is None
+          assert summary['accepted_steps_completed'] == len(steps) > 0
+
+          # Causal ordering: model transition -> bounded fallback(s) -> public closure.
+          assert len(model_events) == summary['outward_model_transition_event_count'] == 1
+          assert model_events[0]['from_outward_model'] == 'THREE_BRANCH_WAVE_MODEL'
+          assert model_events[0]['to_outward_model'] == 'GENERAL_EOS_FINITE_COMPRESSION'
+          assert model_events[0]['trigger_classification'] == 'FINITE_COMPRESSION_MODEL_REQUIRED'
+          assert model_events[0]['absolute_step_number_trigger_used'] == 'False'
+          model_transition_step = int(model_events[0]['requested_solver_step'])
+
+          assert bounded['bounded_window_gate_passed'] is True
+          assert bounded['fallback_event_count'] == len(bounded_events) > 0
+          event_steps = [int(row['requested_solver_step']) for row in bounded_events]
+          assert event_steps == sorted(set(event_steps))
+          assert bounded['first_fallback_requested_step'] == min(event_steps)
+          assert bounded['last_fallback_requested_step'] == max(event_steps)
+          assert min(event_steps) >= model_transition_step
+
+          assert len(boundary_events) == summary['boundary_transition_event_count'] == 1
+          closure = boundary_events[0]
+          assert closure['from_boundary_state'] == 'OUTWARD_FLOW'
+          assert closure['to_boundary_state'] == 'ZERO_TRANSFER_CLOSED'
+          assert closure['trigger_classification'] == 'NO_ADMISSIBLE_ISLAND'
+          assert closure['absolute_step_number_trigger_used'] == 'False'
+          assert closure['failed_candidate_used_as_root'] == 'False'
+          assert closure['failed_candidate_used_as_flux'] == 'False'
+          assert closure['solver_state_mutated_before_transition'] == 'False'
+          closure_step = int(closure['requested_solver_step'])
+          assert max(event_steps) < closure_step
+
+          # Every bounded fallback belongs to the outward finite-compression regime.
+          by_step = {int(row['requested_solver_step']): row for row in steps}
+          for event in bounded_events:
+              step = int(event['requested_solver_step'])
+              assert step in by_step
+              accepted = by_step[step]
+              assert accepted['public_boundary_state'] == 'OUTWARD_FLOW'
+              assert accepted['outward_internal_model'] == 'GENERAL_EOS_FINITE_COMPRESSION'
+              assert event['seeded_trigger_classification'] in {'SEEDED_INTERVAL_EDGE_CONTACT', 'STATE_REPRODUCTION_MISMATCH'}
+              assert int(event['bounded_success_window_count']) == 1
+              assert event['root_topology_monotone_nonincreasing'] == 'True'
+              assert int(event['root_topology_sign_change_count']) == 1
+              assert event['selected_root_gate_passed'] == 'True'
+              assert event['actual_continuation_supported'] == 'True'
+              assert event['excluded_candidate_used_as_root_endpoint'] == 'False'
+              assert event['excluded_candidate_used_to_construct_flux'] == 'False'
+              assert event['absolute_step_number_trigger_used'] == 'False'
+              assert event['checkpoint_state_used'] == 'False'
+
+          # Closed-state and global state gates.
+          assert summary['public_state_transition_count'] == 1
+          assert summary['public_state_chatter_detected'] is False
+          assert summary['public_state_reentry_allowed'] is False
+          assert summary['reverse_mass_transfer_supported'] is False
+          assert summary['right_mass_transfer_exact_zero_all_closed_steps'] is True
+          assert summary['right_energy_transfer_exact_zero_all_closed_steps'] is True
+          assert summary['right_vapor_transfer_exact_zero_all_closed_steps'] is True
+          assert summary['wall_momentum_identity_exact_all_closed_steps'] is True
+          assert summary['final_all_phases_allowed'] is True
+          assert summary['final_normalized_phases'] == ['liquid']
+          assert summary['final_rho_xv_exact_zero'] is True
+          assert summary['minimum_density_kg_m3'] > 0.0
+          assert summary['minimum_internal_energy_J_kg'] > 0.0
+          assert all(row['increment_9l_per_step_engineering_gate_passed'] == 'True' for row in steps)
+
+          formal_false = (
+              'finite_compression_branch_approved',
+              'multi_step_finite_compression_continuation_authorized',
+              'full_two_l_over_c0_passed',
+              'formal_state_promoted',
+              'u3_b2_finite_pipe_execution_complete',
+              'single_phase_finite_pipe_coupling_verified',
+              'u3_b2_verification_benchmark_accepted',
+              'physical_validation',
+              'design_use_acceptance',
+              'production_hem_activation_approved',
+          )
+          assert all(summary[name] is False for name in formal_false)
+          PY
+
+      - name: Upload Increment 9L clean evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: u3-b2-a1-increment-9l-state-based-clean-${{ github.run_id }}
+          path: artifacts/u3-b2-a1-increment-9l-state-based-clean
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Require runner and state-based inspection success
+        if: always()
+        shell: bash
+        run: |
+          test "${{ steps.run9lclean.outcome }}" = "success"
