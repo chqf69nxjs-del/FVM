@@ -8,6 +8,8 @@ Increment 9L generalizes the Increment 9K fixed continuation into a step-indepen
 
 The result is a working engineering path. It does not modify or approve the locked B2 benchmark, B1, the production B2 adapter, the `FvmSolver` core, accepted tolerances, or the finite-compression `chi` cap.
 
+The remaining branch-transition physics and production-integration work are tracked in GitHub Issue #150.
+
 ## Authoritative runner evidence
 
 ```text
@@ -512,7 +514,7 @@ It is not `VERIFIED`, `ACCEPTED`, `VALIDATED`, or `APPROVED`.
 
 ## Remaining technical debt
 
-The following remain open:
+The following remain open in Issue #150:
 
 ```text
 ZERO_TRANSFER_CLOSED -> OUTWARD_FLOW re-entry
