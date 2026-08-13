@@ -1,0 +1,217 @@
+name: Agent U3 B2 A1 Increment 9L Boundary State Machine
+
+on:
+  push:
+    branches: [agent/u3-b2-a1-increment-9l-state-machine]
+    paths:
+      - ".github/workflows/agent-u3-b2-a1-increment-9l-boundary-state-machine.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: agent-u3-b2-a1-increment-9l-boundary-state-machine
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src:tools/verification
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONPYCACHEPREFIX: /tmp/u3-b2-a1-inc9l-state-machine-pycache
+  SOURCE_SHA: ${{ github.sha }}
+  PARENT_RUN_ID: "31669680994"
+  PARENT_JOB_ID: "94351542532"
+  PARENT_ARTIFACT_ID: "9169230736"
+  PARENT_ARTIFACT_NAME: u3-b2-a1-finite-compression-increment-9h-rerun-31669680994
+  PARENT_ARTIFACT_SHA256: a627e2b1720429f79fd80699cb117ddc74c7b931d78c482c27aee98933ece42b
+  PARENT_SOURCE_SHA: 8e2825d0a6708dd287276181eee55f9459b04ce1
+  STARTING_TIME_S: "0.004262873917468169"
+  TARGET_TIME_S: "0.004285834855172021"
+
+jobs:
+  run-boundary-state-machine:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout exact Increment 9L source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Verify Increment 9L source scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${SOURCE_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test -f docs/verification/stage7_u3_b2_a1_increment_9l_boundary_state_machine_model_review.md
+          test -f tools/verification/u3_b2_a1_increment_9l_boundary_state_machine.py
+          python -m py_compile tools/verification/u3_b2_a1_increment_9l_boundary_state_machine.py
+          mapfile -t actual < <(git diff-tree --no-commit-id --name-only -r HEAD | sort)
+          mapfile -t expected < <(printf '%s\n' '.github/workflows/agent-u3-b2-a1-increment-9l-boundary-state-machine.yml' | sort)
+          diff -u <(printf '%s\n' "${expected[@]}") <(printf '%s\n' "${actual[@]}")
+          git diff --check HEAD^
+
+      - name: Install fixed dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install 'numpy==2.5.1' 'CoolProp==8.0.0'
+
+      - name: Download authoritative Increment 9H artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ env.PARENT_ARTIFACT_NAME }}
+          path: artifacts/parent-increment-9h
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.PARENT_RUN_ID }}
+
+      - name: Verify parent artifact authority
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          run="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${PARENT_RUN_ID}")"
+          test "$(jq -r '.head_sha' <<<"${run}")" = "${PARENT_SOURCE_SHA}"
+          jobs="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${PARENT_RUN_ID}/jobs?per_page=100")"
+          test "$(jq --argjson id "${PARENT_JOB_ID}" '[.jobs[] | select(.id == $id and .conclusion == "success")] | length' <<<"${jobs}")" = "1"
+          artifact="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${PARENT_ARTIFACT_ID}")"
+          test "$(jq -r '.workflow_run.id' <<<"${artifact}")" = "${PARENT_RUN_ID}"
+          test "$(jq -r '.workflow_run.head_sha' <<<"${artifact}")" = "${PARENT_SOURCE_SHA}"
+          test "$(jq -r '.name' <<<"${artifact}")" = "${PARENT_ARTIFACT_NAME}"
+          test "$(jq -r '.expired' <<<"${artifact}")" = "false"
+          digest="$(jq -r '.digest' <<<"${artifact}")"
+          test "${digest}" = "sha256:${PARENT_ARTIFACT_SHA256}"
+          echo "PARENT_ARTIFACT_DIGEST=${digest#sha256:}" >> "${GITHUB_ENV}"
+
+      - name: Run Increment 9L Gate A controller
+        id: run9l
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-a1-increment-9l-boundary-state-machine
+          rm -rf "${output}"
+          python tools/verification/u3_b2_a1_increment_9l_boundary_state_machine.py \
+            --contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json \
+            --b1-contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
+            --model-review-spec docs/verification/stage7_u3_b2_a1_increment_9l_boundary_state_machine_model_review.md \
+            --parent-artifact-dir artifacts/parent-increment-9h \
+            --parent-artifact-digest "${PARENT_ARTIFACT_DIGEST}" \
+            --output-dir "${output}" \
+            --source-git-sha "${SOURCE_SHA}"
+
+      - name: Inspect Increment 9L Gate A evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv
+          import json
+          import os
+          from pathlib import Path
+
+          target = Path('artifacts/u3-b2-a1-increment-9l-boundary-state-machine')
+          assert target.is_dir(), 'Increment 9L output directory missing'
+          summary = json.loads((target / 'summary.json').read_text(encoding='utf-8'))
+          transition = json.loads((target / 'transition_event.json').read_text(encoding='utf-8'))
+          with (target / 'state_machine_steps.csv').open(newline='', encoding='utf-8') as handle:
+              steps = list(csv.DictReader(handle))
+          with (target / 'boundary_state_history.csv').open(newline='', encoding='utf-8') as handle:
+              states = list(csv.DictReader(handle))
+
+          assert summary['source_git_sha'] == os.environ['SOURCE_SHA']
+          assert summary['parent_source_sha'] == os.environ['PARENT_SOURCE_SHA']
+          assert summary['parent_run'] == int(os.environ['PARENT_RUN_ID'])
+          assert summary['parent_job'] == int(os.environ['PARENT_JOB_ID'])
+          assert summary['parent_artifact'] == int(os.environ['PARENT_ARTIFACT_ID'])
+          assert summary['parent_artifact_sha256'] == os.environ['PARENT_ARTIFACT_SHA256']
+          assert summary['starting_solver_step'] == 636
+          assert summary['starting_solver_time_s'] == float(os.environ['STARTING_TIME_S'])
+          assert summary['target_two_l_over_c0_time_s'] == float(os.environ['TARGET_TIME_S'])
+          assert summary['increment_9l_gate_a_passed'] is True
+          assert summary['outcome'] == 'INCREMENT_9L_GATE_A_TRANSITION_WORKING_SLICE_PASS'
+          assert summary['working_vertical_slice'] is True
+          assert summary['working_vertical_slice_kind'] == 'INCREMENT_9L_GATE_A_TRANSITION_WORKING_SLICE'
+          assert summary['full_initial_state_gate_b_executed'] is False
+          assert summary['final_solver_time_s'] == float(os.environ['TARGET_TIME_S'])
+          assert summary['target_horizon_reached'] is True
+          assert summary['final_step_clipped_to_target'] is True
+          assert summary['outward_accepted_steps'] >= 1
+          assert summary['closed_accepted_steps'] >= 1
+          assert summary['boundary_transition_count'] == 1
+          assert summary['transition_event_count'] == 1
+          assert summary['transition_classification'] == 'NO_ADMISSIBLE_ISLAND'
+          assert summary['transition_scope_passed'] is True
+          assert summary['step_number_used_for_transition_decision'] is False
+          assert summary['zero_transfer_reentry_observed'] is False
+          assert summary['stop_classification'] is None
+          assert summary['stop_reason'] is None
+
+          assert transition['state_before'] == 'OUTWARD_FLOW'
+          assert transition['state_after'] == 'ZERO_TRANSFER_CLOSED'
+          assert transition['classification'] == 'NO_ADMISSIBLE_ISLAND'
+          assert transition['exact_retained_branch_end_event'] is True
+          assert transition['transition_allowed'] is True
+          assert transition['step_number_used_for_transition_decision'] is False
+          assert transition['outward_accepted_steps_before_transition'] >= 1
+
+          assert len(steps) == summary['additional_accepted_steps']
+          assert len(states) == len(steps)
+          branches = [row['boundary_state_for_accepted_step'] for row in steps]
+          assert branches[0] == 'OUTWARD_FLOW'
+          assert 'ZERO_TRANSFER_CLOSED' in branches[1:]
+          first_closed = branches.index('ZERO_TRANSFER_CLOSED')
+          assert all(value == 'OUTWARD_FLOW' for value in branches[:first_closed])
+          assert all(value == 'ZERO_TRANSFER_CLOSED' for value in branches[first_closed:])
+          assert all(row['increment_9l_per_step_gate_passed'] == 'True' for row in steps)
+          assert all(row['per_step_gate_passed'] == 'True' for row in states)
+
+          closed = [row for row in steps if row['boundary_state_for_accepted_step'] == 'ZERO_TRANSFER_CLOSED']
+          assert closed
+          assert all(float(row['right_external_mass_flux_kg_m2_s']) == 0.0 for row in closed)
+          assert all(float(row['right_external_energy_flux_W_m2']) == 0.0 for row in closed)
+          assert all(float(row['right_external_vapor_flux_kg_m2_s']) == 0.0 for row in closed)
+          assert all(float(row['momentum_wall_identity_residual_pa']) == 0.0 for row in closed)
+
+          formal_false = (
+              'finite_compression_branch_approved',
+              'multi_step_finite_compression_continuation_authorized',
+              'full_two_l_over_c0_passed',
+              'formal_state_promoted',
+              'u3_b2_finite_pipe_execution_complete',
+              'single_phase_finite_pipe_coupling_verified',
+              'u3_b2_verification_benchmark_accepted',
+              'physical_validation',
+              'design_use_acceptance',
+              'production_hem_activation_approved',
+          )
+          assert all(summary[name] is False for name in formal_false)
+          print(json.dumps({
+              'outcome': summary['outcome'],
+              'sequence': summary['boundary_state_sequence'],
+              'transition_step': summary['transition_requested_solver_step'],
+              'final_step': summary['final_solver_step'],
+              'final_time_s': summary['final_solver_time_s'],
+              'max_mass_residual_kg': summary['maximum_absolute_step_mass_residual_kg'],
+              'max_energy_residual_J': summary['maximum_absolute_step_energy_residual_J'],
+          }, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload Increment 9L Gate A evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: u3-b2-a1-increment-9l-state-machine-${{ github.run_id }}
+          path: artifacts/u3-b2-a1-increment-9l-boundary-state-machine
+          if-no-files-found: warn
+          retention-days: 90
