@@ -1,0 +1,30 @@
+{
+  "case_id": "WORKING-TOOL-V0-A-CANONICAL-A2",
+  "fluid": "CO2",
+  "geometry": {
+    "diameter_m": 0.011283791670955126,
+    "length_m": 1.0,
+    "roughness_m": 0.0
+  },
+  "initial": {
+    "pressure_pa": 5000000.0,
+    "temperature_k": 282.43392381063524,
+    "velocity_m_s": 0.0
+  },
+  "model_profile": "STAGE7_U3_B2_SINGLE_PHASE_PROVISIONAL_V0",
+  "numerics": {
+    "cfl": 0.1,
+    "n_cells": 32,
+    "n_ghost": 2
+  },
+  "outlet": {
+    "back_pressure_pa": 4950000.0,
+    "discharge_coefficient": 0.8,
+    "opening_fraction": 0.5
+  },
+  "schema_version": "stage7_u3_b2_a1_working_tool_case_v0",
+  "time": {
+    "max_steps": 32000,
+    "t_end_s": 0.004285834855172021
+  }
+}
