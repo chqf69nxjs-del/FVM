@@ -19,6 +19,7 @@ from .results import (
     WorkingToolResult,
     WorkingToolWarning,
 )
+from .runtime import execute_case
 
 __all__ = [
     "BackendRunData",
@@ -36,5 +37,6 @@ __all__ = [
     "WorkingToolCase",
     "WorkingToolResult",
     "WorkingToolWarning",
+    "execute_case",
     "write_result_package",
 ]
