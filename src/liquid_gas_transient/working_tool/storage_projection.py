@@ -36,6 +36,8 @@ SAMPLE_AXIS_STATE_ARRAYS = (
 STATIC_STATE_ARRAYS = ("x_m",)
 REQUIRED_STATE_ARRAYS = SAMPLE_AXIS_STATE_ARRAYS + STATIC_STATE_ARRAYS
 _REQUIRED_STATE_ARRAY_SET = frozenset(REQUIRED_STATE_ARRAYS)
+_SAMPLE_AXIS_STATE_ARRAY_SET = frozenset(SAMPLE_AXIS_STATE_ARRAYS)
+_STATIC_STATE_ARRAY_SET = frozenset(STATIC_STATE_ARRAYS)
 _PRIMITIVE_STATE_ARRAYS = (
     "rho_kg_m3",
     "velocity_m_s",
@@ -282,17 +284,19 @@ def project_state_storage(
     retained_array = np.asarray(retained, dtype=np.intp)
 
     projected_state_history: dict[str, np.ndarray] = {}
-    for name in SAMPLE_AXIS_STATE_ARRAYS:
-        source = result.state_history[name]
-        projected_state_history[name] = np.array(
-            np.take(source, retained_array, axis=0),
-            copy=True,
-        )
-    for name in STATIC_STATE_ARRAYS:
-        projected_state_history[name] = np.array(
-            result.state_history[name],
-            copy=True,
-        )
+    for name, source in result.state_history.items():
+        if name in _SAMPLE_AXIS_STATE_ARRAY_SET:
+            projected_state_history[name] = np.array(
+                np.take(source, retained_array, axis=0),
+                copy=True,
+            )
+        elif name in _STATIC_STATE_ARRAY_SET:
+            projected_state_history[name] = np.array(source, copy=True)
+        else:  # pragma: no cover - validate_full_state_result fails first.
+            _fail(
+                "WORKING_TOOL_V0_B_STATE_LAYOUT_ERROR",
+                f"unclassified state array: {name!r}",
+            )
 
     projected_result = WorkingToolResult(
         case_id=result.case_id,
