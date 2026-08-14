@@ -1,0 +1,246 @@
+name: Agent U3 B2 A1 Working Tool W2 Full Horizon Regression
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [agent/u3-b2-a1-working-tool-w2]
+    paths:
+      - "tests/test_working_tool_w2_full_horizon.py"
+      - "tools/verification/u3_b2_a1_working_tool_w2_*.py"
+      - "docs/verification/stage7_u3_b2_a1_working_tool_w2_*.md"
+      - ".github/workflows/agent-u3-b2-a1-working-tool-w2.yml"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: agent-u3-b2-a1-working-tool-w2
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src:tools/verification
+  PYTHONDONTWRITEBYTECODE: "1"
+  W1_PARENT_HEAD: a9ca38a18634dae8006379997403b6d6dc0f1230
+  A2_SOURCE_SHA: 947b0f0bf006e8015c3c109e57a8aeb7460cca02
+  A2_RUN_ID: "31719604102"
+  A2_JOB_ID: "94512927800"
+  A2_ARTIFACT_ID: "9189445884"
+  A2_ARTIFACT_NAME: u3-b2-a1-increment-9m-a2-31719604102
+  A2_ARTIFACT_SHA256: 4678ecd9f919ea513bed16652a1fe5b484d6c664b74209bf7dbaffa2dc0a2b64
+
+jobs:
+  w2-full-horizon-regression:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Install fixed dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install \
+            'numpy==2.5.1' \
+            'CoolProp==8.0.0' \
+            'pytest==9.1.1'
+
+      - name: Verify W2 source scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          git diff --check "${W1_PARENT_HEAD}" HEAD
+          changed="$(git diff --name-only "${W1_PARENT_HEAD}" HEAD)"
+          forbidden="$(printf '%s\n' "${changed}" | grep -Ev '^(docs/verification/stage7_u3_b2_a1_working_tool_w2_|tests/test_working_tool_w2_full_horizon\.py$|tools/verification/u3_b2_a1_working_tool_w2_(full_horizon_backend|regression)\.py$|\.github/workflows/agent-u3-b2-a1-working-tool-w2\.yml$)' || true)"
+          test -z "${forbidden}" || { printf 'unexpected changed paths:\n%s\n' "${forbidden}"; exit 1; }
+
+      - name: Compile W2 sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile \
+            tools/verification/u3_b2_a1_working_tool_w2_full_horizon_backend.py \
+            tools/verification/u3_b2_a1_working_tool_w2_regression.py \
+            tests/test_working_tool_w2_full_horizon.py
+
+      - name: Run retained W0 W1 and W2 focused tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-a1-working-tool-w2
+          mkdir -p "${output}"
+          python -m pytest -q \
+            tests/test_working_tool_w0_contracts.py \
+            tests/test_working_tool_w1_a2_live_backend.py \
+            tests/test_working_tool_w2_full_horizon.py \
+            --junitxml="${output}/pytest.xml" \
+            | tee "${output}/pytest.log"
+
+      - name: Verify and download immutable A2 authority
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          parent_root="${RUNNER_TEMP}/working-tool-w2-a2-authority"
+          rm -rf "${parent_root}"
+          mkdir -p "${parent_root}/artifact"
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${A2_RUN_ID}" \
+            > "${parent_root}/run.json"
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${A2_RUN_ID}/jobs?per_page=100" \
+            > "${parent_root}/jobs.json"
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${A2_ARTIFACT_ID}" \
+            > "${parent_root}/artifact.json"
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${A2_ARTIFACT_ID}/zip" \
+            > "${parent_root}/artifact.zip"
+          test "$(sha256sum "${parent_root}/artifact.zip" | awk '{print $1}')" = "${A2_ARTIFACT_SHA256}"
+          unzip -q "${parent_root}/artifact.zip" -d "${parent_root}/artifact"
+          (
+            cd "${parent_root}/artifact"
+            sha256sum -c artifact_sha256.txt
+          )
+          python - "${parent_root}" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          run = json.loads((root / 'run.json').read_text(encoding='utf-8'))
+          jobs = json.loads((root / 'jobs.json').read_text(encoding='utf-8'))
+          artifact = json.loads((root / 'artifact.json').read_text(encoding='utf-8'))
+          expected_source = '947b0f0bf006e8015c3c109e57a8aeb7460cca02'
+          expected_run = 31719604102
+          expected_job = 94512927800
+          expected_artifact = 9189445884
+          expected_name = 'u3-b2-a1-increment-9m-a2-31719604102'
+          expected_sha = '4678ecd9f919ea513bed16652a1fe5b484d6c664b74209bf7dbaffa2dc0a2b64'
+          job = next(row for row in jobs['jobs'] if int(row['id']) == expected_job)
+          assert int(run['id']) == expected_run
+          assert run['head_sha'] == expected_source
+          assert run['conclusion'] == 'success'
+          assert job['conclusion'] == 'success'
+          assert int(artifact['id']) == expected_artifact
+          assert artifact['name'] == expected_name
+          assert artifact['digest'] == f'sha256:{expected_sha}'
+          assert artifact['expired'] is False
+          assert artifact['workflow_run']['head_sha'] == expected_source
+          authority = {
+              'live_metadata_verified': True,
+              'source_git_sha': expected_source,
+              'workflow_run': expected_run,
+              'workflow_job': expected_job,
+              'run_conclusion': run['conclusion'],
+              'job_conclusion': job['conclusion'],
+              'artifact_id': expected_artifact,
+              'artifact_name': expected_name,
+              'artifact_digest': artifact['digest'],
+              'artifact_sha256': expected_sha,
+              'archive_sha256': expected_sha,
+              'artifact_expired': artifact['expired'],
+          }
+          (root / 'a2_authority.json').write_text(
+              json.dumps(authority, indent=2, sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          PY
+          echo "W2_A2_PARENT_DIR=${parent_root}/artifact" >> "${GITHUB_ENV}"
+          echo "W2_A2_AUTHORITY_JSON=${parent_root}/a2_authority.json" >> "${GITHUB_ENV}"
+
+      - name: Run authoritative W2 full-horizon regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-a1-working-tool-w2/regression
+          rm -rf "${output}"
+          python tools/verification/u3_b2_a1_working_tool_w2_regression.py \
+            --contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json \
+            --b1-contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
+            --a2-artifact-dir "${W2_A2_PARENT_DIR}" \
+            --a2-authority-json "${W2_A2_AUTHORITY_JSON}" \
+            --output-dir "${output}" \
+            --source-git-sha "${GITHUB_SHA}" \
+            | tee artifacts/u3-b2-a1-working-tool-w2/regression-console.log
+
+      - name: Inspect W2 regression and public-result separation
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-a1-working-tool-w2/regression
+          python - "${output}" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          regression = json.loads(
+              (root / 'w2_behavioral_regression.json').read_text(encoding='utf-8')
+          )
+          public = json.loads(
+              (root / 'public-result' / 'summary.json').read_text(encoding='utf-8')
+          )
+          assert regression['outcome'] == 'WORKING_TOOL_W2_EXACT_A2_BEHAVIORAL_REGRESSION_PASS'
+          assert regression['parent_authority_gate_passed'] is True
+          assert regression['full_horizon_execution_gate_passed'] is True
+          assert regression['manager_and_restoration_gate_passed'] is True
+          assert regression['public_result_gate_passed'] is True
+          assert regression['exact_a2_behavioral_regression_passed'] is True
+          assert all(
+              row['exact_match']
+              for row in regression['exact_summary_field_comparison'].values()
+          )
+          assert all(
+              row['exact_match']
+              for row in regression['exact_csv_comparison'].values()
+          )
+          assert all(
+              row['exact_match']
+              for row in regression['exact_npz_array_comparison'].values()
+          )
+          assert public['accepted_steps'] == 640
+          assert public['full_two_l_over_c0_execution_completed'] is True
+          assert public['target_horizon_reached'] is True
+          assert public['horizon_time_error_s'] == 0.0
+          assert public['a2_behavioral_regression_tested'] is False
+          assert public['verified'] is False
+          assert public['accepted'] is False
+          assert public['validated'] is False
+          assert public['design_use_approved'] is False
+          PY
+          (
+            cd "${output}"
+            sha256sum -c artifact_sha256.txt
+          )
+
+      - name: Record source metadata and workflow evidence manifest
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-a1-working-tool-w2
+          mkdir -p "${output}"
+          printf '%s\n' "${GITHUB_SHA}" > "${output}/source_git_sha.txt"
+          git diff --name-only "${W1_PARENT_HEAD}" HEAD > "${output}/changed_paths.txt"
+          (
+            cd "${output}"
+            find . -type f ! -name workflow_artifact_sha256.txt -print0 \
+              | sort -z \
+              | xargs -0 sha256sum \
+              > workflow_artifact_sha256.txt
+          )
+
+      - name: Upload W2 evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: u3-b2-a1-working-tool-w2-${{ github.run_id }}
+          path: artifacts/u3-b2-a1-working-tool-w2
+          if-no-files-found: error
