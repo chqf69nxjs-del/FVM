@@ -22,7 +22,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PYTHONPATH: src
+  PYTHONPATH: src:tools/verification
   PYTHONDONTWRITEBYTECODE: '1'
   ANALYSIS_SOURCE_GIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
