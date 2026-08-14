@@ -1,4 +1,4 @@
-name: Agent U3 B2 A1 Working Tool v0-B
+name: Agent U3 B2 A1 Working Tool v0-B A6 Canonical Regression
 
 on:
   workflow_dispatch:
@@ -12,6 +12,7 @@ on:
       - "src/liquid_gas_transient/working_tool/output_v0_b.py"
       - "src/liquid_gas_transient/working_tool/application_v0_b.py"
       - "tools/working_tool/run_working_tool_v0_b.py"
+      - "tools/verification/u3_b2_a1_working_tool_v0_b_regression.py"
       - "tests/test_working_tool_v0_b_*.py"
       - "docs/verification/stage7_u3_b2_a1_working_tool_v0_b_output_storage_operation_policy_spec.md"
       - ".github/workflows/agent-u3-b2-a1-working-tool-v0-b.yml"
@@ -24,10 +25,21 @@ concurrency:
   group: agent-u3-b2-a1-working-tool-v0-b
   cancel-in-progress: true
 
+env:
+  PYTHONPATH: src:tools/verification
+  PYTHONDONTWRITEBYTECODE: "1"
+  V0_A_BASELINE: ec700d91d136469161be6dc1d1e1f1b6513798bb
+  A2_SOURCE_SHA: 947b0f0bf006e8015c3c109e57a8aeb7460cca02
+  A2_RUN_ID: "31719604102"
+  A2_JOB_ID: "94512927800"
+  A2_ARTIFACT_ID: "9189445884"
+  A2_ARTIFACT_NAME: u3-b2-a1-increment-9m-a2-31719604102
+  A2_ARTIFACT_SHA256: 4678ecd9f919ea513bed16652a1fe5b484d6c664b74209bf7dbaffa2dc0a2b64
+
 jobs:
-  a1-a5-working-tool:
+  a6-canonical-authoritative-regression:
     runs-on: ubuntu-22.04
-    timeout-minutes: 30
+    timeout-minutes: 180
     steps:
       - name: Checkout exact source
         uses: actions/checkout@v7
@@ -48,27 +60,13 @@ jobs:
             'CoolProp==8.0.0' \
             'pytest==9.1.1'
 
-      - name: Verify A5 source scope and protected v0-A paths
+      - name: Verify A6 exact source scope and protected v0-A paths
         shell: bash
-        env:
-          V0_A_BASELINE: ec700d91d136469161be6dc1d1e1f1b6513798bb
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
-          git diff --check "${V0_A_BASELINE}" HEAD -- \
-            src/liquid_gas_transient/working_tool/operation_policy.py \
-            src/liquid_gas_transient/working_tool/output_size.py \
-            src/liquid_gas_transient/working_tool/storage_projection.py \
-            src/liquid_gas_transient/working_tool/run_manifest.py \
-            src/liquid_gas_transient/working_tool/output_v0_b.py \
-            src/liquid_gas_transient/working_tool/application_v0_b.py \
-            tools/working_tool/run_working_tool_v0_b.py \
-            tests/test_working_tool_v0_b_operation_policy.py \
-            tests/test_working_tool_v0_b_storage_projection.py \
-            tests/test_working_tool_v0_b_manifest_output.py \
-            tests/test_working_tool_v0_b_application.py \
-            tests/test_working_tool_v0_b_cli.py \
-            .github/workflows/agent-u3-b2-a1-working-tool-v0-b.yml
+          git diff --check "${V0_A_BASELINE}" HEAD
+          git diff --exit-code "${V0_A_BASELINE}" HEAD -- pyproject.toml
           git diff --exit-code "${V0_A_BASELINE}" HEAD -- \
             src/liquid_gas_transient/working_tool/__init__.py \
             src/liquid_gas_transient/working_tool/application.py \
@@ -80,37 +78,54 @@ jobs:
             src/liquid_gas_transient/working_tool/runtime.py \
             tools/working_tool/run_working_tool_v0_a.py
           changed="$(git diff --name-only "${V0_A_BASELINE}" HEAD)"
-          forbidden="$(printf '%s\n' "${changed}" | grep -Ev '^(docs/verification/stage7_u3_b2_a1_working_tool_v0_b_output_storage_operation_policy_spec\.md$|src/liquid_gas_transient/working_tool/(operation_policy|output_size|storage_projection|run_manifest|output_v0_b|application_v0_b)\.py$|tools/working_tool/run_working_tool_v0_b\.py$|tests/test_working_tool_v0_b_(operation_policy|storage_projection|manifest_output|application|cli)\.py$|\.github/workflows/agent-u3-b2-a1-working-tool-v0-b\.yml$)' || true)"
+          forbidden="$(printf '%s\n' "${changed}" | grep -Ev '^(docs/verification/stage7_u3_b2_a1_working_tool_v0_b_output_storage_operation_policy_spec\.md$|src/liquid_gas_transient/working_tool/(operation_policy|output_size|storage_projection|run_manifest|output_v0_b|application_v0_b)\.py$|tools/working_tool/run_working_tool_v0_b\.py$|tools/verification/u3_b2_a1_working_tool_v0_b_regression\.py$|tests/test_working_tool_v0_b_(operation_policy|storage_projection|manifest_output|application|cli)\.py$|\.github/workflows/agent-u3-b2-a1-working-tool-v0-b\.yml$)' || true)"
           test -z "${forbidden}" || {
             printf 'unexpected changed paths:\n%s\n' "${forbidden}"
             exit 1
           }
 
-      - name: Compile A1 through A5 sources and tests
+      - name: Compile A1 through A6 sources and retained dependencies
         shell: bash
         run: |
           set -euo pipefail
-          PYTHONPATH=src python -m py_compile \
+          python -m py_compile \
             src/liquid_gas_transient/working_tool/operation_policy.py \
             src/liquid_gas_transient/working_tool/output_size.py \
             src/liquid_gas_transient/working_tool/storage_projection.py \
             src/liquid_gas_transient/working_tool/run_manifest.py \
             src/liquid_gas_transient/working_tool/output_v0_b.py \
             src/liquid_gas_transient/working_tool/application_v0_b.py \
+            tools/working_tool/run_working_tool_v0_a.py \
             tools/working_tool/run_working_tool_v0_b.py \
+            tools/verification/u3_b2_a1_working_tool_w2_full_horizon_backend.py \
+            tools/verification/u3_b2_a1_working_tool_w2_regression.py \
+            tools/verification/u3_b2_a1_working_tool_v0_b_regression.py \
             tests/test_working_tool_v0_b_operation_policy.py \
             tests/test_working_tool_v0_b_storage_projection.py \
             tests/test_working_tool_v0_b_manifest_output.py \
             tests/test_working_tool_v0_b_application.py \
             tests/test_working_tool_v0_b_cli.py
 
-      - name: Run A1 through A5 focused tests
+      - name: Verify repository v0-B CLI bootstrap without PYTHONPATH
         shell: bash
         run: |
           set -euo pipefail
-          output=artifacts/u3-b2-a1-working-tool-v0-b-a5
+          output=artifacts/u3-b2-a1-working-tool-v0-b-a6
           mkdir -p "${output}"
-          PYTHONPATH=src python -m pytest -q \
+          env -u PYTHONPATH python tools/working_tool/run_working_tool_v0_b.py --help \
+            > "${output}/cli-help.txt"
+          grep -F -- '--case' "${output}/cli-help.txt"
+          grep -F -- '--output-dir' "${output}/cli-help.txt"
+          grep -F -- '--output-root' "${output}/cli-help.txt"
+          grep -F -- '--state-sample-every' "${output}/cli-help.txt"
+
+      - name: Run retained A1 through A5 focused tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-a1-working-tool-v0-b-a6
+          mkdir -p "${output}"
+          python -m pytest -q \
             tests/test_working_tool_v0_b_operation_policy.py \
             tests/test_working_tool_v0_b_storage_projection.py \
             tests/test_working_tool_v0_b_manifest_output.py \
@@ -119,28 +134,210 @@ jobs:
             --junitxml="${output}/pytest.xml" \
             | tee "${output}/pytest.log"
 
-      - name: Record focused evidence
-        if: always()
+      - name: Verify and download immutable A2 authority
         shell: bash
         env:
-          V0_A_BASELINE: ec700d91d136469161be6dc1d1e1f1b6513798bb
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          output=artifacts/u3-b2-a1-working-tool-v0-b-a5
-          mkdir -p "${output}"
-          printf '%s\n' "${GITHUB_SHA}" > "${output}/source_git_sha.txt"
-          printf '%s\n' "A5_FOCUSED_NON_AUTHORITATIVE" > "${output}/evidence_class.txt"
-          git diff --name-only "${V0_A_BASELINE}" HEAD > "${output}/changed_paths.txt"
+          parent_root="${RUNNER_TEMP}/working-tool-v0-b-a2-authority"
+          rm -rf "${parent_root}"
+          mkdir -p "${parent_root}/artifact"
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${A2_RUN_ID}" \
+            > "${parent_root}/run.json"
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${A2_RUN_ID}/jobs?per_page=100" \
+            > "${parent_root}/jobs.json"
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${A2_ARTIFACT_ID}" \
+            > "${parent_root}/artifact.json"
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${A2_ARTIFACT_ID}/zip" \
+            > "${parent_root}/artifact.zip"
+          test "$(sha256sum "${parent_root}/artifact.zip" | awk '{print $1}')" = "${A2_ARTIFACT_SHA256}"
+          unzip -q "${parent_root}/artifact.zip" -d "${parent_root}/artifact"
+          (
+            cd "${parent_root}/artifact"
+            sha256sum -c artifact_sha256.txt
+          )
+          python - "${parent_root}" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          run = json.loads((root / 'run.json').read_text(encoding='utf-8'))
+          jobs = json.loads((root / 'jobs.json').read_text(encoding='utf-8'))
+          artifact = json.loads((root / 'artifact.json').read_text(encoding='utf-8'))
+          expected_source = os.environ['A2_SOURCE_SHA']
+          expected_run = int(os.environ['A2_RUN_ID'])
+          expected_job = int(os.environ['A2_JOB_ID'])
+          expected_artifact = int(os.environ['A2_ARTIFACT_ID'])
+          expected_name = os.environ['A2_ARTIFACT_NAME']
+          expected_sha = os.environ['A2_ARTIFACT_SHA256']
+          job = next(row for row in jobs['jobs'] if int(row['id']) == expected_job)
+          assert int(run['id']) == expected_run
+          assert run['head_sha'] == expected_source
+          assert run['conclusion'] == 'success'
+          assert job['conclusion'] == 'success'
+          assert int(artifact['id']) == expected_artifact
+          assert artifact['name'] == expected_name
+          assert artifact['digest'] == f'sha256:{expected_sha}'
+          assert artifact['expired'] is False
+          assert artifact['workflow_run']['head_sha'] == expected_source
+          authority = {
+              'live_metadata_verified': True,
+              'source_git_sha': expected_source,
+              'workflow_run': expected_run,
+              'workflow_job': expected_job,
+              'run_conclusion': run['conclusion'],
+              'job_conclusion': job['conclusion'],
+              'artifact_id': expected_artifact,
+              'artifact_name': expected_name,
+              'artifact_digest': artifact['digest'],
+              'artifact_sha256': expected_sha,
+              'archive_sha256': expected_sha,
+              'artifact_expired': artifact['expired'],
+          }
+          (root / 'a2_authority.json').write_text(
+              json.dumps(authority, indent=2, sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          PY
+          echo "V0_B_A2_PARENT_DIR=${parent_root}/artifact" >> "${GITHUB_ENV}"
+          echo "V0_B_A2_AUTHORITY_JSON=${parent_root}/a2_authority.json" >> "${GITHUB_ENV}"
+
+      - name: Run authoritative v0-B one-solve canonical regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          root=artifacts/u3-b2-a1-working-tool-v0-b-a6
+          output="${root}/regression"
+          rm -rf "${output}"
+          python tools/verification/u3_b2_a1_working_tool_v0_b_regression.py \
+            --case examples/working_tool/canonical_a2_case_v0.json \
+            --contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json \
+            --b1-contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
+            --a2-artifact-dir "${V0_B_A2_PARENT_DIR}" \
+            --a2-authority-json "${V0_B_A2_AUTHORITY_JSON}" \
+            --output-dir "${output}" \
+            --source-git-sha "${GITHUB_SHA}" \
+            | tee "${root}/regression-console.log"
+
+      - name: Inspect A6 canonical gates and public-evidence separation
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-a1-working-tool-v0-b-a6/regression
+          python - "${output}" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          regression = json.loads(
+              (root / 'v0_b_behavioral_regression.json').read_text(encoding='utf-8')
+          )
+          assert regression['outcome'] == 'WORKING_TOOL_V0_B_CANONICAL_AUTHORITATIVE_REGRESSION_PASS'
+          assert regression['fresh_physical_solve_count'] == 1
+          assert regression['parent_authority_gate_passed'] is True
+          assert regression['full_horizon_execution_gate_passed'] is True
+          assert regression['manager_and_restoration_gate_passed'] is True
+          assert regression['exact_a2_behavioral_regression_passed'] is True
+          assert regression['legacy_v0_a_public_gate_passed'] is True
+          assert regression['legacy_v0_a_cli_five_file_gate_passed'] is True
+          assert regression['full_core_mismatch_count'] == 0
+          assert regression['v0_b_full_package_gate_passed'] is True
+          assert regression['sampled_solver_summary_mismatch_count'] == 0
+          assert regression['sampled_final_state_mismatch_count'] == 0
+          assert regression['public_evidence_separation_passed'] is True
+          assert regression['runtime_memory_optimized'] is False
+          assert regression['streaming_capable'] is False
+          assert regression['arbitrary_input_supported'] is False
+          assert regression['verified'] is False
+          assert regression['accepted'] is False
+          assert regression['physically_validated'] is False
+          assert regression['design_use_accepted'] is False
+          assert regression['production_approved'] is False
+          expected_samples = {'10': 65, '64': 11, '100': 8, '1000': 2}
+          for interval, expected in expected_samples.items():
+              gate = regression['sampled_storage_gates'][interval]
+              assert gate['gate_passed'] is True
+              assert gate['expected_state_samples'] == expected
+              assert gate['actual_state_samples'] == expected
+              assert gate['solver_summary_mismatch_count'] == 0
+              assert gate['scalar_file_mismatch_count'] == 0
+              assert gate['initial_state_exact'] is True
+              assert gate['final_state_mismatch_count'] == 0
+              assert gate['static_array_mismatch_count'] == 0
+              assert gate['public_verification_key_count'] == 0
+
+          full_dir = root / 'v0-b-full-result'
+          legacy_cli_dir = root / 'legacy-v0-a-cli-result'
+          assert sorted(path.name for path in full_dir.iterdir()) == [
+              'history.csv',
+              'run_manifest.json',
+              'state_history.npz',
+              'summary.json',
+              'transitions.csv',
+              'warnings.csv',
+          ]
+          assert sorted(path.name for path in legacy_cli_dir.iterdir()) == [
+              'history.csv',
+              'state_history.npz',
+              'summary.json',
+              'transitions.csv',
+              'warnings.csv',
+          ]
+          manifest = json.loads((full_dir / 'run_manifest.json').read_text(encoding='utf-8'))
+          assert manifest['storage']['sampling_applied_after_solver'] is True
+          assert manifest['storage']['runtime_state_capture_mode'] == 'FULL'
+          assert manifest['storage']['full_state_samples'] == 641
+          assert manifest['storage']['stored_state_samples'] == 641
+          assert manifest['result']['accepted_steps'] == 640
+          assert manifest['result']['final_time_s'] == 0.004285834855172021
+          assert manifest['result']['target_reached'] is True
+          assert all(value is False for value in manifest['formal_status'].values())
+          PY
           (
             cd "${output}"
-            find . -type f ! -name artifact_sha256.txt -print0 \
-              | sort -z | xargs -0 sha256sum > artifact_sha256.txt
+            sha256sum -c artifact_sha256.txt
           )
 
-      - name: Upload A5 focused evidence
+      - name: Record authoritative source metadata and evidence manifest
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-a1-working-tool-v0-b-a6
+          mkdir -p "${output}"
+          printf '%s\n' "${GITHUB_SHA}" > "${output}/source_git_sha.txt"
+          printf '%s\n' "A6_CANONICAL_AUTHORITATIVE_REGRESSION" > "${output}/evidence_class.txt"
+          git diff --name-only "${V0_A_BASELINE}" HEAD > "${output}/changed_paths.txt"
+          python - "${output}/pytest.log" "${output}/focused_test_count.txt" <<'PY'
+          import re
+          import sys
+          from pathlib import Path
+
+          source = Path(sys.argv[1])
+          target = Path(sys.argv[2])
+          if not source.exists():
+              target.write_text('unavailable\n', encoding='utf-8')
+          else:
+              matches = re.findall(r'(\d+) passed', source.read_text(encoding='utf-8'))
+              target.write_text((matches[-1] if matches else 'unavailable') + '\n', encoding='utf-8')
+          PY
+          (
+            cd "${output}"
+            find . -type f ! -name workflow_artifact_sha256.txt -print0 \
+              | sort -z \
+              | xargs -0 sha256sum \
+              > workflow_artifact_sha256.txt
+            sha256sum -c workflow_artifact_sha256.txt
+          )
+
+      - name: Upload A6 authoritative evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: u3-b2-a1-working-tool-v0-b-a5-${{ github.run_id }}
-          path: artifacts/u3-b2-a1-working-tool-v0-b-a5
+          name: u3-b2-a1-working-tool-v0-b-a6-${{ github.run_id }}
+          path: artifacts/u3-b2-a1-working-tool-v0-b-a6
           if-no-files-found: error
