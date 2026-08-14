@@ -21,6 +21,7 @@ for _path in (
 from liquid_gas_transient.working_tool import (  # noqa: E402
     CaseFileError,
     OutputDirectoryError,
+    load_case_file,
     run_case_file,
 )
 from u3_b2_a1_working_tool_w2_full_horizon_backend import (  # noqa: E402
@@ -62,7 +63,12 @@ def _parser() -> argparse.ArgumentParser:
             "a strict JSON file."
         )
     )
-    parser.add_argument("--case", type=Path, required=True, help="UTF-8 JSON case file")
+    parser.add_argument(
+        "--case",
+        type=Path,
+        required=True,
+        help="UTF-8 JSON case file",
+    )
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -80,10 +86,15 @@ def main(
     args = _parser().parse_args(argv)
     print(PROVISIONAL_NOTICE, file=sys.stderr)
     try:
+        # Validate before constructing the retained integration backend.  The
+        # application runner intentionally reloads the immutable file so the
+        # same public path remains authoritative for the actual execution.
+        load_case_file(args.case)
+        backend = backend_factory()
         receipt = run_case_file(
             case_path=args.case,
             output_dir=args.output_dir,
-            backend=backend_factory(),
+            backend=backend,
         )
     except (CaseFileError, OutputDirectoryError, W2CaseScopeError) as exc:
         print(f"WORKING_TOOL_V0_A_INPUT_ERROR: {exc}", file=sys.stderr)
