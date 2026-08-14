@@ -244,7 +244,12 @@ def test_sampled_mode_changes_only_state_npz_storage(tmp_path: Path) -> None:
         ).read_bytes()
 
     with np.load(sampled_dir / "state_history.npz") as sampled_npz:
-        assert sampled_npz["time_s"].tolist() == [0.0, 0.0003, 0.0004]
+        np.testing.assert_allclose(
+            sampled_npz["time_s"],
+            np.asarray([0.0, 0.0003, 0.0004], dtype=np.float64),
+            rtol=0.0,
+            atol=0.0,
+        )
         assert sampled_npz["conserved"].shape[0] == 3
         assert sampled_npz["x_m"].shape == (3,)
     assert sampled_receipt.manifest["storage"]["mode"] == "SAMPLED_STATE"
@@ -401,9 +406,11 @@ def test_manifest_fails_closed_on_policy_or_status_mismatch(tmp_path: Path) -> N
         "WORKING_TOOL_V0_B_POLICY_PROJECTION_MISMATCH"
     )
 
+    invalid_result = replace(projection.result)
+    object.__setattr__(invalid_result, "verified", True)
     verified_projection = replace(
         projection,
-        result=replace(projection.result, verified=True),
+        result=invalid_result,
     )
     full_policy = WorkingToolOperationPolicy.explicit(tmp_path / "published")
     with pytest.raises(RunManifestError) as exc_info:
