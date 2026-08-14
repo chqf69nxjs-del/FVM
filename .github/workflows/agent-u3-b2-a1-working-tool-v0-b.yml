@@ -11,6 +11,7 @@ on:
       - "src/liquid_gas_transient/working_tool/run_manifest.py"
       - "src/liquid_gas_transient/working_tool/output_v0_b.py"
       - "src/liquid_gas_transient/working_tool/application_v0_b.py"
+      - "tools/working_tool/run_working_tool_v0_b.py"
       - "tests/test_working_tool_v0_b_*.py"
       - "docs/verification/stage7_u3_b2_a1_working_tool_v0_b_output_storage_operation_policy_spec.md"
       - ".github/workflows/agent-u3-b2-a1-working-tool-v0-b.yml"
@@ -24,7 +25,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  a1-a4-output-storage:
+  a1-a5-working-tool:
     runs-on: ubuntu-22.04
     timeout-minutes: 30
     steps:
@@ -47,7 +48,7 @@ jobs:
             'CoolProp==8.0.0' \
             'pytest==9.1.1'
 
-      - name: Verify A4 source scope and protected v0-A paths
+      - name: Verify A5 source scope and protected v0-A paths
         shell: bash
         env:
           V0_A_BASELINE: ec700d91d136469161be6dc1d1e1f1b6513798bb
@@ -61,10 +62,12 @@ jobs:
             src/liquid_gas_transient/working_tool/run_manifest.py \
             src/liquid_gas_transient/working_tool/output_v0_b.py \
             src/liquid_gas_transient/working_tool/application_v0_b.py \
+            tools/working_tool/run_working_tool_v0_b.py \
             tests/test_working_tool_v0_b_operation_policy.py \
             tests/test_working_tool_v0_b_storage_projection.py \
             tests/test_working_tool_v0_b_manifest_output.py \
             tests/test_working_tool_v0_b_application.py \
+            tests/test_working_tool_v0_b_cli.py \
             .github/workflows/agent-u3-b2-a1-working-tool-v0-b.yml
           git diff --exit-code "${V0_A_BASELINE}" HEAD -- \
             src/liquid_gas_transient/working_tool/__init__.py \
@@ -77,13 +80,13 @@ jobs:
             src/liquid_gas_transient/working_tool/runtime.py \
             tools/working_tool/run_working_tool_v0_a.py
           changed="$(git diff --name-only "${V0_A_BASELINE}" HEAD)"
-          forbidden="$(printf '%s\n' "${changed}" | grep -Ev '^(docs/verification/stage7_u3_b2_a1_working_tool_v0_b_output_storage_operation_policy_spec\.md$|src/liquid_gas_transient/working_tool/(operation_policy|output_size|storage_projection|run_manifest|output_v0_b|application_v0_b)\.py$|tests/test_working_tool_v0_b_(operation_policy|storage_projection|manifest_output|application)\.py$|\.github/workflows/agent-u3-b2-a1-working-tool-v0-b\.yml$)' || true)"
+          forbidden="$(printf '%s\n' "${changed}" | grep -Ev '^(docs/verification/stage7_u3_b2_a1_working_tool_v0_b_output_storage_operation_policy_spec\.md$|src/liquid_gas_transient/working_tool/(operation_policy|output_size|storage_projection|run_manifest|output_v0_b|application_v0_b)\.py$|tools/working_tool/run_working_tool_v0_b\.py$|tests/test_working_tool_v0_b_(operation_policy|storage_projection|manifest_output|application|cli)\.py$|\.github/workflows/agent-u3-b2-a1-working-tool-v0-b\.yml$)' || true)"
           test -z "${forbidden}" || {
             printf 'unexpected changed paths:\n%s\n' "${forbidden}"
             exit 1
           }
 
-      - name: Compile A1 through A4 sources and tests
+      - name: Compile A1 through A5 sources and tests
         shell: bash
         run: |
           set -euo pipefail
@@ -94,22 +97,25 @@ jobs:
             src/liquid_gas_transient/working_tool/run_manifest.py \
             src/liquid_gas_transient/working_tool/output_v0_b.py \
             src/liquid_gas_transient/working_tool/application_v0_b.py \
+            tools/working_tool/run_working_tool_v0_b.py \
             tests/test_working_tool_v0_b_operation_policy.py \
             tests/test_working_tool_v0_b_storage_projection.py \
             tests/test_working_tool_v0_b_manifest_output.py \
-            tests/test_working_tool_v0_b_application.py
+            tests/test_working_tool_v0_b_application.py \
+            tests/test_working_tool_v0_b_cli.py
 
-      - name: Run A1 through A4 focused tests
+      - name: Run A1 through A5 focused tests
         shell: bash
         run: |
           set -euo pipefail
-          output=artifacts/u3-b2-a1-working-tool-v0-b-a4
+          output=artifacts/u3-b2-a1-working-tool-v0-b-a5
           mkdir -p "${output}"
           PYTHONPATH=src python -m pytest -q \
             tests/test_working_tool_v0_b_operation_policy.py \
             tests/test_working_tool_v0_b_storage_projection.py \
             tests/test_working_tool_v0_b_manifest_output.py \
             tests/test_working_tool_v0_b_application.py \
+            tests/test_working_tool_v0_b_cli.py \
             --junitxml="${output}/pytest.xml" \
             | tee "${output}/pytest.log"
 
@@ -120,10 +126,10 @@ jobs:
           V0_A_BASELINE: ec700d91d136469161be6dc1d1e1f1b6513798bb
         run: |
           set -euo pipefail
-          output=artifacts/u3-b2-a1-working-tool-v0-b-a4
+          output=artifacts/u3-b2-a1-working-tool-v0-b-a5
           mkdir -p "${output}"
           printf '%s\n' "${GITHUB_SHA}" > "${output}/source_git_sha.txt"
-          printf '%s\n' "A4_FOCUSED_NON_AUTHORITATIVE" > "${output}/evidence_class.txt"
+          printf '%s\n' "A5_FOCUSED_NON_AUTHORITATIVE" > "${output}/evidence_class.txt"
           git diff --name-only "${V0_A_BASELINE}" HEAD > "${output}/changed_paths.txt"
           (
             cd "${output}"
@@ -131,10 +137,10 @@ jobs:
               | sort -z | xargs -0 sha256sum > artifact_sha256.txt
           )
 
-      - name: Upload A4 focused evidence
+      - name: Upload A5 focused evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: u3-b2-a1-working-tool-v0-b-a4-${{ github.run_id }}
-          path: artifacts/u3-b2-a1-working-tool-v0-b-a4
+          name: u3-b2-a1-working-tool-v0-b-a5-${{ github.run_id }}
+          path: artifacts/u3-b2-a1-working-tool-v0-b-a5
           if-no-files-found: error
