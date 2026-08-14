@@ -33,24 +33,32 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - name: Materialize reviewed A1 bundle
+      - name: Materialize reviewed A1 source, tests, and specification
         run: |
           set -euo pipefail
           python tools/materialize_stage7_p1_a1.py
-          python -m compileall -q \
-            src/liquid_gas_transient/hem_pipeline_pressure_phase_relationship.py \
-            tests/test_stage7_p1_pressure_phase_relationship.py
+          python - <<'PY'
+          from pathlib import Path
+
+          for relative in (
+              'src/liquid_gas_transient/hem_pipeline_pressure_phase_relationship.py',
+              'tests/test_stage7_p1_pressure_phase_relationship.py',
+          ):
+              source = Path(relative).read_text(encoding='utf-8')
+              compile(source, relative, 'exec')
+          PY
           git diff --check
           test ! -e tools/p1_a1_payload_01.txt
           test ! -e tools/p1_a1_payload_02.txt
           test ! -e tools/p1_a1_payload_03.txt
           test ! -e tools/materialize_stage7_p1_a1.py
-          test ! -e .github/workflows/materialize-stage7-p1-a1.yml
+          test -f .github/workflows/materialize-stage7-p1-a1.yml
+          test ! -e .github/workflows/stage7-p1-pressure-phase-relationship-a1.yml
           test -f src/liquid_gas_transient/hem_pipeline_pressure_phase_relationship.py
           test -f tests/test_stage7_p1_pressure_phase_relationship.py
           test -f docs/verification/stage7_p1_pressure_phase_relationship_increment_a1.md
-          test -f .github/workflows/stage7-p1-pressure-phase-relationship-a1.yml
-      - name: Commit materialized A1 increment
+          test -z "$(find src tests -type f -name '*.pyc' -print -quit)"
+      - name: Commit materialized A1 non-workflow files
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'

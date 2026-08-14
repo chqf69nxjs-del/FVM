@@ -1,8 +1,9 @@
 """One-shot materializer for the reviewed Stage 7 P1-A1 bundle.
 
-The temporary payload files, this script, and its workflow remove themselves after
-extracting the prepared source, tests, specification, and A1 workflow. The payload
-SHA and exact path allowlist are checked before extraction.
+The temporary payload files and this script remove themselves after extracting the
+prepared source, tests, and specification. Workflow creation is intentionally left
+to the GitHub connector because the Actions token is not permitted to create or
+update workflow files.
 """
 
 from __future__ import annotations
@@ -19,16 +20,16 @@ PAYLOAD_FILES = (
     "tools/p1_a1_payload_03.txt",
 )
 PAYLOAD_SHA256 = "480d72a142d444d4489406afa65cd994798e3e581410000ad9aae010fbae30be"
+FINAL_WORKFLOW = ".github/workflows/stage7-p1-pressure-phase-relationship-a1.yml"
 ALLOWED_FILES = {
     "src/liquid_gas_transient/hem_pipeline_pressure_phase_relationship.py",
     "tests/test_stage7_p1_pressure_phase_relationship.py",
     "docs/verification/stage7_p1_pressure_phase_relationship_increment_a1.md",
-    ".github/workflows/stage7-p1-pressure-phase-relationship-a1.yml",
+    FINAL_WORKFLOW,
 }
 TEMPORARY_FILES = (
     *PAYLOAD_FILES,
     "tools/materialize_stage7_p1_a1.py",
-    ".github/workflows/materialize-stage7-p1-a1.yml",
 )
 
 
@@ -56,6 +57,11 @@ def main() -> None:
             if destination != root_resolved and root_resolved not in destination.parents:
                 raise RuntimeError(f"unsafe payload path: {member.name}")
         bundle.extractall(root, filter="data")
+
+    workflow_path = root / FINAL_WORKFLOW
+    if not workflow_path.is_file():
+        raise RuntimeError("prepared final workflow was not present in the payload")
+    workflow_path.unlink()
 
     for relative in TEMPORARY_FILES:
         path = root / relative
