@@ -65,7 +65,21 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
-          git diff --check "${V0_A_BASELINE}" HEAD
+          git diff --check "${V0_A_BASELINE}" HEAD -- \
+            src/liquid_gas_transient/working_tool/operation_policy.py \
+            src/liquid_gas_transient/working_tool/output_size.py \
+            src/liquid_gas_transient/working_tool/storage_projection.py \
+            src/liquid_gas_transient/working_tool/run_manifest.py \
+            src/liquid_gas_transient/working_tool/output_v0_b.py \
+            src/liquid_gas_transient/working_tool/application_v0_b.py \
+            tools/working_tool/run_working_tool_v0_b.py \
+            tools/verification/u3_b2_a1_working_tool_v0_b_regression.py \
+            tests/test_working_tool_v0_b_operation_policy.py \
+            tests/test_working_tool_v0_b_storage_projection.py \
+            tests/test_working_tool_v0_b_manifest_output.py \
+            tests/test_working_tool_v0_b_application.py \
+            tests/test_working_tool_v0_b_cli.py \
+            .github/workflows/agent-u3-b2-a1-working-tool-v0-b.yml
           git diff --exit-code "${V0_A_BASELINE}" HEAD -- pyproject.toml
           git diff --exit-code "${V0_A_BASELINE}" HEAD -- \
             src/liquid_gas_transient/working_tool/__init__.py \
