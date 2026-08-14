@@ -137,10 +137,13 @@ jobs:
           mkdir -p "${output}"
           printf '%s\n' "${GITHUB_SHA}" > "${output}/source_git_sha.txt"
           git diff --name-only "${W0_PARENT_HEAD}" HEAD > "${output}/changed_paths.txt"
-          find "${output}" -type f ! -name workflow_artifact_sha256.txt -print0 \
-            | sort -z \
-            | xargs -0 sha256sum \
-            > "${output}/workflow_artifact_sha256.txt"
+          (
+            cd "${output}"
+            find . -type f ! -name workflow_artifact_sha256.txt -print0 \
+              | sort -z \
+              | xargs -0 sha256sum \
+              > workflow_artifact_sha256.txt
+          )
 
       - name: Upload W1 evidence
         if: always()
