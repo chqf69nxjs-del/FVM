@@ -1,45 +1,81 @@
-# Stage 7 Real-Problem Application Strategy
+# Stage 7 Analysis-Tool Development and Real-Problem Application Strategy
 
-## Status — 2026-07-30
+## Status — 2026-08-14
 
 ```text
-application track:                 ACTIVE
-application specification:         REVIEWED DRAFT
-first pilot use case:              U3 pipeline depressurization / blowdown
-physical validation:               NOT ESTABLISHED
-design-use acceptance:             NOT APPROVED
-production HEM activation:         NOT APPROVED
+project purpose:                    PRACTICAL ANALYSIS-TOOL DEVELOPMENT
+primary required capability:        PRESSURE-WAVE / FLASHING / TWO-PHASE STUDIES
+application track:                  ACTIVE
+application specification:          REVIEWED BASELINE; STRATEGY UPDATED
+first pilot use case:               U3 pipeline depressurization / blowdown
+Working Tool v0-B:                  PROVISIONAL ENGINEERING END-TO-END WORKING SLICE
+physical validation:                NOT ESTABLISHED
+design-use acceptance:              NOT APPROVED
+production HEM activation:          NOT APPROVED
 ```
 
 Related control records:
 
 - Issue #104 — real-problem application specification
 - Issue #105 — Gate 8 post-crossing CFL sensitivity
+- [`project_document_authority_map.md`](project_document_authority_map.md)
 - [`stage7_current_gate_snapshot.md`](stage7_current_gate_snapshot.md)
+- [`MASTER_VERIFICATION_INDEX.md`](MASTER_VERIFICATION_INDEX.md)
+- [`stage7_execution_log.md`](stage7_execution_log.md)
+- [`stage7_u3_b2_a1_working_tool_v0_b_closeout.md`](stage7_u3_b2_a1_working_tool_v0_b_closeout.md)
 - [`stage7_gate6_closeout.md`](stage7_gate6_closeout.md)
 - [`stage7_gate7_closeout.md`](stage7_gate7_closeout.md)
 
-## 1. Purpose
+## 1. Purpose and completion policy
 
-Stage 7 has moved beyond proving that a liquid-to-open-two-phase crossing can occur. The current verification path can recover a mixed accepted state, continue for a fixed post-crossing horizon, retain conservative and vapor budgets, and diagnose localized phase chatter.
+The purpose of Stage 7 is to develop a practical analysis tool that can support bounded engineering studies of pressure-wave propagation, depressurization, flashing, and liquid-to-two-phase transition in finite-length liquid-CO2 pipelines.
 
-The project must now advance along two controlled tracks:
+The project is **not** defined as an open-ended effort to completely explain those phenomena. Pressure propagation, flashing, and two-phase behavior are required analysis capabilities of the tool, not an unlimited research completion criterion.
+
+The target development sequence is:
 
 ```text
-Track N — numerical / model characterization
-Track A — real-problem application definition and validation planning
+bounded physics capability
+→ end-to-end Working Vertical Slice
+→ explicit scope / guards / outputs / reproducibility
+→ targeted Physics refinement / Verification
+→ representative Validation when required by the intended use
 ```
 
-Track N determines how results change with CFL, mesh, flux structure, acoustic closure, and model assumptions. Track A determines what engineering decisions the tool should support, which input and output contracts are required, and what evidence is needed before those results can be used.
+A Working Vertical Slice is complete when a declared case can be executed end to end within a bounded scope, the relevant result and state histories can be inspected, limitations and fail-closed conditions are explicit, and the run can be reproduced. Comprehensive Verification of every physical regime and full Physical Validation are not prerequisites for that status.
+
+Stage 7 has moved beyond proving that a liquid-to-open-two-phase crossing can occur. The reviewed HEM path can recover a mixed accepted state, continue for a fixed post-crossing horizon, retain conservative and vapor budgets, and diagnose localized phase chatter. In parallel, the U3 B2 A1 path has established a provisional finite-pipe discharge Working Tool with reproducible output and storage behavior.
+
+The project advances along two controlled tracks:
+
+```text
+Track N — targeted numerical / model characterization
+Track A — analysis-tool capability and real-problem application
+```
+
+Track N determines whether a specific result used by the tool is sufficiently stable, conservative, repeatable, and bounded for its declared purpose. Track A determines what analysis studies the tool must execute, which input and output contracts are required, and what evidence is necessary for each maturity level.
 
 Neither track alone is sufficient:
 
-- numerical studies without an application target can become open-ended;
+- numerical studies without a concrete tool capability or decision target can become open-ended;
 - application development without numerical and physical bounds can overstate confidence.
+
+### 1.1 Verification stop rule
+
+Verification is limited to predeclared acceptance conditions for the active increment, such as conservation, finite / positivity behavior, repeatability, state transitions, guard behavior, and the sensitivity of decision-relevant outputs.
+
+After those conditions are met, additional Verification is undertaken only when one of the following is identified:
+
+- an observed solver, conservation, positivity, root, branch, or reproducibility failure;
+- a new physical regime, input range, or intended use;
+- a sensitivity capable of changing an engineering comparison or conclusion;
+- a prerequisite for a specified Acceptance or representative Validation activity.
+
+Additional work is not justified solely by the possibility that more Verification could increase general confidence.
 
 ## 2. Current technical position
 
-The reviewed first-order verification path currently supports:
+The reviewed first-order HEM verification path currently supports:
 
 - pure CO2 properties through CoolProp 8.0.0;
 - one-dimensional conservative FVM with the existing Rusanov flux;
@@ -52,6 +88,25 @@ The reviewed first-order verification path currently supports:
 - conservative and vapor-budget closure;
 - focused event-aligned diagnosis of the boundary-adjacent cell-30 chatter.
 
+The U3 B2 A1 development path additionally provides:
+
+- a finite-pipe single-phase discharge working slice with explicit boundary-model transitions;
+- guarded finite-compression, near-zero-flow, and zero-transfer behavior for the canonical case;
+- a Working Tool v0-B operation layer for run directories, output files, state-history storage, sampling, manifest, and reproducibility;
+- an authoritative canonical regression for that bounded working case.
+
+These two foundations are complementary:
+
+```text
+existing HEM path
+= liquid-to-two-phase transition and post-crossing physics evidence
+
+U3 B2 A1 / Working Tool path
+= physical-discharge and reproducible tool-operation foundation
+```
+
+They are not yet an integrated physical two-phase blowdown tool.
+
 The evidence does **not** yet establish:
 
 - post-crossing CFL or mesh independence;
@@ -59,21 +114,27 @@ The evidence does **not** yet establish:
 - phase-chatter root cause or mitigation;
 - strict `q -> 0+` acoustic continuity;
 - a two-phase acoustic accuracy band;
+- non-equilibrium flashing-delay accuracy;
+- an integrated two-phase physical discharge / choking boundary;
 - physical blowdown, ESD-valve, or pump-trip validation;
 - design use or production HEM activation.
 
+These open items are tracked as bounded capability gaps. They do not invalidate the existing Working Vertical Slices outside their stated scope.
+
 ## 3. Common engineering-result contract
 
-Every future real-problem result must present four layers together:
+Every future accepted engineering result must present four layers together:
 
 ```text
 1. representative result
-2. numerical and model sensitivity envelope
+2. numerical and model sensitivity envelope required for that use
 3. applicability warnings / guard outcomes
 4. unapproved or unvalidated model elements
 ```
 
 A single pressure peak, crossing time, or phase-front position without those layers is not an accepted engineering deliverable.
+
+Exploratory C1 Working-Slice results may still be used for development comparison, model discrimination, workflow testing, and sensitivity exploration when their limitations and authority are explicit.
 
 ### 3.1 Minimum common outputs
 
@@ -90,7 +151,7 @@ flow-reversal occurrence and duration
 relief-set-pressure exceedance duration
 design-pressure exceedance duration
 solver / property / phase / acoustic guard history
-CFL / mesh / model sensitivity range
+CFL / mesh / model sensitivity range required for the intended use
 applicability status and result-confidence class
 ```
 
@@ -108,6 +169,7 @@ Current classification:
 
 ```text
 fixed prescribed-boundary 5→2 MPa analogue: C2
+canonical U3 B2 A1 Working Tool case:         C1 operational working slice
 physical blowdown prediction:                 C1 or below
 ESD valve operation with HEM:                 C1 or below
 pump trip with HEM:                           C1 or below
@@ -146,9 +208,9 @@ The generic solver infrastructure and Stage 7 HEM evidence provide useful founda
 
 ```text
 HEM-connected transient valve characteristic
-friction / gravity / heat-transfer verification
+friction / gravity / heat-transfer verification required by the intended use
 wave-reflection benchmark cases
-post-crossing CFL and mesh sensitivity
+post-crossing targeted CFL and mesh sensitivity
 physical pressure-peak and flashing-onset validation
 ```
 
@@ -176,7 +238,7 @@ network elevation, friction, and thermal data
 
 ### Current readiness
 
-Pump concepts exist in the wider project context, but no pump-trip problem is connected to the reviewed Stage 7 HEM path with end-to-end crossing, propagation, sensitivity, and validation evidence.
+Pump concepts exist in the wider project context, but no pump-trip problem is connected to the reviewed Stage 7 HEM path with end-to-end crossing, propagation, bounded sensitivity, and validation evidence.
 
 ### Critical gaps
 
@@ -185,7 +247,7 @@ verified pump-inertia coupling
 reverse-flow / turbine-region treatment
 check-valve and reservoir coupling
 high-point gravity effects
-post-crossing numerical sensitivity
+post-crossing targeted numerical sensitivity
 physical benchmark or experimental validation
 ```
 
@@ -197,6 +259,7 @@ physical benchmark or experimental validation
 - discharge and inventory histories;
 - crossing time and location;
 - two-phase-region growth, persistence, and propagation;
+- interaction between flashing and the pressure-wave history;
 - maximum q_eq and void fraction;
 - temperature reduction and approach to out-of-scope solid-CO2 conditions;
 - controlling influence of the discharge boundary.
@@ -215,18 +278,21 @@ solid-CO2 and non-condensable-gas screening information
 
 ### Current readiness
 
-The 5→2 MPa prescribed-subcooled outlet case is the closest current verification analogue. It proves that the existing HEM path can cross and continue, but it is not a physical blowdown closure. The outlet is not an orifice / critical-discharge model, thermal effects are absent, post-crossing sensitivity is unknown, and propagation speed is unvalidated.
+The 5→2 MPa prescribed-subcooled outlet case is the closest current HEM verification analogue. It proves that the existing HEM path can cross and continue, but it is not a physical blowdown closure.
+
+The U3 B2 A1 path now provides a bounded single-phase physical-discharge and Working Tool foundation, but it has not yet been connected to the existing HEM post-crossing path. The next application capability is therefore not a new first-crossing specification; it is a bounded integration that follows the pressure wave and flashing region after crossing and then connects that path to the physical discharge model.
 
 ### Critical gaps
 
 ```text
-physical discharge / choking boundary
-post-crossing CFL and mesh sensitivity
-wall heat transfer and thermal inventory
-longer-duration continuation
+post-crossing pressure-wave / flashing coupling output path
+targeted post-crossing CFL and mesh checks for decision outputs
+early HEM versus HNE / relaxation comparison
+integrated two-phase physical discharge / choking boundary
+wall heat transfer and thermal inventory required for later use
+longer-duration continuation when required by the study horizon
 solid-CO2 approach guard
-HEM versus non-equilibrium applicability assessment
-pressure / discharge / phase-front validation
+representative pressure / discharge / phase-front validation
 ```
 
 ## 5. Applicability and exclusion matrix
@@ -236,41 +302,42 @@ pressure / discharge / phase-front validation
 | Fluid | pure CO2 | within reviewed property scope only |
 | Backend | CoolProp 8.0.0 | fixed verification reference |
 | Dimension | one-dimensional | axial network transients only |
-| Phase model | equilibrium HEM | verification-only |
+| Phase model | equilibrium HEM | fixed-case verification baseline |
 | Spatial method | first-order FVM / Rusanov | numerical characteristics still being mapped |
 | First crossing | verified in fixed cases | crossing existence / location evidence |
 | Quality projection | verified in fixed cases | synchronization, not physical nucleation kinetics |
 | Post-crossing continuation | one 32-cell / CFL 0.10 case | fixed-case verification evidence |
 | Conservative budgets | closed in fixed continuation | software / numerical integrity evidence |
-| Post-crossing CFL sensitivity | not yet executed | no timing independence claim |
-| Post-crossing mesh sensitivity | not yet executed | no spatial convergence claim |
+| Working Tool v0-B | canonical provisional working slice | execution / output / storage foundation only |
+| Post-crossing CFL sensitivity | not yet executed | no general timing-independence claim |
+| Post-crossing mesh sensitivity | not yet executed | no general spatial-convergence claim |
 | Local chatter | observed and diagnosed for correlation | root cause and mitigation unapproved |
-| Friction / gravity / heat in Stage 7 path | not established | do not infer full real-pipeline response |
-| Physical discharge boundary | not established | no physical blowdown-rate claim |
+| Friction / gravity / heat in Stage 7 HEM path | not established | do not infer full real-pipeline response |
+| Physical discharge boundary | single-phase bounded working foundation | no integrated two-phase blowdown-rate claim |
 | ESD-valve HEM path | not established | exploratory only |
 | Pump-trip HEM path | not established | exploratory only |
 | Non-condensable gas | outside evidence | unsupported |
 | Solid CO2 | outside evidence | unsupported; guard required |
-| Non-equilibrium flashing | outside current HEM evidence | no nucleation-delay claim |
+| Non-equilibrium flashing | early comparison target; outside current evidence | no nucleation-delay accuracy claim |
 | Physical validation | not established | no accuracy claim |
 | Design use | not approved | prohibited |
 
-## 6. Validation ladder
+## 6. Evidence and maturity ladder
 
-Each use case advances through the same staged ladder.
+The following ladder defines increasing evidence and use maturity. It is **not** a mandatory serial checklist that must be completed in full before a Working Vertical Slice can exist.
 
 ### V0 — scope and conservation checks
 
 - inputs remain inside property and phase scope;
 - solver guards are explicit;
-- mass, momentum, energy, and vapor accounting close.
+- mass, momentum, energy, and vapor accounting close to the predeclared criterion.
 
-### V1 — numerical characterization
+### V1 — targeted numerical characterization
 
-- CFL and mesh sensitivity;
+- CFL and mesh sensitivity for outputs that matter to the declared use;
 - event and guard repeatability;
-- front, peak, and timing envelopes;
-- local oscillation characterization.
+- front, peak, and timing envelopes when required;
+- local oscillation characterization when it affects interpretation.
 
 ### V2 — component-level benchmark
 
@@ -294,87 +361,108 @@ Each use case advances through the same staged ladder.
 - independent review;
 - explicit approval for a bounded use case.
 
+A feature may be an `IMPLEMENTED` or `WORKING VERTICAL SLICE` capability before V1–V5 are complete. Its status, limits, and prohibited interpretations must remain explicit.
+
 ## 7. Selected first pilot — U3 depressurization / blowdown
 
 U3 is selected as the first pilot application because:
 
-1. it is closest to the existing 5→2 MPa verification analogue;
+1. it is closest to the existing 5→2 MPa HEM verification analogue;
 2. it directly exercises crossing, propagation, acoustic, quality, and vapor-inventory behavior already under review;
-3. it avoids adding pump inertia and full valve-network reflection complexity at the first application step;
-4. it creates reusable discharge-boundary and thermal capabilities needed by later ESD and relief studies;
-5. it provides a clear path from simplified verification to physical benchmark validation.
+3. it can reuse the U3 B2 A1 physical-discharge and Working Tool foundations;
+4. it avoids adding pump inertia and full valve-network reflection complexity at the first application step;
+5. it creates reusable discharge-boundary and thermal capabilities needed by later ESD and relief studies;
+6. it supports early HEM / HNE comparison for pressure-propagation and flashing-delay studies.
 
-This selection does **not** mean the current prescribed-subcooled outlet is accepted as a blowdown boundary.
+This selection does **not** mean the current prescribed-subcooled outlet or single-phase discharge path is accepted as an integrated two-phase blowdown boundary.
 
 ### Pilot progression
 
 ```text
-P0 — existing prescribed-boundary verification analogue
-P1 — fixed physical orifice / discharge-boundary benchmark
-P2 — add friction and wall thermal inventory under controlled evidence
-P3 — integrated pipe + blowdown device benchmark
-P4 — physical-data validation
+P0 — existing prescribed-boundary HEM first-crossing and continuation analogue
+P0B — existing U3 B2 A1 single-phase discharge and Working Tool foundation
+P1 — bounded post-crossing pressure-wave / flashing coupling analysis slice
+P2 — early HNE / relaxation prototype and HEM comparison
+P3 — integrated two-phase physical-discharge benchmark
+P4 — representative physical-data validation for selected outputs
 P5 — sensitivity-bounded engineering screening review
 ```
+
+The progression is capability-driven. P1 and P2 may proceed while targeted P0 / P0B numerical checks continue, provided each result retains its own scope and status.
 
 ### Pilot decision outputs
 
 ```text
 depressurization time
 pressure envelope
+pressure-wave arrival and propagation history
 crossing time and position
 phase-region extent and propagation
+pressure-front versus flashing-front relationship
 vapor-generation and inventory envelope
 maximum q_eq / alpha
 discharge-flow history
 solid-CO2 approach warning
-CFL / mesh / boundary-model sensitivity
+targeted CFL / mesh / boundary-model sensitivity
+HEM / HNE model-difference envelope
 ```
 
-## 8. Mapping numerical gates to engineering decisions
+## 8. Mapping technical work to tool and engineering risks
 
-| Numerical work | Engineering risk reduced |
+| Technical work | Tool or engineering risk reduced |
 |---|---|
-| Gate 8 post-crossing CFL sensitivity | timing, front speed, chatter frequency, peak / phase-event timing |
-| post-crossing mesh sensitivity | front position, front thickness, local peak q / alpha, spatial localization |
-| local flux / acoustic contribution analysis | interpretation of chatter and Rusanov branch coupling |
-| physical discharge-boundary benchmark | blowdown rate and pressure-history credibility |
-| heat-transfer / wall-inventory study | temperature and vapor-generation credibility |
-| HEM / non-equilibrium comparison | flashing-delay and rapid-depressurization applicability |
-| physical validation | accuracy and design-use envelope |
+| bounded conservation / finite / reproducibility gate | silent corruption, nonphysical state, irreproducible output |
+| post-crossing pressure / phase-front output path | inability to study pressure-wave / flashing interaction |
+| targeted post-crossing CFL sensitivity | timing, front speed, chatter frequency, peak / phase-event timing used by the study |
+| targeted post-crossing mesh sensitivity | front position, front thickness, local peak q / alpha, spatial localization used by the study |
+| early HEM / HNE comparison | flashing-delay and rapid-depressurization model dependence |
+| local flux / acoustic contribution analysis | interpretation of chatter and Rusanov branch coupling when it affects results |
+| physical discharge-boundary benchmark | blowdown-rate and pressure-history credibility |
+| heat-transfer / wall-inventory study | temperature and vapor-generation credibility for longer studies |
+| representative physical validation | accuracy and applicability envelope for selected outputs |
+
+Not every row is required for every exploratory Working-Slice run. Required evidence is selected from the intended use and predeclared acceptance criteria.
 
 ## 9. Two-track roadmap
 
-### Track N — numerical and model characterization
+### Track N — targeted numerical and model characterization
 
 ```text
-Gate 8 post-crossing CFL sensitivity
-→ post-crossing mesh sensitivity
-→ local flux / acoustic contribution discrimination
-→ longer-duration continuation
-→ HEM / non-equilibrium comparison
+minimum conservation / finite / positivity / reproducibility gate
+→ bounded post-crossing HEM pressure-wave / flashing continuation
+→ targeted CFL / mesh checks for decision-relevant outputs
+→ early HNE / relaxation prototype and HEM comparison
+→ additional risk-specific checks only when triggered by evidence or scope expansion
 ```
 
-### Track A — application and validation
+### Track A — analysis-tool capability and application
 
 ```text
-U3 pilot specification
-→ physical discharge-boundary benchmark
-→ thermal / friction / elevation extensions
-→ integrated blowdown case
-→ validation data comparison
-→ engineering-screening review
-
-U1 and U2 component specifications proceed in parallel but do not bypass the common numerical and validation ladder.
+Working Tool v0-B operation baseline
+→ pressure-wave and phase-front analysis outputs
+→ U3 post-crossing two-phase analysis slice
+→ integrated physical discharge / two-phase coupling
+→ representative benchmark and Validation for selected outputs
+→ bounded engineering-screening review
 ```
+
+U1 and U2 component specifications may proceed in parallel. They do not require every U3 Verification or Validation task to finish first, but they must retain explicit model scope, guards, result authority, and use restrictions.
 
 ## 10. Governance decision
 
 ```text
+project_primary_goal = practical_analysis_tool_development
+required_primary_capability = pressure_wave_flashing_two_phase_studies
+complete_phenomenon_understanding_required_for_working_slice = false
+comprehensive_all_domain_verification_required_for_working_slice = false
+verification_stop_rule_defined = true
+
 application_specification_complete = true
 real_problem_pilot_selected = true
-selected pilot = U3 pipeline depressurization / blowdown
-Gate 8 = next active numerical gate
+selected_pilot = U3_pipeline_depressurization_blowdown
+Working_Tool_v0_B = PROVISIONAL_ENGINEERING_END_TO_END_WORKING_SLICE
+post_crossing_pressure_flashing_slice = NEXT_CAPABILITY_FOCUS
+early_HNE_relaxation_comparison = PLANNED_HIGH_PRIORITY
 
 ESD_design_use_approved = false
 pump_trip_design_use_approved = false
@@ -385,4 +473,4 @@ design_use_acceptance = false
 production_hem_activation_approved = false
 ```
 
-This strategy authorizes planning and controlled verification only. It does not authorize a production model, equipment-model claim, physical-accuracy claim, or engineering design decision.
+This strategy authorizes bounded tool development, controlled analysis studies, targeted Verification, and Validation planning. It does not authorize a production model, equipment-model accuracy claim, general physical-accuracy claim, or engineering design decision.
