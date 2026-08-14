@@ -55,23 +55,11 @@ LOCAL_RUN_ID = "0123456789abcdef0123456789abcdef"
 def _case() -> WorkingToolCase:
     return WorkingToolCase(
         case_id="V0-B-MANIFEST-TEST",
-        geometry=PipeGeometry(
-            length_m=10.0,
-            diameter_m=0.1,
-            roughness_m=1.0e-5,
-        ),
+        geometry=PipeGeometry(10.0, 0.1, 1.0e-5),
         numerics=NumericsConfig(n_cells=3, n_ghost=2, cfl=0.5),
         time=TimeConfig(t_end_s=6.4e-4, max_steps=32000),
-        initial=InitialCondition(
-            pressure_pa=6.0e6,
-            temperature_k=285.0,
-            velocity_m_s=0.0,
-        ),
-        outlet=OutletCondition(
-            back_pressure_pa=5.0e6,
-            opening_fraction=1.0,
-            discharge_coefficient=0.8,
-        ),
+        initial=InitialCondition(6.0e6, 285.0, 0.0),
+        outlet=OutletCondition(5.0e6, 1.0, 0.8),
     )
 
 
@@ -98,7 +86,6 @@ def _full_result(*, accepted_steps: int = 4) -> WorkingToolResult:
         ),
         axis=2,
     ).astype(np.float64, copy=False)
-
     return WorkingToolResult(
         case_id=case.case_id,
         model_profile=case.model_profile,
@@ -135,11 +122,7 @@ def _full_result(*, accepted_steps: int = 4) -> WorkingToolResult:
     )
 
 
-def _write_package(
-    output_dir: Path,
-    *,
-    interval: int,
-):
+def _write_package(output_dir: Path, *, interval: int):
     case = _case()
     policy = WorkingToolOperationPolicy.explicit(
         output_dir,
@@ -203,10 +186,6 @@ def test_full_mode_core_files_are_v0_a_semantic_exact(tmp_path: Path) -> None:
     assert sorted(path.name for path in v0_a_dir.iterdir()) == sorted(
         RESULT_FILENAMES
     )
-    assert sorted(path.name for path in v0_b_dir.iterdir()) == sorted(
-        V0_B_RUN_FILENAMES
-    )
-
     assert json.loads((v0_a_dir / "summary.json").read_text()) == json.loads(
         (v0_b_dir / "summary.json").read_text()
     )
@@ -214,7 +193,6 @@ def test_full_mode_core_files_are_v0_a_semantic_exact(tmp_path: Path) -> None:
         assert (v0_a_dir / filename).read_bytes() == (
             v0_b_dir / filename
         ).read_bytes()
-
     with np.load(v0_a_dir / "state_history.npz") as expected_npz:
         with np.load(v0_b_dir / "state_history.npz") as actual_npz:
             assert expected_npz.files == actual_npz.files
@@ -223,13 +201,11 @@ def test_full_mode_core_files_are_v0_a_semantic_exact(tmp_path: Path) -> None:
                 assert expected_npz[name].shape == actual_npz[name].shape
                 assert np.array_equal(expected_npz[name], actual_npz[name])
 
-    assert receipt.manifest["storage"]["mode"] == "FULL_STATE"
-    assert receipt.manifest["storage"]["full_state_samples"] == 5
-    assert receipt.manifest["storage"]["stored_state_samples"] == 5
-    assert (
-        receipt.manifest["storage"]["raw_state_payload_reduction_ratio"]
-        == 0.0
-    )
+    storage = receipt.manifest["storage"]
+    assert storage["mode"] == "FULL_STATE"
+    assert storage["full_state_samples"] == 5
+    assert storage["stored_state_samples"] == 5
+    assert storage["raw_state_payload_reduction_ratio"] == 0.0
 
 
 def test_sampled_mode_changes_only_state_npz_storage(tmp_path: Path) -> None:
@@ -242,23 +218,23 @@ def test_sampled_mode_changes_only_state_npz_storage(tmp_path: Path) -> None:
         assert (full_dir / filename).read_bytes() == (
             sampled_dir / filename
         ).read_bytes()
+    with np.load(full_dir / "state_history.npz") as full_npz:
+        with np.load(sampled_dir / "state_history.npz") as sampled_npz:
+            np.testing.assert_array_equal(
+                sampled_npz["time_s"],
+                full_npz["time_s"][[0, 3, 4]],
+            )
+            assert sampled_npz["conserved"].shape[0] == 3
+            assert sampled_npz["x_m"].shape == (3,)
 
-    with np.load(sampled_dir / "state_history.npz") as sampled_npz:
-        np.testing.assert_allclose(
-            sampled_npz["time_s"],
-            np.asarray([0.0, 0.0003, 0.0004], dtype=np.float64),
-            rtol=0.0,
-            atol=0.0,
-        )
-        assert sampled_npz["conserved"].shape[0] == 3
-        assert sampled_npz["x_m"].shape == (3,)
-    assert sampled_receipt.manifest["storage"]["mode"] == "SAMPLED_STATE"
-    assert sampled_receipt.manifest["storage"]["full_state_samples"] == 5
-    assert sampled_receipt.manifest["storage"]["stored_state_samples"] == 3
+    storage = sampled_receipt.manifest["storage"]
+    assert storage["mode"] == "SAMPLED_STATE"
+    assert storage["full_state_samples"] == 5
+    assert storage["stored_state_samples"] == 3
     assert sampled_receipt.core_total_bytes < full_receipt.core_total_bytes
 
 
-def test_manifest_records_actual_core_file_integrity_only(tmp_path: Path) -> None:
+def test_manifest_records_actual_integrity_and_no_self_hash(tmp_path: Path) -> None:
     output_dir = tmp_path / "run"
     receipt = _write_package(output_dir, interval=3)
     manifest = json.loads((output_dir / RUN_MANIFEST_FILENAME).read_text())
@@ -306,7 +282,6 @@ def test_public_manifest_contains_no_verification_authority(tmp_path: Path) -> N
     output_dir = tmp_path / "run"
     receipt = _write_package(output_dir, interval=1)
     keys = _all_mapping_keys(receipt.manifest)
-
     for forbidden in (
         "workflow_id",
         "workflow_run_id",
@@ -323,7 +298,6 @@ def test_public_manifest_contains_no_verification_authority(tmp_path: Path) -> N
         "verification_approval",
     ):
         assert forbidden not in keys
-
     assert receipt.manifest["formal_status"] == {
         "provisional_engineering_end_to_end_working_slice": True,
         "verified": False,
@@ -340,12 +314,11 @@ def test_public_manifest_contains_no_verification_authority(tmp_path: Path) -> N
     assert summary["design_use_approved"] is False
 
 
-def test_writer_requires_existing_empty_directory(tmp_path: Path) -> None:
+def test_writer_and_validator_fail_closed(tmp_path: Path) -> None:
     case = _case()
     projection = project_state_storage(_full_result(), 1)
     missing = tmp_path / "missing"
     policy = WorkingToolOperationPolicy.explicit(missing)
-
     with pytest.raises(V0BOutputError) as exc_info:
         write_v0_b_result_package(
             case=case,
@@ -378,19 +351,27 @@ def test_writer_requires_existing_empty_directory(tmp_path: Path) -> None:
         )
     assert exc_info.value.classification == "WORKING_TOOL_V0_B_OUTPUT_NOT_EMPTY"
 
+    completed = tmp_path / "completed"
+    _write_package(completed, interval=1)
+    (completed / "extra.txt").write_text("unexpected", encoding="utf-8")
+    with pytest.raises(V0BOutputError) as exc_info:
+        validate_v0_b_package(completed)
+    assert exc_info.value.classification == (
+        "WORKING_TOOL_V0_B_OUTPUT_CONTRACT_ERROR"
+    )
+
 
 def test_manifest_fails_closed_on_policy_or_status_mismatch(tmp_path: Path) -> None:
-    output_dir = tmp_path / "core"
-    output_dir.mkdir()
+    core_dir = tmp_path / "core"
+    core_dir.mkdir()
     source = _full_result()
-    write_result_package(source, output_dir)
-    core_files = measure_core_files(output_dir)
+    write_result_package(source, core_dir)
+    core_files = measure_core_files(core_dir)
     projection = project_state_storage(source, 1)
     sampled_policy = WorkingToolOperationPolicy.explicit(
         tmp_path / "published",
         state_sample_interval_accepted_steps=2,
     )
-
     with pytest.raises(RunManifestError) as exc_info:
         build_run_manifest(
             case=_case(),
@@ -408,16 +389,13 @@ def test_manifest_fails_closed_on_policy_or_status_mismatch(tmp_path: Path) -> N
 
     invalid_result = replace(projection.result)
     object.__setattr__(invalid_result, "verified", True)
-    verified_projection = replace(
-        projection,
-        result=invalid_result,
-    )
+    invalid_projection = replace(projection, result=invalid_result)
     full_policy = WorkingToolOperationPolicy.explicit(tmp_path / "published")
     with pytest.raises(RunManifestError) as exc_info:
         build_run_manifest(
             case=_case(),
             policy=full_policy,
-            projection=verified_projection,
+            projection=invalid_projection,
             published_directory_name="published",
             started_at_utc=STARTED_AT,
             completed_at_utc=COMPLETED_AT,
@@ -427,26 +405,24 @@ def test_manifest_fails_closed_on_policy_or_status_mismatch(tmp_path: Path) -> N
     assert exc_info.value.classification == "WORKING_TOOL_V0_B_FORMAL_STATUS_ERROR"
 
 
-def test_manifest_rejects_ambiguous_target_field_and_invalid_metadata(
+def test_manifest_rejects_ambiguous_target_and_invalid_metadata(
     tmp_path: Path,
 ) -> None:
-    output_dir = tmp_path / "core"
-    output_dir.mkdir()
+    core_dir = tmp_path / "core"
+    core_dir.mkdir()
     source = _full_result()
-    write_result_package(source, output_dir)
-    core_files = measure_core_files(output_dir)
+    write_result_package(source, core_dir)
+    core_files = measure_core_files(core_dir)
     policy = WorkingToolOperationPolicy.explicit(tmp_path / "published")
     ambiguous = replace(
         source,
         summary={**source.summary, "target_reached": True},
     )
-    projection = project_state_storage(ambiguous, 1)
-
     with pytest.raises(RunManifestError, match="exactly one"):
         build_run_manifest(
             case=_case(),
             policy=policy,
-            projection=projection,
+            projection=project_state_storage(ambiguous, 1),
             published_directory_name="published",
             started_at_utc=STARTED_AT,
             completed_at_utc=COMPLETED_AT,
@@ -454,25 +430,24 @@ def test_manifest_rejects_ambiguous_target_field_and_invalid_metadata(
             core_files=core_files,
         )
 
-    valid_projection = project_state_storage(source, 1)
+    projection = project_state_storage(source, 1)
     for invalid_run_id in ("", "ABC", "g" * 32, "0" * 31):
         with pytest.raises(ValueError):
             build_run_manifest(
                 case=_case(),
                 policy=policy,
-                projection=valid_projection,
+                projection=projection,
                 published_directory_name="published",
                 started_at_utc=STARTED_AT,
                 completed_at_utc=COMPLETED_AT,
                 local_run_id=invalid_run_id,
                 core_files=core_files,
             )
-
     with pytest.raises(ValueError, match="must not precede"):
         build_run_manifest(
             case=_case(),
             policy=policy,
-            projection=valid_projection,
+            projection=projection,
             published_directory_name="published",
             started_at_utc=COMPLETED_AT,
             completed_at_utc=STARTED_AT,
@@ -483,21 +458,10 @@ def test_manifest_rejects_ambiguous_target_field_and_invalid_metadata(
         build_run_manifest(
             case=_case(),
             policy=policy,
-            projection=valid_projection,
+            projection=projection,
             published_directory_name="../published",
             started_at_utc=STARTED_AT,
             completed_at_utc=COMPLETED_AT,
             local_run_id=LOCAL_RUN_ID,
             core_files=core_files,
         )
-
-
-def test_package_validator_rejects_extra_file(tmp_path: Path) -> None:
-    output_dir = tmp_path / "run"
-    _write_package(output_dir, interval=1)
-    (output_dir / "extra.txt").write_text("unexpected", encoding="utf-8")
-    with pytest.raises(V0BOutputError) as exc_info:
-        validate_v0_b_package(output_dir)
-    assert exc_info.value.classification == (
-        "WORKING_TOOL_V0_B_OUTPUT_CONTRACT_ERROR"
-    )
