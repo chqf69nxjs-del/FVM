@@ -86,6 +86,8 @@ jobs:
 
       - name: Upload W0 evidence
         uses: actions/upload-artifact@v7
+
+        # manual CI trigger
         with:
           name: u3-b2-a1-working-tool-w0-${{ github.run_id }}
           path: artifacts/w0-contracts
