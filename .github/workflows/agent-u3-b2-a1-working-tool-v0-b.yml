@@ -309,7 +309,16 @@ jobs:
           assert manifest['result']['accepted_steps'] == 640
           assert manifest['result']['final_time_s'] == 0.004285834855172021
           assert manifest['result']['target_reached'] is True
-          assert all(value is False for value in manifest['formal_status'].values())
+          formal_status = manifest['formal_status']
+          assert formal_status['provisional_engineering_end_to_end_working_slice'] is True
+          for key in (
+              'verified',
+              'accepted',
+              'physically_validated',
+              'design_use_accepted',
+              'production_approved',
+          ):
+              assert formal_status[key] is False
           PY
           (
             cd "${output}"
