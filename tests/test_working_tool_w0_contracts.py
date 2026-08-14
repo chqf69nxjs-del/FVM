@@ -15,6 +15,7 @@ from liquid_gas_transient.working_tool import (
     PROVISIONAL_WARNING_CODE,
     RESULT_FILENAMES,
     TransitionRecord,
+    WorkingToolBackend,
     WorkingToolCase,
     WorkingToolResult,
     write_result_package,
@@ -132,6 +133,23 @@ def test_w0_backend_payload_is_separate_from_public_authority() -> None:
     assert data.summary == {"accepted_steps": 8}
     assert not hasattr(data, "workflow_run")
     assert not hasattr(data, "artifact_id")
+
+
+class _FakeBackend:
+    def __init__(self) -> None:
+        self.seen_case: WorkingToolCase | None = None
+
+    def run_case(self, case: WorkingToolCase) -> BackendRunData:
+        self.seen_case = case
+        return BackendRunData(summary={"backend": "fake", "accepted_steps": 0})
+
+
+def test_w0_backend_run_case_contract_is_reusable() -> None:
+    case = _case()
+    backend: WorkingToolBackend = _FakeBackend()
+    data = backend.run_case(case)
+    assert data.summary == {"backend": "fake", "accepted_steps": 0}
+    assert backend.seen_case is case  # type: ignore[attr-defined]
 
 
 def test_w0_writes_only_normal_user_result_package(tmp_path: Path) -> None:
