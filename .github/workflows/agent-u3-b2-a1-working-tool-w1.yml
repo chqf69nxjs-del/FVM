@@ -1,0 +1,151 @@
+name: Agent U3 B2 A1 Working Tool W1 Live Backend
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [agent/u3-b2-a1-working-tool-w1]
+    paths:
+      - "src/liquid_gas_transient/working_tool/**"
+      - "tests/test_working_tool_w1_a2_live_backend.py"
+      - "tools/verification/u3_b2_a1_working_tool_w1_*.py"
+      - "docs/verification/stage7_u3_b2_a1_working_tool_w1_*.md"
+      - ".github/workflows/agent-u3-b2-a1-working-tool-w1.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-u3-b2-a1-working-tool-w1
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src:tools/verification
+  PYTHONDONTWRITEBYTECODE: "1"
+  W0_PARENT_HEAD: b8eefcc046a09da9cca2e9065c9963c3c9a81630
+
+jobs:
+  w1-live-backend:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.13"
+
+      - name: Install fixed dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install \
+            'numpy==2.5.1' \
+            'CoolProp==8.0.0' \
+            'pytest==9.1.1'
+
+      - name: Verify W1 source scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          git diff --check "${W0_PARENT_HEAD}" HEAD
+          changed="$(git diff --name-only "${W0_PARENT_HEAD}" HEAD)"
+          forbidden="$(printf '%s\n' "${changed}" | grep -Ev '^(docs/verification/stage7_u3_b2_a1_working_tool_w1_|src/liquid_gas_transient/working_tool/(__init__|runtime)\.py$|tests/test_working_tool_w1_a2_live_backend\.py$|tools/verification/u3_b2_a1_working_tool_w1_(a2_live_backend|smoke)\.py$|\.github/workflows/agent-u3-b2-a1-working-tool-w1\.yml$)' || true)"
+          test -z "${forbidden}" || { printf 'unexpected changed paths:\n%s\n' "${forbidden}"; exit 1; }
+
+      - name: Compile W1 sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile \
+            src/liquid_gas_transient/working_tool/runtime.py \
+            tools/verification/u3_b2_a1_working_tool_w1_a2_live_backend.py \
+            tools/verification/u3_b2_a1_working_tool_w1_smoke.py \
+            tests/test_working_tool_w1_a2_live_backend.py
+
+      - name: Run W0 and W1 focused tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-a1-working-tool-w1
+          mkdir -p "${output}"
+          python -m pytest -q \
+            tests/test_working_tool_w0_contracts.py \
+            tests/test_working_tool_w1_a2_live_backend.py \
+            --junitxml="${output}/pytest.xml" \
+            | tee "${output}/pytest.log"
+
+      - name: Run authoritative W1 eight-step smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-a1-working-tool-w1/smoke
+          rm -rf "${output}"
+          python tools/verification/u3_b2_a1_working_tool_w1_smoke.py \
+            --contract docs/verification/stage7_u3_b2_fvm_discharge_coupling_contract_v1.json \
+            --b1-contract docs/verification/stage7_u3_b1_critical_state_contract_v1.json \
+            --output-dir "${output}" \
+            --source-git-sha "${GITHUB_SHA}" \
+            --smoke-accepted-steps 8 \
+            | tee artifacts/u3-b2-a1-working-tool-w1/smoke-console.log
+
+      - name: Inspect W1 result and separation gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('artifacts/u3-b2-a1-working-tool-w1/smoke')
+          evidence = json.loads((root / 'w1_smoke_evidence.json').read_text(encoding='utf-8'))
+          summary = json.loads((root / 'public-result' / 'summary.json').read_text(encoding='utf-8'))
+          assert evidence['outcome'] == 'WORKING_TOOL_W1_A2_LIVE_BACKEND_SMOKE_PASS'
+          assert evidence['smoke_accepted_steps'] == 8
+          assert evidence['manager_transition_count'] == 0
+          assert evidence['successful_context_restoration_count'] == 8
+          assert all(evidence['gates'].values())
+          assert summary['accepted_steps'] == 8
+          assert summary['a2_live_path_connected'] is True
+          assert summary['context_restoration_gate_passed'] is True
+          assert summary['full_two_l_over_c0_regression_tested'] is False
+          assert summary['verified'] is False
+          assert summary['accepted'] is False
+          assert summary['validated'] is False
+          assert summary['design_use_approved'] is False
+          for forbidden in (
+              'workflow_run',
+              'workflow_job',
+              'artifact_id',
+              'artifact_sha256',
+              'parent_artifact_id',
+              'exact_increment_9l_behavioral_equivalence_passed',
+          ):
+              assert forbidden not in summary
+          PY
+
+      - name: Record source metadata and evidence manifest
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=artifacts/u3-b2-a1-working-tool-w1
+          mkdir -p "${output}"
+          printf '%s\n' "${GITHUB_SHA}" > "${output}/source_git_sha.txt"
+          git diff --name-only "${W0_PARENT_HEAD}" HEAD > "${output}/changed_paths.txt"
+          find "${output}" -type f ! -name workflow_artifact_sha256.txt -print0 \
+            | sort -z \
+            | xargs -0 sha256sum \
+            > "${output}/workflow_artifact_sha256.txt"
+
+      - name: Upload W1 evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: u3-b2-a1-working-tool-w1-${{ github.run_id }}
+          path: artifacts/u3-b2-a1-working-tool-w1
+          if-no-files-found: warn
