@@ -182,6 +182,39 @@ def test_w0_writes_only_normal_user_result_package(tmp_path: Path) -> None:
         assert arrays["pressure_pa"].shape == (2, 1)
 
 
+@pytest.mark.parametrize(
+    "reserved_key",
+    [
+        "verified",
+        "accepted",
+        "validated",
+        "design_use_approved",
+        "workflow_run",
+        "workflow_job",
+        "artifact_id",
+        "artifact_sha256",
+        "parent_artifact_id",
+        "exact_increment_9l_behavioral_equivalence_passed",
+    ],
+)
+def test_w0_output_rejects_reserved_authority_keys(
+    tmp_path: Path,
+    reserved_key: str,
+) -> None:
+    case = _case()
+    result = WorkingToolResult(
+        case_id=case.case_id,
+        model_profile=case.model_profile,
+        summary={reserved_key: True},
+        history=(),
+        transitions=(),
+        state_history={},
+        warnings=(PROVISIONAL_MODEL_WARNING,),
+    )
+    with pytest.raises(ValueError, match="reserved public keys"):
+        write_result_package(result, tmp_path)
+
+
 def test_w0_public_sources_do_not_import_verification_runner() -> None:
     import liquid_gas_transient.working_tool.backend as backend
     import liquid_gas_transient.working_tool.case_schema as case_schema
