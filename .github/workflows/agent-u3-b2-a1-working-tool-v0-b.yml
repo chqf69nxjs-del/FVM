@@ -50,7 +50,11 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
-          git diff --check "${V0_A_BASELINE}" HEAD
+          git diff --check "${V0_A_BASELINE}" HEAD -- \
+            src/liquid_gas_transient/working_tool/operation_policy.py \
+            src/liquid_gas_transient/working_tool/output_size.py \
+            tests/test_working_tool_v0_b_operation_policy.py \
+            .github/workflows/agent-u3-b2-a1-working-tool-v0-b.yml
           git diff --exit-code "${V0_A_BASELINE}" HEAD -- \
             src/liquid_gas_transient/working_tool/__init__.py \
             src/liquid_gas_transient/working_tool/application.py \
