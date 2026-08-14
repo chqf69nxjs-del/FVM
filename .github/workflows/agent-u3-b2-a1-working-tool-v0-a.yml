@@ -10,7 +10,7 @@ on:
       - "tools/verification/u3_b2_a1_working_tool_v0_a_*.py"
       - "examples/working_tool/canonical_a2_case_v0.json"
       - "tests/test_working_tool_v0_a_case_file_cli.py"
-      - "docs/verification/stage7_u3_b2_a1_working_tool_v0_a_*.md"
+      - "docs/verification/stage7_u3_b2_a1_working_tool_v0_a_case_file_cli_spec.md"
       - ".github/workflows/agent-u3-b2-a1-working-tool-v0-a.yml"
 
 permissions:
