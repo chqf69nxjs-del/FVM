@@ -9,7 +9,7 @@ from .results import BackendRunData
 
 
 class WorkingToolBackend(Protocol):
-    """Runtime interface that the W1 A2 live adapter must implement."""
+    """Backend-independent run API that the W1 A2 adapter must implement."""
 
-    def run(self, case: WorkingToolCase) -> BackendRunData:
+    def run_case(self, case: WorkingToolCase) -> BackendRunData:
         ...
