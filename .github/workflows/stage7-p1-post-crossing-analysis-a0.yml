@@ -1,0 +1,164 @@
+name: Stage 7 P1 Post-Crossing Analysis A0
+
+on:
+  push:
+    branches:
+      - agent/stage7-p1-post-crossing-analysis-a0
+    paths:
+      - 'src/liquid_gas_transient/hem_pipeline_post_crossing_analysis.py'
+      - 'tests/test_stage7_p1_post_crossing_analysis.py'
+      - 'docs/verification/stage7_p1_post_crossing_analysis_slice_increment_a0.md'
+      - '.github/workflows/stage7-p1-post-crossing-analysis-a0.yml'
+  pull_request:
+    paths:
+      - 'src/liquid_gas_transient/hem_pipeline_post_crossing_analysis.py'
+      - 'tests/test_stage7_p1_post_crossing_analysis.py'
+      - 'docs/verification/stage7_p1_post_crossing_analysis_slice_increment_a0.md'
+      - '.github/workflows/stage7-p1-post-crossing-analysis-a0.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: stage7-p1-post-crossing-analysis-a0-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src
+  PYTHONDONTWRITEBYTECODE: '1'
+  ANALYSIS_SOURCE_GIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  p1-post-crossing-analysis-a0:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install fixed dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy matplotlib pytest 'CoolProp==8.0.0'
+      - name: Assert pristine checkout
+        run: |
+          echo "checkout_sha=$(git rev-parse HEAD)"
+          test "$(git rev-parse HEAD)" = "$ANALYSIS_SOURCE_GIT_SHA"
+          status="$(git status --porcelain=v1 --untracked-files=all)"
+          printf 'pre_execution_git_status=%s\n' "$status"
+          test -z "$status"
+      - name: Execute bounded P1 analysis slice
+        run: |
+          temporary_output="${RUNNER_TEMP}/stage7-p1-post-crossing-analysis-a0"
+          repository_output="artifacts/stage7-p1-post-crossing-analysis-a0"
+          rm -rf "$temporary_output" "$repository_output"
+          python -m liquid_gas_transient.hem_pipeline_post_crossing_analysis \
+            --output-dir "$temporary_output"
+          tracked_status="$(git status --porcelain=v1 --untracked-files=no)"
+          printf 'post_execution_tracked_git_status=%s\n' "$tracked_status"
+          test -z "$tracked_status"
+          mkdir -p "$repository_output"
+          cp -a "$temporary_output/." "$repository_output/"
+      - name: Inspect exact P1 output contract
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          target = Path('artifacts/stage7-p1-post-crossing-analysis-a0')
+          expected = {
+              'analysis_summary.json',
+              'front_history.csv',
+              'pressure_arrival.csv',
+              'analysis_manifest.json',
+          }
+          actual = {path.name for path in target.iterdir() if path.is_file()}
+          assert actual == expected, (expected, actual)
+
+          summary = json.loads(
+              (target / 'analysis_summary.json').read_text(encoding='utf-8')
+          )
+          manifest = json.loads(
+              (target / 'analysis_manifest.json').read_text(encoding='utf-8')
+          )
+          assert summary['schema_version'] == 'stage7_p1_post_crossing_analysis_a0_v1'
+          assert summary['scope'] == 'bounded_post_crossing_analysis_only'
+          assert summary['model_id'] == 'HEM_EQUILIBRIUM'
+          assert summary['analysis_execution_status'] == 'ANALYSIS_READY'
+          assert summary['analysis_ready'] is True
+          assert summary['source_outcome'] == 'COMPLETED_FIXED_CHECKPOINTS'
+          assert summary['source_step_count'] == 64
+          assert summary['front_history_record_count'] == 64
+          assert summary['pressure_arrival_record_count'] == 32
+          assert summary['physics_or_numerics_changed'] is False
+          assert all(summary['gate_results'].values())
+          formal = summary['formal_status']
+          assert formal['implemented'] is True
+          assert formal['working_vertical_slice'] is False
+          assert formal['verified'] is False
+          assert formal['accepted'] is False
+          assert formal['physically_validated'] is False
+          assert formal['design_use_accepted'] is False
+          assert formal['production_approved'] is False
+
+          assert manifest['declared_file_count'] == 4
+          assert set(manifest['declared_file_names']) == expected
+          assert set(manifest['payload_files']) == {
+              'analysis_summary.json',
+              'front_history.csv',
+              'pressure_arrival.csv',
+          }
+          assert manifest['analysis_sha256'] == summary['analysis_sha256']
+          assert manifest['physics_or_numerics_changed'] is False
+          PY
+      - name: Compile and diff checks
+        run: |
+          python -m compileall -q src tests
+          git diff --check
+      - name: Run focused P1 tests
+        run: |
+          python -m pytest -q \
+            tests/test_stage7_p1_post_crossing_analysis.py \
+            --strict-markers --junitxml=p1-a0-focused.xml
+      - name: Run existing Gate 6 regression
+        run: |
+          python -m pytest -q \
+            tests/test_stage7_lco2_hem_pipeline_post_crossing_propagation.py \
+            --strict-markers --junitxml=p1-a0-gate6-regression.xml
+      - name: Run full repository tests
+        run: |
+          python -m pytest -q --strict-markers --junitxml=p1-a0-full-repository.xml
+      - name: Assert authoritative JUnit is clean
+        run: |
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          for name in (
+              'p1-a0-focused.xml',
+              'p1-a0-gate6-regression.xml',
+              'p1-a0-full-repository.xml',
+          ):
+              root = ET.parse(Path(name)).getroot()
+              suites = [root] if root.tag == 'testsuite' else list(root.findall('testsuite'))
+              totals = {
+                  key: sum(int(s.attrib.get(key, 0)) for s in suites)
+                  for key in ('tests', 'skipped', 'failures', 'errors')
+              }
+              print(name, totals)
+              assert totals['skipped'] == 0
+              assert totals['failures'] == 0
+              assert totals['errors'] == 0
+          PY
+      - name: Upload P1 A0 evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: stage7-p1-post-crossing-analysis-a0-${{ github.run_id }}
+          path: |
+            artifacts/stage7-p1-post-crossing-analysis-a0
+            p1-a0-focused.xml
+            p1-a0-gate6-regression.xml
+            p1-a0-full-repository.xml
+          if-no-files-found: warn
