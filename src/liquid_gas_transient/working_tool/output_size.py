@@ -15,7 +15,7 @@ from .operation_policy import (
 
 
 FLOAT64_BYTES = 8
-CONSERVEd_VALUES_PER_CELL = 4
+CONSERVED_VALUES_PER_CELL = 4
 PUBLIC_PRIMITIVE_VALUES_PER_CELL = 6
 MEBIBYTE_BYTES = 1024**2
 
@@ -75,7 +75,7 @@ def raw_state_payload_bytes_per_sample(n_cells: object) -> int:
         field_name="n_cells",
     )
     values_per_sample = 1 + (
-        CONSERVEd_VALUES_PER_CELL + PUBLIC_PRIMITIVE_VALUES_PER_CELL
+        CONSERVED_VALUES_PER_CELL + PUBLIC_PRIMITIVE_VALUES_PER_CELL
     ) * resolved_n_cells
     return FLOAT64_BYTES * values_per_sample
 
