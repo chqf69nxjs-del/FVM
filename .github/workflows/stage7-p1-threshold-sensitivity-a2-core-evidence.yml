@@ -1,0 +1,258 @@
+name: Stage 7 P1 Threshold Sensitivity A2 Core Evidence
+
+on:
+  push:
+    branches:
+      - agent/stage7-p1-threshold-sensitivity-a2
+    paths:
+      - 'src/liquid_gas_transient/hem_pipeline_threshold_sensitivity.py'
+      - 'tests/test_stage7_p1_threshold_sensitivity.py'
+      - 'docs/verification/stage7_p1_threshold_sensitivity_increment_a2.md'
+      - '.github/workflows/stage7-p1-threshold-sensitivity-a2-core-evidence.yml'
+  pull_request:
+    paths:
+      - 'src/liquid_gas_transient/hem_pipeline_threshold_sensitivity.py'
+      - 'tests/test_stage7_p1_threshold_sensitivity.py'
+      - 'docs/verification/stage7_p1_threshold_sensitivity_increment_a2.md'
+      - '.github/workflows/stage7-p1-threshold-sensitivity-a2-core-evidence.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: stage7-p1-threshold-sensitivity-a2-core-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src:tools/verification
+  PYTHONDONTWRITEBYTECODE: '1'
+  ANALYSIS_SOURCE_GIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  p1-threshold-sensitivity-a2-core:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install numpy matplotlib pytest 'CoolProp==8.0.0'
+          python - <<'PY'
+          import platform
+          import matplotlib
+          import numpy
+          import pytest
+          import CoolProp
+
+          print('python=' + platform.python_version())
+          print('numpy=' + numpy.__version__)
+          print('matplotlib=' + matplotlib.__version__)
+          print('pytest=' + pytest.__version__)
+          print('CoolProp=' + CoolProp.__version__)
+          PY
+
+      - name: Assert pristine checkout
+        run: |
+          set -euo pipefail
+          echo "checkout_sha=$(git rev-parse HEAD)"
+          test "$(git rev-parse HEAD)" = "$ANALYSIS_SOURCE_GIT_SHA"
+          status="$(git status --porcelain=v1 --untracked-files=all)"
+          printf 'pre_execution_git_status=%s\n' "$status"
+          test -z "$status"
+
+      - name: Execute exact P1 A2 threshold sensitivity
+        run: |
+          set -euo pipefail
+          temporary_output="${RUNNER_TEMP}/stage7-p1-threshold-sensitivity-a2"
+          repository_output="artifacts/stage7-p1-threshold-sensitivity-a2"
+          rm -rf "$temporary_output" "$repository_output"
+          python -m liquid_gas_transient.hem_pipeline_threshold_sensitivity \
+            --output-dir "$temporary_output"
+          tracked_status="$(git status --porcelain=v1 --untracked-files=no)"
+          printf 'post_execution_tracked_git_status=%s\n' "$tracked_status"
+          test -z "$tracked_status"
+          mkdir -p "$repository_output"
+          cp -a "$temporary_output/." "$repository_output/"
+
+      - name: Inspect exact P1 A2 output contract
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv
+          import json
+          from pathlib import Path
+
+          target = Path('artifacts/stage7-p1-threshold-sensitivity-a2')
+          expected = {
+              'threshold_summary.json',
+              'threshold_comparison.csv',
+              'threshold_cell_arrivals.csv',
+              'threshold_front_history.csv',
+              'threshold_pressure_front_speed.csv',
+              'threshold_front_position.png',
+              'threshold_phase_lag.png',
+              'operator_report.md',
+              'threshold_manifest.json',
+          }
+          actual = {path.name for path in target.iterdir() if path.is_file()}
+          assert actual == expected, (expected, actual)
+
+          summary = json.loads(
+              (target / 'threshold_summary.json').read_text(encoding='utf-8')
+          )
+          manifest = json.loads(
+              (target / 'threshold_manifest.json').read_text(encoding='utf-8')
+          )
+          assert summary['schema_version'] == 'stage7_p1_threshold_sensitivity_a2_v1'
+          assert summary['scope'] == 'fixed_case_pressure_front_threshold_postprocessing_only'
+          assert summary['model_id'] == 'HEM_EQUILIBRIUM'
+          assert summary['threshold_multipliers'] == [0.5, 1.0, 2.0]
+          assert summary['effective_thresholds'] == [5e-07, 1e-06, 2e-06]
+          assert summary['sensitivity_execution_status'] == 'SENSITIVITY_READY'
+          assert summary['sensitivity_ready'] is True
+          assert summary['sensitivity_verdict'] in {'ROBUST', 'SENSITIVE'}
+          expected_verdict = (
+              'ROBUST' if all(summary['decision_checks'].values()) else 'SENSITIVE'
+          )
+          assert summary['sensitivity_verdict'] == expected_verdict
+          assert len(summary['threshold_comparisons']) == 3
+          assert all(summary['gate_results'].values())
+          assert summary['physics_or_numerics_changed'] is False
+
+          formal = summary['formal_status']
+          assert formal['implemented'] is True
+          assert formal['working_vertical_slice'] is False
+          assert formal['verified'] is False
+          assert formal['accepted'] is False
+          assert formal['physically_validated'] is False
+          assert formal['design_use_accepted'] is False
+          assert formal['production_approved'] is False
+
+          assert manifest['declared_file_count'] == 9
+          assert set(manifest['declared_file_names']) == expected
+          assert set(manifest['payload_files']) == expected - {'threshold_manifest.json'}
+          assert manifest['sensitivity_sha256']
+          assert manifest['sensitivity_verdict'] == summary['sensitivity_verdict']
+          assert manifest['physics_or_numerics_changed'] is False
+          for item in manifest['payload_files'].values():
+              assert item['size_bytes'] > 0
+              assert len(item['sha256']) == 64
+
+          with (target / 'threshold_comparison.csv').open(
+              encoding='utf-8', newline=''
+          ) as stream:
+              comparison_rows = list(csv.DictReader(stream))
+          with (target / 'threshold_cell_arrivals.csv').open(
+              encoding='utf-8', newline=''
+          ) as stream:
+              cell_rows = list(csv.DictReader(stream))
+          with (target / 'threshold_front_history.csv').open(
+              encoding='utf-8', newline=''
+          ) as stream:
+              front_rows = list(csv.DictReader(stream))
+          with (target / 'threshold_pressure_front_speed.csv').open(
+              encoding='utf-8', newline=''
+          ) as stream:
+              speed_rows = list(csv.DictReader(stream))
+          assert len(comparison_rows) == 3
+          assert len(cell_rows) == 96
+          assert len(front_rows) > 0 and len(front_rows) % 3 == 0
+          assert len(speed_rows) > 0
+          assert {float(row['threshold_multiplier']) for row in cell_rows} == {
+              0.5,
+              1.0,
+              2.0,
+          }
+          assert {float(row['threshold_multiplier']) for row in speed_rows} == {
+              0.5,
+              1.0,
+              2.0,
+          }
+          assert (target / 'threshold_front_position.png').stat().st_size > 0
+          assert (target / 'threshold_phase_lag.png').stat().st_size > 0
+          PY
+
+      - name: Compile and diff checks
+        run: |
+          set -euo pipefail
+          python -m compileall -q src tests
+          git diff --check
+
+      - name: Run focused P1 A2 tests
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/test_stage7_p1_threshold_sensitivity.py \
+            --strict-markers --junitxml=p1-a2-focused.xml
+
+      - name: Run P1 A1 regression
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/test_stage7_p1_pressure_phase_relationship.py \
+            --strict-markers --junitxml=p1-a2-a1-regression.xml
+
+      - name: Run P1 A0 regression
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/test_stage7_p1_post_crossing_analysis.py \
+            --strict-markers --junitxml=p1-a2-a0-regression.xml
+
+      - name: Run existing Gate 6 regression
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/test_stage7_lco2_hem_pipeline_post_crossing_propagation.py \
+            --strict-markers --junitxml=p1-a2-gate6-regression.xml
+
+      - name: Assert core JUnit is clean
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          for name in (
+              'p1-a2-focused.xml',
+              'p1-a2-a1-regression.xml',
+              'p1-a2-a0-regression.xml',
+              'p1-a2-gate6-regression.xml',
+          ):
+              root = ET.parse(Path(name)).getroot()
+              suites = [root] if root.tag == 'testsuite' else list(root.findall('testsuite'))
+              totals = {
+                  key: sum(int(s.attrib.get(key, 0)) for s in suites)
+                  for key in ('tests', 'skipped', 'failures', 'errors')
+              }
+              print(name, totals)
+              assert totals['skipped'] == 0
+              assert totals['failures'] == 0
+              assert totals['errors'] == 0
+          PY
+
+      - name: Upload P1 A2 core evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: stage7-p1-threshold-sensitivity-a2-core-${{ github.run_id }}
+          path: |
+            artifacts/stage7-p1-threshold-sensitivity-a2
+            p1-a2-focused.xml
+            p1-a2-a1-regression.xml
+            p1-a2-a0-regression.xml
+            p1-a2-gate6-regression.xml
+          if-no-files-found: warn
