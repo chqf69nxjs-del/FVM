@@ -1,0 +1,248 @@
+name: Stage 7 P1 A3 Subthreshold Crossing Forensics
+
+on:
+  push:
+    branches:
+      - agent/stage7-p1-a3-subthreshold-crossing-forensics
+    paths:
+      - 'src/liquid_gas_transient/hem_pipeline_subthreshold_crossing_forensics.py'
+      - 'tests/test_stage7_p1_a3_subthreshold_crossing_forensics.py'
+      - 'docs/verification/stage7_p1_a3_subthreshold_crossing_forensics.md'
+      - '.github/workflows/stage7-p1-a3-subthreshold-crossing-forensics.yml'
+  pull_request:
+    paths:
+      - 'src/liquid_gas_transient/hem_pipeline_subthreshold_crossing_forensics.py'
+      - 'tests/test_stage7_p1_a3_subthreshold_crossing_forensics.py'
+      - 'docs/verification/stage7_p1_a3_subthreshold_crossing_forensics.md'
+      - '.github/workflows/stage7-p1-a3-subthreshold-crossing-forensics.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: stage7-p1-a3-subthreshold-crossing-forensics-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src:tools/verification
+  PYTHONDONTWRITEBYTECODE: '1'
+  MPLBACKEND: Agg
+  ANALYSIS_SOURCE_GIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  p1-a3-subthreshold-crossing-forensics:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install pinned dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install \
+            'numpy==2.5.2' \
+            'matplotlib==3.11.1' \
+            'pytest==9.1.1' \
+            'CoolProp==8.0.0'
+          python - <<'PY'
+          import platform
+          import CoolProp
+          import matplotlib
+          import numpy
+          import pytest
+          print('python=' + platform.python_version())
+          print('numpy=' + numpy.__version__)
+          print('matplotlib=' + matplotlib.__version__)
+          print('pytest=' + pytest.__version__)
+          print('CoolProp=' + CoolProp.__version__)
+          PY
+
+      - name: Assert pristine checkout
+        run: |
+          set -euo pipefail
+          echo "checkout_sha=$(git rev-parse HEAD)"
+          test "$(git rev-parse HEAD)" = "$ANALYSIS_SOURCE_GIT_SHA"
+          status="$(git status --porcelain=v1 --untracked-files=all)"
+          printf 'pre_execution_git_status=%s\n' "$status"
+          test -z "$status"
+
+      - name: Execute exact P1 A3F first-crossing forensics
+        run: |
+          set -euo pipefail
+          temporary_output="${RUNNER_TEMP}/stage7-p1-a3-subthreshold-crossing-forensics"
+          repository_output="artifacts/stage7-p1-a3-subthreshold-crossing-forensics"
+          rm -rf "$temporary_output" "$repository_output"
+          python -m liquid_gas_transient.hem_pipeline_subthreshold_crossing_forensics \
+            --output-dir "$temporary_output"
+          tracked_status="$(git status --porcelain=v1 --untracked-files=no)"
+          printf 'post_execution_tracked_git_status=%s\n' "$tracked_status"
+          test -z "$tracked_status"
+          mkdir -p "$repository_output"
+          cp -a "$temporary_output/." "$repository_output/"
+
+      - name: Inspect exact P1 A3F output contract
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv
+          import json
+          from pathlib import Path
+
+          target = Path(
+              'artifacts/stage7-p1-a3-subthreshold-crossing-forensics'
+          )
+          expected = {
+              'forensic_summary.json',
+              'case_forensics.csv',
+              'cell_forensics.csv',
+              'quality_scaling.csv',
+              'quality_vs_dx.png',
+              'quality_vs_cfl.png',
+              'operator_report.md',
+              'forensic_manifest.json',
+          }
+          actual = {path.name for path in target.iterdir() if path.is_file()}
+          assert actual == expected, (expected, actual)
+
+          summary = json.loads(
+              (target / 'forensic_summary.json').read_text(encoding='utf-8')
+          )
+          manifest = json.loads(
+              (target / 'forensic_manifest.json').read_text(encoding='utf-8')
+          )
+          assert summary['schema_version'] == (
+              'stage7_p1_a3_subthreshold_crossing_forensics_v1'
+          )
+          assert summary['case_count'] == 5
+          assert summary['fixed_crossing_evidence_floor'] == 1.0e-6
+          assert summary['threshold_or_tolerance_changed'] is False
+          assert summary['solver_or_physics_changed'] is False
+          assert summary['forensics_ready'] is True
+          assert summary['forensic_execution_status'] == 'FORENSICS_READY'
+          assert summary['direct_failure_mechanism'] == 'CONFIRMED'
+          assert summary['resolution_interaction_hypothesis'] == (
+              'SUPPORTED_BY_FINE_MESH_AND_LOW_CFL'
+          )
+          assert summary['cfl_crossing_quality_trend'] == (
+              'STRICTLY_INCREASING_WITH_CFL'
+          )
+          assert summary['subthreshold_case_ids'] == [
+              'mesh_64_cfl_0p10',
+              'cfl_32_0p05',
+          ]
+          assert summary['unrelated_failure_case_ids'] == []
+          assert all(summary['gate_results'].values())
+
+          cases = summary['case_forensics']
+          assert [row['case_id'] for row in cases] == [
+              'mesh_16_cfl_0p10',
+              'baseline_32_cfl_0p10',
+              'mesh_64_cfl_0p10',
+              'cfl_32_0p05',
+              'cfl_32_0p20',
+          ]
+          assert all(row['crossing_detected'] for row in cases)
+          assert all(row['maximum_crossing_quality'] > 0.0 for row in cases)
+          assert all(row['crossing_dt_s'] > 0.0 for row in cases)
+
+          with (target / 'case_forensics.csv').open(
+              encoding='utf-8', newline=''
+          ) as stream:
+              case_rows = list(csv.DictReader(stream))
+          with (target / 'cell_forensics.csv').open(
+              encoding='utf-8', newline=''
+          ) as stream:
+              cell_rows = list(csv.DictReader(stream))
+          with (target / 'quality_scaling.csv').open(
+              encoding='utf-8', newline=''
+          ) as stream:
+              scaling_rows = list(csv.DictReader(stream))
+          assert len(case_rows) == 5
+          assert len(cell_rows) >= 5
+          assert len(scaling_rows) == 6
+          assert {row['axis'] for row in scaling_rows} == {'MESH_DX', 'CFL'}
+          assert all(
+              row['transition_event'] == 'LIQUID_TO_TWO_PHASE_CROSSING'
+              for row in cell_rows
+          )
+
+          assert manifest['declared_file_count'] == 8
+          assert set(manifest['declared_file_names']) == expected
+          assert set(manifest['payload_files']) == expected - {
+              'forensic_manifest.json'
+          }
+          assert manifest['forensic_sha256'] == summary['forensic_sha256']
+          assert manifest['direct_failure_mechanism'] == 'CONFIRMED'
+          assert manifest['threshold_or_tolerance_changed'] is False
+          assert manifest['solver_or_physics_changed'] is False
+          for item in manifest['payload_files'].values():
+              assert item['size_bytes'] > 0
+              assert len(item['sha256']) == 64
+
+          assert (target / 'quality_vs_dx.png').stat().st_size > 0
+          assert (target / 'quality_vs_cfl.png').stat().st_size > 0
+          PY
+
+      - name: Compile and diff checks
+        run: |
+          set -euo pipefail
+          python -m compileall -q src tests
+          git diff --check
+
+      - name: Run focused P1 A3F tests
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/test_stage7_p1_a3_subthreshold_crossing_forensics.py \
+            --strict-markers \
+            --junitxml=p1-a3f-focused.xml
+
+      - name: Assert focused JUnit is clean
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          root = ET.parse(Path('p1-a3f-focused.xml')).getroot()
+          suites = [root] if root.tag == 'testsuite' else list(
+              root.findall('testsuite')
+          )
+          totals = {
+              key: sum(int(suite.attrib.get(key, 0)) for suite in suites)
+              for key in ('tests', 'skipped', 'failures', 'errors')
+          }
+          print(totals)
+          assert totals['tests'] == 5
+          assert totals['skipped'] == 0
+          assert totals['failures'] == 0
+          assert totals['errors'] == 0
+          PY
+
+      - name: Assert pristine tracked checkout after execution
+        run: |
+          set -euo pipefail
+          status="$(git status --porcelain=v1 --untracked-files=no)"
+          printf 'post_test_tracked_git_status=%s\n' "$status"
+          test -z "$status"
+
+      - name: Upload P1 A3F forensic evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: stage7-p1-a3-subthreshold-crossing-forensics-${{ github.run_id }}
+          path: |
+            artifacts/stage7-p1-a3-subthreshold-crossing-forensics
+            p1-a3f-focused.xml
+          if-no-files-found: warn
