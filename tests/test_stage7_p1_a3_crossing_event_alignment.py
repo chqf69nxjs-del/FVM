@@ -39,7 +39,7 @@ def test_a3g_contract_freezes_a3_authority_and_maturity() -> None:
         "event_alignment_manifest.json",
     )
     assert P1_A3G_FORMAL_STATUS["implemented"] is True
-    assert P1_A3G_FORMAL_STATUS["diagnostic_evidence_ready"] is False
+    assert P1_A3G_FORMAL_STATUS["diagnostic_evidence_ready"] is True
     assert P1_A3G_FORMAL_STATUS["working_vertical_slice"] is False
     assert P1_A3G_FORMAL_STATUS["verified"] is False
     assert P1_A3G_FORMAL_STATUS["accepted"] is False
