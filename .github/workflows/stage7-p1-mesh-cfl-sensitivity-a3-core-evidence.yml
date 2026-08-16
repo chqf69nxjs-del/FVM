@@ -1,0 +1,289 @@
+name: Stage 7 P1 Mesh CFL Sensitivity A3 Core Evidence
+
+on:
+  push:
+    branches:
+      - agent/stage7-p1-mesh-cfl-sensitivity-a3
+    paths:
+      - 'src/liquid_gas_transient/hem_pipeline_mesh_cfl_variant.py'
+      - 'src/liquid_gas_transient/hem_pipeline_mesh_cfl_sensitivity.py'
+      - 'tests/test_stage7_p1_mesh_cfl_sensitivity.py'
+      - 'docs/verification/stage7_p1_mesh_cfl_sensitivity_increment_a3.md'
+      - '.github/workflows/stage7-p1-mesh-cfl-sensitivity-a3-core-evidence.yml'
+  pull_request:
+    paths:
+      - 'src/liquid_gas_transient/hem_pipeline_mesh_cfl_variant.py'
+      - 'src/liquid_gas_transient/hem_pipeline_mesh_cfl_sensitivity.py'
+      - 'tests/test_stage7_p1_mesh_cfl_sensitivity.py'
+      - 'docs/verification/stage7_p1_mesh_cfl_sensitivity_increment_a3.md'
+      - '.github/workflows/stage7-p1-mesh-cfl-sensitivity-a3-core-evidence.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: stage7-p1-mesh-cfl-sensitivity-a3-core-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src:tools/verification
+  PYTHONDONTWRITEBYTECODE: '1'
+  ANALYSIS_SOURCE_GIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  p1-mesh-cfl-sensitivity-a3-core:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install numpy matplotlib pytest 'CoolProp==8.0.0'
+          python - <<'PY'
+          import platform
+          import matplotlib
+          import numpy
+          import pytest
+          import CoolProp
+
+          print('python=' + platform.python_version())
+          print('numpy=' + numpy.__version__)
+          print('matplotlib=' + matplotlib.__version__)
+          print('pytest=' + pytest.__version__)
+          print('CoolProp=' + CoolProp.__version__)
+          PY
+
+      - name: Assert pristine checkout
+        run: |
+          set -euo pipefail
+          echo "checkout_sha=$(git rev-parse HEAD)"
+          test "$(git rev-parse HEAD)" = "$ANALYSIS_SOURCE_GIT_SHA"
+          status="$(git status --porcelain=v1 --untracked-files=all)"
+          printf 'pre_execution_git_status=%s\n' "$status"
+          test -z "$status"
+
+      - name: Execute exact P1 A3 mesh CFL matrix
+        run: |
+          set -euo pipefail
+          temporary_output="${RUNNER_TEMP}/stage7-p1-mesh-cfl-sensitivity-a3"
+          repository_output="artifacts/stage7-p1-mesh-cfl-sensitivity-a3"
+          rm -rf "$temporary_output" "$repository_output"
+          set +e
+          python -m liquid_gas_transient.hem_pipeline_mesh_cfl_sensitivity \
+            --output-dir "$temporary_output"
+          execution_code=$?
+          set -e
+          tracked_status="$(git status --porcelain=v1 --untracked-files=no)"
+          printf 'post_execution_tracked_git_status=%s\n' "$tracked_status"
+          test -z "$tracked_status"
+          mkdir -p "$repository_output"
+          cp -a "$temporary_output/." "$repository_output/"
+          exit "$execution_code"
+
+      - name: Inspect exact P1 A3 output contract
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv
+          import json
+          from pathlib import Path
+
+          target = Path('artifacts/stage7-p1-mesh-cfl-sensitivity-a3')
+          expected = {
+              'mesh_cfl_summary.json',
+              'case_metrics.csv',
+              'mesh_convergence.csv',
+              'cfl_sensitivity.csv',
+              'front_history.csv',
+              'front_comparison.png',
+              'decision_metrics.png',
+              'operator_report.md',
+              'mesh_cfl_manifest.json',
+          }
+          actual = {path.name for path in target.iterdir() if path.is_file()}
+          assert actual == expected, (expected, actual)
+
+          summary = json.loads(
+              (target / 'mesh_cfl_summary.json').read_text(encoding='utf-8')
+          )
+          manifest = json.loads(
+              (target / 'mesh_cfl_manifest.json').read_text(encoding='utf-8')
+          )
+          assert summary['schema_version'] == 'stage7_p1_mesh_cfl_sensitivity_a3_v1'
+          assert summary['scope'] == (
+              'predeclared_mesh_cfl_characterization_with_locked_gate6_baseline'
+          )
+          assert summary['model_id'] == 'HEM_EQUILIBRIUM'
+          assert summary['case_count'] == 5
+          assert [
+              (row['n_cells'], row['cfl']) for row in summary['case_specs']
+          ] == [
+              (16, 0.10),
+              (32, 0.10),
+              (64, 0.10),
+              (32, 0.05),
+              (32, 0.20),
+          ]
+          assert summary['sensitivity_execution_status'] == 'SENSITIVITY_READY'
+          assert summary['sensitivity_ready'] is True
+          assert summary['ordering_verdict'] in {'ROBUST', 'SENSITIVE'}
+          assert summary['numerical_verdict'] in {
+              'ROBUST_ORDERING_WITH_BOUNDED_NUMERICAL_SENSITIVITY',
+              'ROBUST_ORDERING_BUT_NUMERICALLY_SENSITIVE',
+              'SENSITIVE',
+          }
+          assert len(summary['case_metrics']) == 5
+          assert len(summary['mesh_convergence']) == 8
+          assert len(summary['cfl_sensitivity']) == 8
+          assert all(summary['gate_results'].values())
+          assert summary['locked_gate6_contract_changed'] is False
+          assert summary['physics_or_production_numerics_changed'] is False
+
+          formal = summary['formal_status']
+          assert formal['implemented'] is True
+          assert formal['working_vertical_slice'] is False
+          assert formal['verified'] is False
+          assert formal['accepted'] is False
+          assert formal['mesh_independent_crossing_verified'] is False
+          assert formal['cfl_independent_crossing_verified'] is False
+          assert formal['physically_validated'] is False
+          assert formal['design_use_accepted'] is False
+          assert formal['production_approved'] is False
+
+          assert manifest['declared_file_count'] == 9
+          assert set(manifest['declared_file_names']) == expected
+          assert set(manifest['payload_files']) == expected - {
+              'mesh_cfl_manifest.json'
+          }
+          assert manifest['sensitivity_sha256'] == summary['sensitivity_sha256']
+          assert manifest['ordering_verdict'] == summary['ordering_verdict']
+          assert manifest['numerical_verdict'] == summary['numerical_verdict']
+          assert manifest['locked_gate6_contract_changed'] is False
+          for item in manifest['payload_files'].values():
+              assert item['size_bytes'] > 0
+              assert len(item['sha256']) == 64
+
+          def read_rows(name):
+              with (target / name).open(encoding='utf-8', newline='') as stream:
+                  return list(csv.DictReader(stream))
+
+          cases = read_rows('case_metrics.csv')
+          mesh = read_rows('mesh_convergence.csv')
+          cfl = read_rows('cfl_sensitivity.csv')
+          fronts = read_rows('front_history.csv')
+          assert len(cases) == 5
+          assert len(mesh) == 8
+          assert len(cfl) == 8
+          assert len(fronts) > 0
+          assert {row['case_id'] for row in cases} == {
+              'mesh_16_cfl_0p10',
+              'baseline_32_cfl_0p10',
+              'mesh_64_cfl_0p10',
+              'cfl_32_0p05',
+              'cfl_32_0p20',
+          }
+          assert all(row['successful_post_crossing_step_count'] == '64' for row in cases)
+          baseline = next(
+              row for row in cases if row['case_id'] == 'baseline_32_cfl_0p10'
+          )
+          assert baseline['source_kind'] == 'LOCKED_GATE6_AUTHORITY'
+          assert {row['case_id'] for row in fronts} == {
+              row['case_id'] for row in cases
+          }
+          assert (target / 'front_comparison.png').stat().st_size > 0
+          assert (target / 'decision_metrics.png').stat().st_size > 0
+          PY
+
+      - name: Compile and diff checks
+        run: |
+          set -euo pipefail
+          python -m compileall -q src tests
+          git diff --check
+
+      - name: Run focused P1 A3 tests
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/test_stage7_p1_mesh_cfl_sensitivity.py \
+            --strict-markers --junitxml=p1-a3-focused.xml
+
+      - name: Run P1 A2 regression
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/test_stage7_p1_threshold_sensitivity.py \
+            --strict-markers --junitxml=p1-a3-a2-regression.xml
+
+      - name: Run P1 A1 regression
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/test_stage7_p1_pressure_phase_relationship.py \
+            --strict-markers --junitxml=p1-a3-a1-regression.xml
+
+      - name: Run P1 A0 regression
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/test_stage7_p1_post_crossing_analysis.py \
+            --strict-markers --junitxml=p1-a3-a0-regression.xml
+
+      - name: Run existing Gate 6 regression
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/test_stage7_lco2_hem_pipeline_post_crossing_propagation.py \
+            --strict-markers --junitxml=p1-a3-gate6-regression.xml
+
+      - name: Assert core JUnit is clean
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          for name in (
+              'p1-a3-focused.xml',
+              'p1-a3-a2-regression.xml',
+              'p1-a3-a1-regression.xml',
+              'p1-a3-a0-regression.xml',
+              'p1-a3-gate6-regression.xml',
+          ):
+              root = ET.parse(Path(name)).getroot()
+              suites = [root] if root.tag == 'testsuite' else list(root.findall('testsuite'))
+              totals = {
+                  key: sum(int(s.attrib.get(key, 0)) for s in suites)
+                  for key in ('tests', 'skipped', 'failures', 'errors')
+              }
+              print(name, totals)
+              assert totals['skipped'] == 0
+              assert totals['failures'] == 0
+              assert totals['errors'] == 0
+          PY
+
+      - name: Upload P1 A3 core evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: stage7-p1-mesh-cfl-sensitivity-a3-core-${{ github.run_id }}
+          path: |
+            artifacts/stage7-p1-mesh-cfl-sensitivity-a3
+            p1-a3-focused.xml
+            p1-a3-a2-regression.xml
+            p1-a3-a1-regression.xml
+            p1-a3-a0-regression.xml
+            p1-a3-gate6-regression.xml
+          if-no-files-found: warn
