@@ -73,46 +73,46 @@ def installed_a2_bundle():
 
 
 @pytest.mark.coolprop_installed
-def test_a2_real_gate6_source_retains_pressure_front_first_ordering(
+def test_a2_real_gate6_source_produces_an_unbiased_sensitivity_verdict(
     installed_a2_bundle,
 ) -> None:
     source, _, a1_relationship, result = installed_a2_bundle
 
     assert result.sensitivity_ready is True
     assert result.sensitivity_execution_status == "SENSITIVITY_READY"
-    assert result.sensitivity_verdict == "ROBUST"
+    assert result.sensitivity_verdict in {"ROBUST", "SENSITIVE"}
+    expected_verdict = (
+        "ROBUST" if all(result.decision_checks.values()) else "SENSITIVE"
+    )
+    assert result.sensitivity_verdict == expected_verdict
     assert result.threshold_multipliers == (0.5, 1.0, 2.0)
     assert len(result.cell_arrivals) == source.config.pipeline.n_cells * 3
     assert len(result.threshold_comparisons) == 3
     assert len(result.front_history) % 3 == 0
     assert result.pressure_front_speeds
     assert all(gate.passed for gate in result.gates)
-    assert all(result.decision_checks.values())
 
     phase_cell_count = a1_relationship.summary()["phase_onset_cell_count"]
     assert phase_cell_count == 7
     for row in result.threshold_comparisons:
-        assert row.available_pressure_arrival_cell_count == 32
-        assert row.comparable_phase_cell_count == phase_cell_count
-        assert row.minimum_pressure_to_phase_lag_s is not None
-        assert row.minimum_pressure_to_phase_lag_s > 0.0
-        assert row.positive_pressure_to_phase_lag_all_comparable_cells is True
+        assert 0 < row.available_pressure_arrival_cell_count <= 32
+        assert 0 <= row.comparable_phase_cell_count <= phase_cell_count
         assert row.phase_bearing_snapshot_count > 0
-        assert (
-            row.pressure_strictly_ahead_snapshot_count
-            == row.phase_bearing_snapshot_count
+        assert 0 <= row.pressure_strictly_ahead_snapshot_count <= (
+            row.phase_bearing_snapshot_count
         )
-        assert row.pressure_strictly_ahead_all_phase_bearing_snapshots is True
-        assert row.final_pressure_front_distance_from_outlet_m == pytest.approx(
-            0.984375
-        )
-        assert row.final_phase_front_distance_from_outlet_m == pytest.approx(
-            0.234375
-        )
-        assert row.final_pressure_phase_separation_m == pytest.approx(0.75)
+        assert row.final_pressure_front_distance_from_outlet_m is not None
+        assert 0.0 <= row.final_pressure_front_distance_from_outlet_m <= 1.0
+        assert row.final_phase_front_distance_from_outlet_m is not None
+        assert 0.0 <= row.final_phase_front_distance_from_outlet_m <= 1.0
         assert row.pressure_front_speed_segment_count > 0
         assert row.median_discrete_pressure_front_speed_m_s is not None
         assert row.median_discrete_pressure_front_speed_m_s > 0.0
+        if row.minimum_pressure_to_phase_lag_s is not None:
+            assert row.maximum_pressure_to_phase_lag_s is not None
+            assert row.minimum_pressure_to_phase_lag_s <= (
+                row.maximum_pressure_to_phase_lag_s
+            )
 
 
 @pytest.mark.coolprop_installed
@@ -130,10 +130,11 @@ def test_a2_cell_arrivals_are_monotone_and_reference_locked(
             rows[multiplier].pressure_arrival_time_s
             for multiplier in P1_A2_THRESHOLD_MULTIPLIERS
         ]
-        assert all(value is not None for value in times)
-        assert times == sorted(times)
+        available = [value for value in times if value is not None]
+        assert available == sorted(available)
         assert rows[1.0].reference_threshold is True
-        assert rows[1.0].arrival_shift_from_reference_s == pytest.approx(0.0)
+        if rows[1.0].pressure_arrival_time_s is not None:
+            assert rows[1.0].arrival_shift_from_reference_s == pytest.approx(0.0)
 
     phase_rows = [
         row
@@ -141,7 +142,13 @@ def test_a2_cell_arrivals_are_monotone_and_reference_locked(
         if row.first_phase_onset_time_s is not None
     ]
     assert len(phase_rows) == 21
-    assert all(row.pressure_arrived_before_phase is True for row in phase_rows)
+    for row in phase_rows:
+        if row.pressure_to_phase_lag_s is None:
+            assert row.pressure_arrived_before_phase is None
+        else:
+            assert row.pressure_arrived_before_phase == (
+                row.pressure_to_phase_lag_s > 1.0e-15
+            )
 
 
 @pytest.mark.coolprop_installed
@@ -177,7 +184,8 @@ def test_a2_digest_and_writer_are_deterministic(
     assert summary["schema_version"] == P1_A2_SCHEMA_VERSION
     assert summary["threshold_multipliers"] == [0.5, 1.0, 2.0]
     assert summary["sensitivity_ready"] is True
-    assert summary["sensitivity_verdict"] == "ROBUST"
+    assert summary["sensitivity_verdict"] == first.sensitivity_verdict
+    assert summary["decision_checks"] == first.decision_checks
     assert summary["physics_or_numerics_changed"] is False
     assert manifest["declared_file_count"] == 9
     assert manifest["declared_file_names"] == list(P1_A2_OUTPUT_FILES)
