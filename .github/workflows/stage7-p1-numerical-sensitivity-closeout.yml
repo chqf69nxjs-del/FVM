@@ -1,0 +1,232 @@
+name: Stage 7 P1 Numerical Sensitivity Closeout
+
+on:
+  push:
+    branches:
+      - agent/stage7-p1-numerical-sensitivity-closeout
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: src:tools/verification
+  PYTHONDONTWRITEBYTECODE: "1"
+  MPLBACKEND: Agg
+  ANALYSIS_SOURCE_GIT_SHA: ${{ github.sha }}
+
+jobs:
+  p1-numerical-sensitivity-closeout:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install pinned dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install \
+            'numpy==2.5.2' \
+            'matplotlib==3.11.1' \
+            'pytest==9.1.1' \
+            'CoolProp==8.0.0'
+          python - <<'PY'
+          import platform
+          import CoolProp
+          import matplotlib
+          import numpy
+          import pytest
+          print('python=' + platform.python_version())
+          print('numpy=' + numpy.__version__)
+          print('matplotlib=' + matplotlib.__version__)
+          print('pytest=' + pytest.__version__)
+          print('CoolProp=' + CoolProp.__version__)
+          PY
+
+      - name: Assert pristine checkout and frozen authorities
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$ANALYSIS_SOURCE_GIT_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test "$(git rev-parse origin/main)" = "aa108961762c9ae70ee9940405024eb5188064b8"
+          test "$(git rev-parse origin/agent/stage7-p1-threshold-sensitivity-a2)" = "247148c8ee7ac119fb030f07240ca0e5b05e8ff4"
+          test "$(git rev-parse origin/agent/stage7-p1-mesh-cfl-sensitivity-a3)" = "b9e36507370c6c7e8136e1635bb9c4382c6a292a"
+          test "$(git rev-parse origin/agent/stage7-p1-a3-subthreshold-crossing-forensics)" = "994124c38828459e866f0d4f874ecf05bd15299a"
+          test "$(git rev-parse origin/agent/stage7-p1-a3-crossing-event-alignment)" = "5d58291e0debe103092c4b7ebd6ad751eb5ea9bd"
+          echo "frozen_authorities=confirmed"
+
+      - name: Execute exact P1 numerical sensitivity closeout
+        run: |
+          set -euo pipefail
+          temporary_output="${RUNNER_TEMP}/stage7-p1-numerical-sensitivity-closeout"
+          repository_output="artifacts/stage7-p1-numerical-sensitivity-closeout"
+          rm -rf "$temporary_output" "$repository_output"
+          set +e
+          python -m liquid_gas_transient.hem_p1_numerical_sensitivity_closeout \
+            --output-dir "$temporary_output"
+          analysis_exit=$?
+          set -e
+          tracked_status="$(git status --porcelain=v1 --untracked-files=no)"
+          printf 'post_execution_tracked_git_status=%s\n' "$tracked_status"
+          test -z "$tracked_status"
+          mkdir -p "$repository_output"
+          cp -a "$temporary_output/." "$repository_output/"
+          echo "$analysis_exit" > artifacts/p1_closeout_analysis_exit_code.txt
+          echo "analysis_exit_code=$analysis_exit"
+
+      - name: Inspect closeout contract and numerical synthesis
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv
+          import json
+          import math
+          from pathlib import Path
+
+          target = Path('artifacts/stage7-p1-numerical-sensitivity-closeout')
+          expected = {
+              'closeout_summary.json',
+              'evidence_authorities.csv',
+              'threshold_synthesis.csv',
+              'mesh_cfl_event_synthesis.csv',
+              'limitations.csv',
+              'numerical_sensitivity_overview.png',
+              'operator_report.md',
+              'closeout_manifest.json',
+          }
+          actual = {p.name for p in target.iterdir() if p.is_file()}
+          assert actual == expected, (expected, actual)
+          summary = json.loads((target / 'closeout_summary.json').read_text(encoding='utf-8'))
+          manifest = json.loads((target / 'closeout_manifest.json').read_text(encoding='utf-8'))
+
+          assert summary['closeout_ready'] is True
+          assert summary['closeout_execution_status'] == 'CLOSEOUT_READY_WITH_LIMITATIONS'
+          assert all(summary['gate_results'].values())
+          assert summary['source_status']['p1_a2'] == {
+              'execution_status': 'SENSITIVITY_READY', 'verdict': 'ROBUST'
+          }
+          assert summary['source_status']['p1_a3'] == {
+              'execution_status': 'FAIL_CLOSED',
+              'ordering_verdict': 'INCONCLUSIVE',
+              'numerical_verdict': 'INCONCLUSIVE',
+          }
+          assert summary['source_status']['p1_a3f']['execution_status'] == 'FORENSICS_READY'
+          assert summary['source_status']['p1_a3f']['direct_failure_mechanism'] == 'CONFIRMED'
+          assert summary['source_status']['p1_a3g']['execution_status'] == 'ALIGNMENT_READY'
+          assert summary['source_status']['p1_a3g']['event_definition_interpretation'] == 'STRONGLY_SUPPORTS_DISCRETE_EVENT_ALIASING'
+          assert summary['engineering_interpretation']['mesh_independence'] == 'NOT_VERIFIED'
+          assert summary['engineering_interpretation']['cfl_independence'] == 'NOT_VERIFIED'
+          assert summary['formal_status']['verified'] is False
+          assert summary['formal_status']['accepted'] is False
+          assert summary['formal_status']['physically_validated'] is False
+          assert summary['formal_status']['design_use_accepted'] is False
+          assert summary['formal_status']['production_approved'] is False
+          assert summary['formal_status']['mesh_independent_crossing_verified'] is False
+          assert summary['formal_status']['cfl_independent_crossing_verified'] is False
+
+          thresholds = summary['threshold_synthesis']
+          assert [r['threshold_multiplier'] for r in thresholds] == [0.5, 1.0, 2.0]
+          for row in thresholds:
+              assert row['phase_bearing_snapshot_count'] == 65
+              assert row['pressure_strictly_ahead_snapshot_count'] == 65
+              assert row['pressure_strictly_ahead_all_phase_bearing_snapshots'] is True
+              assert math.isclose(row['final_pressure_front_distance_from_outlet_m'], 0.984375, rel_tol=0.0, abs_tol=1e-15)
+              assert math.isclose(row['final_phase_front_distance_from_outlet_m'], 0.234375, rel_tol=0.0, abs_tol=1e-15)
+              assert math.isclose(row['final_pressure_phase_separation_m'], 0.75, rel_tol=0.0, abs_tol=1e-15)
+
+          by_id = {r['case_id']: r for r in summary['mesh_cfl_event_synthesis']}
+          assert by_id['mesh_64_cfl_0p10']['authoritative_outcome'] == 'GUARD_FAILURE'
+          assert by_id['cfl_32_0p05']['authoritative_outcome'] == 'GUARD_FAILURE'
+          assert by_id['mesh_64_cfl_0p10']['delta_step_a_to_b'] == 1
+          assert by_id['cfl_32_0p05']['delta_step_a_to_b'] == 1
+          assert by_id['mesh_64_cfl_0p10']['delta_x_front_a_to_b_m'] == 0.0
+          assert by_id['cfl_32_0p05']['delta_x_front_a_to_b_m'] == 0.0
+          assert math.isclose(by_id['mesh_64_cfl_0p10']['delta_t_a_to_b_s'], 3.007109057766473e-6, rel_tol=1e-12, abs_tol=1e-15)
+          assert math.isclose(by_id['cfl_32_0p05']['delta_t_a_to_b_s'], 3.0100299192459138e-6, rel_tol=1e-12, abs_tol=1e-15)
+
+          metrics = summary['sensitivity_metrics']
+          assert metrics['mesh_event_a_time_span_relative_to_baseline'] > 0.20
+          assert metrics['cfl_event_a_time_span_relative_to_baseline'] < 0.02
+          assert metrics['subthreshold_a_to_b_relative_difference'] < 0.002
+
+          assert manifest['declared_file_count'] == 8
+          assert set(manifest['declared_file_names']) == expected
+          assert manifest['closeout_ready'] is True
+          assert manifest['closeout_sha256'] == summary['closeout_sha256']
+          assert set(manifest['payload_files']) == expected - {'closeout_manifest.json'}
+          for item in manifest['payload_files'].values():
+              assert item['size_bytes'] > 0
+              assert len(item['sha256']) == 64
+
+          print('P1_CLOSEOUT_STATUS=' + summary['closeout_execution_status'])
+          print('P1_CLOSEOUT_SHA256=' + summary['closeout_sha256'])
+          print('mesh_event_a_span_us=' + str(1e6 * metrics['mesh_event_a_time_span_s']))
+          print('cfl_event_a_span_us=' + str(1e6 * metrics['cfl_event_a_time_span_s']))
+          print('fine_mesh_a_to_b_us=' + str(1e6 * metrics['fine_mesh_a_to_b_s']))
+          print('low_cfl_a_to_b_us=' + str(1e6 * metrics['low_cfl_a_to_b_s']))
+          PY
+
+      - name: Compile and diff checks
+        run: |
+          set -euo pipefail
+          python -m compileall -q src tests
+          git diff --check
+
+      - name: Run focused closeout contract tests
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/test_stage7_p1_numerical_sensitivity_closeout.py \
+            --strict-markers \
+            --junitxml=p1-closeout-focused.xml
+
+      - name: Assert focused JUnit is clean
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          root = ET.parse('p1-closeout-focused.xml').getroot()
+          suites = [root] if root.tag == 'testsuite' else list(root.findall('testsuite'))
+          totals = {key: sum(int(s.attrib.get(key, 0)) for s in suites) for key in ('tests', 'skipped', 'failures', 'errors')}
+          print(totals)
+          assert totals == {'tests': 5, 'skipped': 0, 'failures': 0, 'errors': 0}
+          PY
+
+      - name: Require closeout-ready exit and gates
+        run: |
+          set -euo pipefail
+          test "$(cat artifacts/p1_closeout_analysis_exit_code.txt)" = "0"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          summary = json.loads(Path('artifacts/stage7-p1-numerical-sensitivity-closeout/closeout_summary.json').read_text(encoding='utf-8'))
+          assert summary['closeout_ready'] is True
+          assert all(summary['gate_results'].values())
+          assert summary['next_phase_decision'] == 'PROCEED_TO_P2_HNE_MODEL_FORM_SENSITIVITY_WITH_P1_LIMITATIONS_RETAINED'
+          PY
+
+      - name: Assert pristine tracked checkout after execution
+        run: |
+          set -euo pipefail
+          status="$(git status --porcelain=v1 --untracked-files=no)"
+          printf 'post_test_tracked_git_status=%s\n' "$status"
+          test -z "$status"
+
+      - name: Upload P1 closeout evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: stage7-p1-numerical-sensitivity-closeout-${{ github.run_id }}
+          path: |
+            artifacts/stage7-p1-numerical-sensitivity-closeout
+            artifacts/p1_closeout_analysis_exit_code.txt
+            p1-closeout-focused.xml
+          if-no-files-found: error
