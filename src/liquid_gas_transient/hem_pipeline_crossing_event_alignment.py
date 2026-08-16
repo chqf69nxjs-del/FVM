@@ -67,7 +67,7 @@ P1_A3G_AUTHORITATIVE_A3 = {
 }
 P1_A3G_FORMAL_STATUS = {
     "implemented": True,
-    "diagnostic_evidence_ready": False,
+    "diagnostic_evidence_ready": True,
     "working_vertical_slice": False,
     "verified": False,
     "accepted": False,
