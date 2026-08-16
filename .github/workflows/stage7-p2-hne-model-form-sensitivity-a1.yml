@@ -1,0 +1,228 @@
+name: Stage 7 P2 HNE Model-Form Sensitivity A1
+
+on:
+  push:
+    branches:
+      - agent/stage7-p2-hne-model-form-sensitivity-a1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: src:tools/verification
+  PYTHONDONTWRITEBYTECODE: "1"
+  MPLBACKEND: Agg
+  ANALYSIS_SOURCE_GIT_SHA: ${{ github.sha }}
+
+jobs:
+  p2-hne-model-form-sensitivity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install pinned dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install \
+            'numpy==2.5.2' \
+            'matplotlib==3.11.1' \
+            'pytest==9.1.1' \
+            'CoolProp==8.0.0'
+          python - <<'PY'
+          import platform
+          import CoolProp
+          import matplotlib
+          import numpy
+          import pytest
+          print('python=' + platform.python_version())
+          print('numpy=' + numpy.__version__)
+          print('matplotlib=' + matplotlib.__version__)
+          print('pytest=' + pytest.__version__)
+          print('CoolProp=' + CoolProp.__version__)
+          PY
+
+      - name: Assert pristine checkout and frozen P1 authority
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$ANALYSIS_SOURCE_GIT_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test "$(git rev-parse origin/main)" = "aa108961762c9ae70ee9940405024eb5188064b8"
+          test "$(git rev-parse origin/agent/stage7-p1-numerical-sensitivity-closeout)" = "7ed7d71a35676a8160643eb7af81ecaebfe90e15"
+          echo "p1_closeout_authority=confirmed"
+
+      - name: Execute P2-A1 model-form slice
+        run: |
+          set -euo pipefail
+          temporary_output="${RUNNER_TEMP}/stage7-p2-hne-model-form-sensitivity"
+          repository_output="artifacts/stage7-p2-hne-model-form-sensitivity"
+          rm -rf "$temporary_output" "$repository_output"
+          set +e
+          python -m liquid_gas_transient.hne_pipeline_model_form_sensitivity \
+            --output-dir "$temporary_output"
+          analysis_exit=$?
+          set -e
+          tracked_status="$(git status --porcelain=v1 --untracked-files=no)"
+          printf 'post_execution_tracked_git_status=%s\n' "$tracked_status"
+          test -z "$tracked_status"
+          mkdir -p "$repository_output"
+          cp -a "$temporary_output/." "$repository_output/"
+          echo "$analysis_exit" > artifacts/p2_a1_analysis_exit_code.txt
+          echo "analysis_exit_code=$analysis_exit"
+
+      - name: Inspect P2-A1 evidence contract
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import math
+          from pathlib import Path
+
+          target = Path('artifacts/stage7-p2-hne-model-form-sensitivity')
+          expected = {
+              'model_form_summary.json',
+              'case_comparison.csv',
+              'time_history.csv',
+              'cell_history.csv',
+              'tau_limit_comparison.csv',
+              'quality_lag_comparison.png',
+              'phase_front_comparison.png',
+              'operator_report.md',
+              'model_form_manifest.json',
+          }
+          actual = {p.name for p in target.iterdir() if p.is_file()}
+          assert actual == expected, (expected, actual)
+          summary = json.loads((target / 'model_form_summary.json').read_text(encoding='utf-8'))
+          manifest = json.loads((target / 'model_form_manifest.json').read_text(encoding='utf-8'))
+
+          assert summary['source_p1_closeout_sha'] == '7ed7d71a35676a8160643eb7af81ecaebfe90e15'
+          assert summary['model_form_slice_ready'] is True
+          assert summary['execution_status'] == 'WORKING_MODEL_FORM_SLICE_WITH_EXPLICIT_LIMITATIONS'
+          assert all(summary['gate_results'].values())
+          assert summary['interpretation']['tau_to_zero_limit'] == 'BITWISE_HEM_LIMIT_REPRODUCED'
+          assert summary['interpretation']['finite_tau_effect'] == 'TRANSPORTED_QUALITY_AND_KINETIC_PHASE_FRONT_LAG_OBSERVED'
+          assert summary['interpretation']['hydrodynamic_feedback_in_this_scaffold'] == 'ABSENT_BY_CONSTRUCTION'
+          assert summary['interpretation']['thermodynamic_completeness'] == 'NOT_ESTABLISHED'
+          assert summary['interpretation']['physical_tau_validation'] == 'NOT_ESTABLISHED'
+          assert summary['formal_status']['p2_model_form_vertical_slice'] is True
+          assert summary['formal_status']['working_vertical_slice'] is False
+          assert summary['formal_status']['verified'] is False
+          assert summary['formal_status']['accepted'] is False
+          assert summary['formal_status']['physically_validated'] is False
+          assert summary['formal_status']['design_use_accepted'] is False
+          assert summary['formal_status']['production_approved'] is False
+          assert summary['next_phase_decision'] == 'PROCEED_TO_P2_A2_RELAXATION_SENSITIVITY_AND_THERMODYNAMIC_CLOSURE_REFINEMENT'
+
+          by_id = {row['model_id']: row for row in summary['case_comparison']}
+          assert list(by_id) == [
+              'HEM_EQUILIBRIUM',
+              'HNE_TAU_NEAR_ZERO',
+              'HNE_TAU_MEDIUM',
+              'HNE_TAU_SLOW',
+          ]
+          assert all(row['completed'] is True for row in by_id.values())
+          assert all(row['step_count'] == 65 for row in by_id.values())
+          assert by_id['HNE_TAU_NEAR_ZERO']['final_full_state_sha256'] == by_id['HEM_EQUILIBRIUM']['final_full_state_sha256']
+          assert by_id['HNE_TAU_MEDIUM']['maximum_quality_lag'] > 0.0
+          assert by_id['HNE_TAU_SLOW']['maximum_quality_lag'] >= by_id['HNE_TAU_MEDIUM']['maximum_quality_lag']
+          assert by_id['HNE_TAU_SLOW']['maximum_dt_over_tau'] < by_id['HNE_TAU_MEDIUM']['maximum_dt_over_tau']
+          for row in summary['tau_limit_comparison']:
+              assert row['hydrodynamic_state_matches_hem'] is True
+              assert row['first_thermodynamic_crossing_time_s'] is not None
+              assert row['first_kinetic_crossing_time_s'] is not None
+              assert math.isfinite(float(row['first_thermodynamic_crossing_time_s']))
+              assert math.isfinite(float(row['first_kinetic_crossing_time_s']))
+
+          assert manifest['declared_file_count'] == 9
+          assert set(manifest['declared_file_names']) == expected
+          assert manifest['model_form_slice_ready'] is True
+          assert manifest['model_form_sha256'] == summary['model_form_sha256']
+          assert set(manifest['payload_files']) == expected - {'model_form_manifest.json'}
+          for item in manifest['payload_files'].values():
+              assert item['size_bytes'] > 0
+              assert len(item['sha256']) == 64
+
+          print('P2_A1_STATUS=' + summary['execution_status'])
+          print('P2_A1_SHA256=' + summary['model_form_sha256'])
+          for row in summary['tau_limit_comparison']:
+              print(
+                  row['model_id'],
+                  'tau=', row['tau_s'],
+                  'kinetic_crossing=', row['first_kinetic_crossing_time_s'],
+                  'max_lag=', row['maximum_quality_lag'],
+                  'front_lag=', row['final_kinetic_front_lag_m'],
+              )
+          PY
+
+      - name: Compile and diff checks
+        run: |
+          set -euo pipefail
+          python -m compileall -q src tests
+          git diff --check
+
+      - name: Run focused P2-A1 tests
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/test_stage7_p2_hne_model_form_sensitivity.py \
+            --strict-markers \
+            --junitxml=p2-a1-focused.xml
+
+      - name: Assert focused JUnit is clean
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          root = ET.parse('p2-a1-focused.xml').getroot()
+          suites = [root] if root.tag == 'testsuite' else list(root.findall('testsuite'))
+          totals = {
+              key: sum(int(s.attrib.get(key, 0)) for s in suites)
+              for key in ('tests', 'skipped', 'failures', 'errors')
+          }
+          print(totals)
+          assert totals == {'tests': 6, 'skipped': 0, 'failures': 0, 'errors': 0}
+          PY
+
+      - name: Require P2-A1 ready exit and gates
+        run: |
+          set -euo pipefail
+          test "$(cat artifacts/p2_a1_analysis_exit_code.txt)" = "0"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          summary = json.loads(
+              Path('artifacts/stage7-p2-hne-model-form-sensitivity/model_form_summary.json').read_text(encoding='utf-8')
+          )
+          assert summary['model_form_slice_ready'] is True
+          assert all(summary['gate_results'].values())
+          assert summary['formal_status']['verified'] is False
+          assert summary['formal_status']['accepted'] is False
+          PY
+
+      - name: Assert pristine tracked checkout after execution
+        run: |
+          set -euo pipefail
+          status="$(git status --porcelain=v1 --untracked-files=no)"
+          printf 'post_test_tracked_git_status=%s\n' "$status"
+          test -z "$status"
+
+      - name: Upload P2-A1 evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: stage7-p2-hne-model-form-sensitivity-a1-${{ github.run_id }}
+          path: |
+            artifacts/stage7-p2-hne-model-form-sensitivity
+            artifacts/p2_a1_analysis_exit_code.txt
+            p2-a1-focused.xml
+          if-no-files-found: error
+          compression-level: 6
