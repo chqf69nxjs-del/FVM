@@ -1,0 +1,286 @@
+name: Stage 7 P1 A3G Crossing Event Alignment
+
+on:
+  push:
+    branches:
+      - agent/stage7-p1-a3-crossing-event-alignment
+    paths:
+      - 'src/liquid_gas_transient/hem_pipeline_crossing_event_alignment.py'
+      - 'tests/test_stage7_p1_a3_crossing_event_alignment.py'
+      - 'docs/verification/stage7_p1_a3_crossing_event_alignment.md'
+      - '.github/workflows/stage7-p1-a3-crossing-event-alignment.yml'
+  pull_request:
+    paths:
+      - 'src/liquid_gas_transient/hem_pipeline_crossing_event_alignment.py'
+      - 'tests/test_stage7_p1_a3_crossing_event_alignment.py'
+      - 'docs/verification/stage7_p1_a3_crossing_event_alignment.md'
+      - '.github/workflows/stage7-p1-a3-crossing-event-alignment.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: stage7-p1-a3g-crossing-event-alignment-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: src:tools/verification
+  PYTHONDONTWRITEBYTECODE: '1'
+  MPLBACKEND: Agg
+  ANALYSIS_SOURCE_GIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  p1-a3g-crossing-event-alignment:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install pinned dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install \
+            'numpy==2.5.2' \
+            'matplotlib==3.11.1' \
+            'pytest==9.1.1' \
+            'CoolProp==8.0.0'
+          python - <<'PY'
+          import platform
+          import CoolProp
+          import matplotlib
+          import numpy
+          import pytest
+          print('python=' + platform.python_version())
+          print('numpy=' + numpy.__version__)
+          print('matplotlib=' + matplotlib.__version__)
+          print('pytest=' + pytest.__version__)
+          print('CoolProp=' + CoolProp.__version__)
+          PY
+
+      - name: Assert pristine checkout
+        run: |
+          set -euo pipefail
+          echo "checkout_sha=$(git rev-parse HEAD)"
+          test "$(git rev-parse HEAD)" = "$ANALYSIS_SOURCE_GIT_SHA"
+          status="$(git status --porcelain=v1 --untracked-files=all)"
+          printf 'pre_execution_git_status=%s\n' "$status"
+          test -z "$status"
+
+      - name: Execute exact P1 A3G crossing event alignment
+        run: |
+          set -euo pipefail
+          temporary_output="${RUNNER_TEMP}/stage7-p1-a3-crossing-event-alignment"
+          repository_output="artifacts/stage7-p1-a3-crossing-event-alignment"
+          rm -rf "$temporary_output" "$repository_output"
+          set +e
+          python -m liquid_gas_transient.hem_pipeline_crossing_event_alignment \
+            --output-dir "$temporary_output"
+          analysis_exit=$?
+          set -e
+          tracked_status="$(git status --porcelain=v1 --untracked-files=no)"
+          printf 'post_execution_tracked_git_status=%s\n' "$tracked_status"
+          test -z "$tracked_status"
+          mkdir -p "$repository_output"
+          cp -a "$temporary_output/." "$repository_output/"
+          echo "analysis_exit_code=$analysis_exit"
+          echo "$analysis_exit" > "$repository_output/../a3g_analysis_exit_code.txt"
+
+      - name: Inspect P1 A3G output contract and print alignment matrix
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv
+          import json
+          from pathlib import Path
+
+          target = Path('artifacts/stage7-p1-a3-crossing-event-alignment')
+          expected = {
+              'event_alignment_summary.json',
+              'event_alignment_cases.csv',
+              'event_a_cells.csv',
+              'event_b_cells.csv',
+              'event_interval_history.csv',
+              'event_ab_time_comparison.png',
+              'event_ab_step_comparison.png',
+              'operator_report.md',
+              'event_alignment_manifest.json',
+          }
+          actual = {path.name for path in target.iterdir() if path.is_file()}
+          assert actual == expected, (expected, actual)
+
+          summary = json.loads(
+              (target / 'event_alignment_summary.json').read_text(encoding='utf-8')
+          )
+          manifest = json.loads(
+              (target / 'event_alignment_manifest.json').read_text(encoding='utf-8')
+          )
+          assert summary['schema_version'] == 'stage7_p1_a3_crossing_event_alignment_v1'
+          assert summary['case_count'] == 5
+          assert summary['fixed_crossing_evidence_floor'] == 1.0e-6
+          assert summary['maximum_shadow_steps'] == 64
+          assert summary['threshold_or_tolerance_changed'] is False
+          assert summary['solver_or_physics_changed'] is False
+          assert summary['authoritative_a3_verdict_changed'] is False
+          assert summary['authoritative_a3_verdict'] == {
+              'sensitivity_execution_status': 'FAIL_CLOSED',
+              'ordering_verdict': 'INCONCLUSIVE',
+              'numerical_verdict': 'INCONCLUSIVE',
+          }
+          assert summary['subthreshold_case_ids'] == [
+              'mesh_64_cfl_0p10',
+              'cfl_32_0p05',
+          ]
+
+          print('A3G_ALIGNMENT_MATRIX_BEGIN')
+          for row in summary['case_alignment']:
+              print(json.dumps({
+                  'case_id': row['case_id'],
+                  'cells': row['n_cells'],
+                  'cfl': row['cfl'],
+                  'authoritative_outcome': row['authoritative_outcome'],
+                  'event_a_time_s': row['event_a_time_s'],
+                  'event_a_step': row['event_a_absolute_step'],
+                  'event_a_cell': row['event_a_primary_cell'],
+                  'event_a_q': row['event_a_quality'],
+                  'event_b_reached': row['event_b_reached'],
+                  'event_b_time_s': row['event_b_time_s'],
+                  'event_b_step': row['event_b_absolute_step'],
+                  'event_b_cell': row['event_b_primary_cell'],
+                  'event_b_q': row['event_b_quality'],
+                  'delta_t_a_to_b_us': (
+                      None if row['delta_t_a_to_b_s'] is None
+                      else 1.0e6 * row['delta_t_a_to_b_s']
+                  ),
+                  'delta_step_a_to_b': row['delta_step_a_to_b'],
+                  'delta_x_front_a_to_b_m': row['delta_x_front_a_to_b_m'],
+                  'shadow_used': row['shadow_continuation_used'],
+                  'shadow_failure_category': row['shadow_failure_category'],
+                  'shadow_failure_reason': row['shadow_failure_reason'],
+                  'event_a_state_sha256': row['event_a_state_sha256'],
+                  'event_b_state_sha256': row['event_b_state_sha256'],
+              }, sort_keys=True))
+          print('A3G_ALIGNMENT_MATRIX_END')
+          print('mesh_pattern=' + summary['mesh_event_separation_pattern'])
+          print('cfl_pattern=' + summary['cfl_event_separation_pattern'])
+          print('event_definition_interpretation=' + summary['event_definition_interpretation'])
+          print('alignment_execution_status=' + summary['alignment_execution_status'])
+          print('event_alignment_sha256=' + summary['event_alignment_sha256'])
+          for gate in summary['gates']:
+              print('gate=' + gate['gate'] + ' passed=' + str(gate['passed']).lower())
+
+          with (target / 'event_alignment_cases.csv').open(
+              encoding='utf-8', newline=''
+          ) as stream:
+              case_rows = list(csv.DictReader(stream))
+          with (target / 'event_a_cells.csv').open(
+              encoding='utf-8', newline=''
+          ) as stream:
+              event_a_rows = list(csv.DictReader(stream))
+          with (target / 'event_b_cells.csv').open(
+              encoding='utf-8', newline=''
+          ) as stream:
+              event_b_rows = list(csv.DictReader(stream))
+          with (target / 'event_interval_history.csv').open(
+              encoding='utf-8', newline=''
+          ) as stream:
+              history_rows = list(csv.DictReader(stream))
+          assert len(case_rows) == 5
+          assert event_a_rows
+          assert event_b_rows
+          assert history_rows
+
+          assert manifest['declared_file_count'] == 9
+          assert set(manifest['declared_file_names']) == expected
+          assert set(manifest['payload_files']) == expected - {
+              'event_alignment_manifest.json'
+          }
+          assert manifest['event_alignment_sha256'] == summary['event_alignment_sha256']
+          assert manifest['threshold_or_tolerance_changed'] is False
+          assert manifest['solver_or_physics_changed'] is False
+          assert manifest['authoritative_a3_verdict_changed'] is False
+          for item in manifest['payload_files'].values():
+              assert item['size_bytes'] > 0
+              assert len(item['sha256']) == 64
+          assert (target / 'event_ab_time_comparison.png').stat().st_size > 0
+          assert (target / 'event_ab_step_comparison.png').stat().st_size > 0
+          PY
+
+      - name: Compile and diff checks
+        run: |
+          set -euo pipefail
+          python -m compileall -q src tests
+          git diff --check
+
+      - name: Run focused A3G and A3F regression tests
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/test_stage7_p1_a3_crossing_event_alignment.py \
+            tests/test_stage7_p1_a3_subthreshold_crossing_forensics.py \
+            --strict-markers \
+            --junitxml=p1-a3g-focused.xml
+
+      - name: Assert focused JUnit is clean
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          root = ET.parse(Path('p1-a3g-focused.xml')).getroot()
+          suites = [root] if root.tag == 'testsuite' else list(root.findall('testsuite'))
+          totals = {
+              key: sum(int(suite.attrib.get(key, 0)) for suite in suites)
+              for key in ('tests', 'skipped', 'failures', 'errors')
+          }
+          print(totals)
+          assert totals['tests'] == 10
+          assert totals['skipped'] == 0
+          assert totals['failures'] == 0
+          assert totals['errors'] == 0
+          PY
+
+      - name: Require A3G alignment-ready exit and gates
+        run: |
+          set -euo pipefail
+          test "$(cat artifacts/a3g_analysis_exit_code.txt)" = "0"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          summary = json.loads(Path(
+              'artifacts/stage7-p1-a3-crossing-event-alignment/event_alignment_summary.json'
+          ).read_text(encoding='utf-8'))
+          assert summary['alignment_ready'] is True
+          assert summary['alignment_execution_status'] == 'ALIGNMENT_READY'
+          assert summary['event_b_unreached_case_ids'] == []
+          assert all(summary['gate_results'].values())
+          PY
+
+      - name: Assert pristine tracked checkout after execution
+        run: |
+          set -euo pipefail
+          status="$(git status --porcelain=v1 --untracked-files=no)"
+          printf 'post_test_tracked_git_status=%s\n' "$status"
+          test -z "$status"
+
+      - name: Upload P1 A3G alignment evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: stage7-p1-a3-crossing-event-alignment-${{ github.run_id }}
+          path: |
+            artifacts/stage7-p1-a3-crossing-event-alignment
+            artifacts/a3g_analysis_exit_code.txt
+            p1-a3g-focused.xml
+          if-no-files-found: warn
