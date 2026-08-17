@@ -1,0 +1,243 @@
+name: Stage 7 P2 HNE Thermodynamic Closure A2
+
+on:
+  push:
+    branches:
+      - agent/stage7-p2-hne-thermodynamic-closure-a2
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: src
+  PYTHONDONTWRITEBYTECODE: "1"
+  ANALYSIS_SOURCE_GIT_SHA: ${{ github.sha }}
+
+jobs:
+  p2-hne-thermodynamic-closure-a2:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install pinned dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install 'numpy==2.5.2' 'pytest==9.1.1'
+
+      - name: Assert frozen A1R authority and A2 change envelope
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$ANALYSIS_SOURCE_GIT_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          python - <<'PY'
+          import subprocess
+
+          source_a1r_sha = "ae484cecf181afa187e91dc19c294f303c6fe38e"
+          subprocess.check_call(["git", "cat-file", "-e", source_a1r_sha + "^{commit}"])
+          expected = {
+              ".github/workflows/stage7-p2-hne-thermodynamic-closure-a2.yml",
+              "docs/verification/stage7_p2_hne_thermodynamic_closure_a2.md",
+              "src/liquid_gas_transient/hne_thermodynamic_closure.py",
+              "tests/test_stage7_p2_hne_thermodynamic_closure_a2.py",
+          }
+          actual = set(
+              subprocess.check_output(
+                  ["git", "diff", "--name-only", source_a1r_sha, "HEAD"], text=True
+              ).splitlines()
+          )
+          assert actual == expected, (
+              "P2-A2 changed files outside the thermodynamic-closure envelope: "
+              f"expected={sorted(expected)} actual={sorted(actual)}"
+          )
+          print("p2_a1r_authority_sha=" + source_a1r_sha)
+          print("p2_a2_change_envelope=confirmed")
+          PY
+
+      - name: Compile and diff checks
+        run: |
+          set -euo pipefail
+          python -m compileall -q src tests
+          git diff --check
+
+      - name: Run focused A2 tests
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/test_stage7_p2_hne_thermodynamic_closure_a2.py \
+            --strict-markers \
+            --junitxml=p2-a2-focused.xml
+
+      - name: Assert focused JUnit is clean
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          root = ET.parse('p2-a2-focused.xml').getroot()
+          suites = [root] if root.tag == 'testsuite' else list(root.findall('testsuite'))
+          totals = {
+              key: sum(int(s.attrib.get(key, 0)) for s in suites)
+              for key in ('tests', 'skipped', 'failures', 'errors')
+          }
+          print(totals)
+          assert totals == {'tests': 5, 'skipped': 0, 'failures': 0, 'errors': 0}
+          PY
+
+      - name: Generate and gate source-only thermodynamic evidence
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/stage7/p2-hne-thermodynamic-closure-a2
+          python - <<'PY'
+          import json
+          import math
+          import os
+          from pathlib import Path
+
+          from liquid_gas_transient.hne_thermodynamic_closure import (
+              ACOUSTIC_AUTHORITY,
+              FORMAL_STATUS,
+              ExactRelaxationThermodynamicSource,
+              SurrogateFrozenQualityThermodynamicClosure,
+          )
+
+          closure = SurrogateFrozenQualityThermodynamicClosure()
+          b = closure.backend
+          q_eq_constructed = 0.2
+          temperature_constructed = 260.0
+          rho = 1.0 / (
+              (1.0 - q_eq_constructed) / b.rho_l_ref_kg_m3
+              + q_eq_constructed / b.rho_v_ref_kg_m3
+          )
+          cv_mix = (
+              (1.0 - q_eq_constructed) * b.cv_liquid_j_kgK
+              + q_eq_constructed * b.cv_vapor_j_kgK
+          )
+          e = (
+              b.e_l_ref_j_kg
+              + q_eq_constructed * b.latent_heat_ref_j_kg
+              + cv_mix * (temperature_constructed - b.T_sat_ref_K)
+          )
+          hem = b.state_from_rho_e(rho, e)
+          q_eq = float(hem.quality)
+          equilibrium = closure.evaluate(rho, e, q_eq)
+          low_q = closure.evaluate(rho, e, 0.05)
+          high_q = closure.evaluate(rho, e, 0.40)
+          finite = ExactRelaxationThermodynamicSource(closure=closure, tau_s=1.0e-4).advance(
+              rho, e, 0.05, 1.0e-5
+          )
+          stiff = ExactRelaxationThermodynamicSource(closure=closure, tau_s=1.0e-12).advance(
+              rho, e, 0.05, 1.0e-4
+          )
+          frozen = ExactRelaxationThermodynamicSource(closure=closure, tau_s=math.inf).advance(
+              rho, e, 0.07, 1.0
+          )
+
+          gates = {
+              "CONSTRUCTED_TAU_ZERO_HEM_PRESSURE_LIMIT": abs(equilibrium.pressure_pa - float(hem.p)) <= 1.0e-9,
+              "CONSTRUCTED_TAU_ZERO_HEM_TEMPERATURE_LIMIT": abs(equilibrium.temperature_K - float(hem.T)) <= 1.0e-12,
+              "CONSTRUCTED_TAU_ZERO_HEM_VOID_LIMIT": abs(equilibrium.void_fraction - float(hem.alpha)) <= 1.0e-12,
+              "CONSTRUCTED_TAU_ZERO_HEM_ACOUSTIC_DIAGNOSTIC_LIMIT": equilibrium.acoustic_speed_diagnostic_m_s == float(hem.c),
+              "FINITE_Q_FEEDS_BACK_TO_PRESSURE": low_q.pressure_pa != high_q.pressure_pa,
+              "FINITE_Q_FEEDS_BACK_TO_TEMPERATURE": low_q.temperature_K != high_q.temperature_K,
+              "FINITE_Q_FEEDS_BACK_TO_VOID_FRACTION": low_q.void_fraction != high_q.void_fraction,
+              "FINITE_Q_FEEDS_BACK_TO_ACOUSTIC_DIAGNOSTIC": low_q.acoustic_speed_diagnostic_m_s != high_q.acoustic_speed_diagnostic_m_s,
+              "SOURCE_MASS_DENSITY_CONSERVED": finite.mass_density_residual_kg_m3 == 0.0,
+              "SOURCE_INTERNAL_ENERGY_CONSERVED": finite.specific_internal_energy_residual_j_kg == 0.0,
+              "SOURCE_Q_BOUNDED": 0.0 <= finite.after.vapor_mass_fraction <= 1.0,
+              "TAU_ZERO_EXACT_RELAXATION_REACHES_QEQ": stiff.relaxation_factor == 0.0 and stiff.after.vapor_mass_fraction == q_eq,
+              "TAU_INFINITY_FROZEN_Q": frozen.relaxation_factor == 1.0 and frozen.after == frozen.before,
+              "ACOUSTIC_NOT_PROMOTED_TO_HYDRODYNAMIC_CLOSURE": equilibrium.acoustic_authority == ACOUSTIC_AUTHORITY,
+              "MATURITY_NOT_PROMOTED": all(
+                  FORMAL_STATUS[key] is False
+                  for key in (
+                      "physical_hne_vertical_slice",
+                      "working_vertical_slice",
+                      "verified",
+                      "accepted",
+                      "physically_validated",
+                      "design_use_accepted",
+                      "production_approved",
+                  )
+              ),
+          }
+          assert all(gates.values()), gates
+          payload = {
+              "schema_version": "stage7_p2_hne_thermodynamic_closure_a2_evidence_v1",
+              "source_a1r_sha": "ae484cecf181afa187e91dc19c294f303c6fe38e",
+              "analysis_source_git_sha": os.environ["ANALYSIS_SOURCE_GIT_SHA"],
+              "status": "SOURCE_ONLY_THERMODYNAMIC_FEEDBACK_PROTOTYPE",
+              "physical_hne_claim_allowed": False,
+              "hydrodynamic_coupling_allowed": False,
+              "acoustic_authority": ACOUSTIC_AUTHORITY,
+              "constructed_reference": {
+                  "rho_kg_m3": rho,
+                  "e_j_kg": e,
+                  "q_eq": q_eq,
+                  "hem_pressure_pa": float(hem.p),
+                  "hem_temperature_K": float(hem.T),
+              },
+              "finite_quality_feedback": {
+                  "low_q": 0.05,
+                  "low_q_pressure_pa": low_q.pressure_pa,
+                  "low_q_temperature_K": low_q.temperature_K,
+                  "low_q_void_fraction": low_q.void_fraction,
+                  "high_q": 0.40,
+                  "high_q_pressure_pa": high_q.pressure_pa,
+                  "high_q_temperature_K": high_q.temperature_K,
+                  "high_q_void_fraction": high_q.void_fraction,
+              },
+              "finite_source": {
+                  "tau_s": finite.tau_s,
+                  "dt_s": finite.dt_s,
+                  "dt_over_tau": finite.dt_over_tau,
+                  "q_before": finite.before.vapor_mass_fraction,
+                  "q_after": finite.after.vapor_mass_fraction,
+                  "q_eq": finite.equilibrium_vapor_mass_fraction,
+                  "mass_density_residual_kg_m3": finite.mass_density_residual_kg_m3,
+                  "specific_internal_energy_residual_j_kg": finite.specific_internal_energy_residual_j_kg,
+              },
+              "gates": gates,
+              "formal_status": FORMAL_STATUS,
+              "open_limitations": [
+                  "SURROGATE_CONSTITUENT_EOS_ONLY",
+                  "NO_VALIDATED_NONEQUILIBRIUM_ACOUSTIC_DERIVATIVE",
+                  "NO_NUCLEATION_METASTABILITY_OR_BUBBLE_GROWTH_MODEL",
+                  "NO_SLIP_MODEL",
+                  "TAU_NOT_PHYSICALLY_VALIDATED",
+                  "NO_1D_FINITE_PIPELINE_COUPLING",
+                  "NO_PHYSICAL_DISCHARGE_FEEDBACK_LOOP",
+                  "P1_MESH_CFL_LIMITATIONS_RETAINED",
+              ],
+              "next_phase_decision": "ELIGIBLE_FOR_TARGETED_A2_3_FINITE_PIPELINE_INTEGRATION_DESIGN_WITH_LIMITATIONS_RETAINED",
+          }
+          target = Path('artifacts/stage7/p2-hne-thermodynamic-closure-a2/summary.json')
+          target.write_text(json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + '\n', encoding='utf-8')
+          print(json.dumps(payload, indent=2, sort_keys=True, allow_nan=False))
+          PY
+
+      - name: Assert pristine tracked checkout after execution
+        run: |
+          set -euo pipefail
+          status="$(git status --porcelain=v1 --untracked-files=no)"
+          printf 'post_test_tracked_git_status=%s\n' "$status"
+          test -z "$status"
+
+      - name: Upload P2-A2 evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: stage7-p2-hne-thermodynamic-closure-a2-${{ github.run_id }}
+          path: |
+            artifacts/stage7/p2-hne-thermodynamic-closure-a2/summary.json
+            p2-a2-focused.xml
+          if-no-files-found: error
+          compression-level: 6
