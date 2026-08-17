@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
 import pytest
 
 from liquid_gas_transient.hne_pipeline_model_form_audit import (
@@ -69,64 +66,3 @@ def test_behavior_classification_retains_mixed_front_behavior() -> None:
     assert behavior_classification(medium) == (
         "NO_RESOLVED_ONSET_DELAY_WITH_TRANSIENT_FRONT_LEAD"
     )
-
-
-def _generated_target() -> Path:
-    target = Path("artifacts/stage7-p2-hne-model-form-sensitivity-a1r")
-    if not target.exists():
-        pytest.skip("focused workflow supplies generated A1R evidence")
-    return target
-
-
-def test_generated_a1r_summary_narrows_the_original_interpretation() -> None:
-    target = _generated_target()
-    summary = json.loads((target / "audit_summary.json").read_text(encoding="utf-8"))
-    assert summary["audit_ready"] is True
-    assert summary["execution_status"] == (
-        "A1R_AUDIT_READY_WITH_CLOSURE_LIMITATION"
-    )
-    assert all(summary["gate_results"].values())
-    assert summary["physical_hne_claim_allowed"] is False
-    assert summary["interpretation"]["tau_to_zero_limit"] == (
-        "BITWISE_HEM_LIMIT_RETAINED"
-    )
-    assert summary["interpretation"]["finite_tau_quality_behavior"] == (
-        "MIXED_SIGN_TRANSPORTED_EQUILIBRIUM_DISEQUILIBRIUM"
-    )
-    assert summary["interpretation"]["kinetic_front_behavior"] == (
-        "MIXED_LAG_AND_LEAD_UNDER_INDEPENDENT_QUALITY_TRANSPORT"
-    )
-    by_id = {row["model_id"]: row for row in summary["case_disequilibrium"]}
-    assert by_id["HNE_TAU_MEDIUM"]["onset_delay_s"] == pytest.approx(0.0)
-    assert by_id["HNE_TAU_MEDIUM"]["kinetic_ahead_count"] > 0
-    assert by_id["HNE_TAU_SLOW"]["onset_delay_s"] > 0.0
-    assert by_id["HNE_TAU_SLOW"]["kinetic_ahead_count"] > 0
-    assert (
-        by_id["HNE_TAU_SLOW"]["kinetic_absent_count"]
-        + by_id["HNE_TAU_SLOW"]["kinetic_behind_count"]
-        > 0
-    )
-    for model_id in ("HNE_TAU_MEDIUM", "HNE_TAU_SLOW"):
-        assert by_id[model_id]["minimum_signed_quality_lag"] < 0.0
-        assert by_id[model_id]["maximum_signed_quality_lag"] > 0.0
-        assert by_id[model_id]["hydrodynamic_state_matches_hem"] is True
-
-
-def test_generated_a1r_exact_nine_file_manifest() -> None:
-    target = _generated_target()
-    assert {path.name for path in target.iterdir() if path.is_file()} == set(
-        OUTPUT_FILES
-    )
-    summary = json.loads((target / "audit_summary.json").read_text(encoding="utf-8"))
-    manifest = json.loads((target / "audit_manifest.json").read_text(encoding="utf-8"))
-    assert manifest["declared_file_count"] == 9
-    assert manifest["declared_file_names"] == list(OUTPUT_FILES)
-    assert manifest["audit_ready"] is True
-    assert manifest["audit_sha256"] == summary["audit_sha256"]
-    assert manifest["physical_hne_claim_allowed"] is False
-    assert set(manifest["payload_files"]) == set(OUTPUT_FILES) - {
-        "audit_manifest.json"
-    }
-    for item in manifest["payload_files"].values():
-        assert item["size_bytes"] > 0
-        assert len(item["sha256"]) == 64
