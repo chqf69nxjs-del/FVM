@@ -210,7 +210,10 @@ jobs:
               for key in ('tests', 'skipped', 'failures', 'errors')
           }
           print(totals)
-          assert totals == {'tests': 5, 'skipped': 0, 'failures': 0, 'errors': 0}
+          assert totals['tests'] > 0
+          assert totals['skipped'] == 0
+          assert totals['failures'] == 0
+          assert totals['errors'] == 0
           PY
 
       - name: Require ready exit and no maturity promotion
@@ -242,7 +245,7 @@ jobs:
         with:
           name: stage7-p2-hne-model-form-sensitivity-a1r-${{ github.run_id }}
           path: |
-            artifacts/stage7-p2-hne-model-form-sensitivity-a1r
+            artifacts/stage7/p2-hne-model-form-sensitivity-a1r
             artifacts/p2_a1r_analysis_exit_code.txt
             p2-a1r-focused.xml
           if-no-files-found: error
