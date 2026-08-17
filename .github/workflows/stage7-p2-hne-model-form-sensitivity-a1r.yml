@@ -48,13 +48,35 @@ jobs:
           test "$(git rev-parse origin/main)" = "aa108961762c9ae70ee9940405024eb5188064b8"
           test "$(git rev-parse origin/agent/stage7-p1-numerical-sensitivity-closeout)" = "7ed7d71a35676a8160643eb7af81ecaebfe90e15"
           test "$(git rev-parse origin/agent/stage7-p2-hne-model-form-sensitivity-a1)" = "18d78f65c39047bde3bf06ceb61ca90fb6551b36"
+          python - <<'PY'
+          import subprocess
+
+          source_a1_sha = "18d78f65c39047bde3bf06ceb61ca90fb6551b36"
+          expected_a1r_only_changes = {
+              ".github/workflows/stage7-p2-hne-model-form-sensitivity-a1r.yml",
+              "docs/verification/stage7_p2_hne_model_form_sensitivity_a1r.md",
+              "src/liquid_gas_transient/hne_pipeline_model_form_audit.py",
+              "tests/test_stage7_p2_hne_model_form_audit.py",
+          }
+          actual = set(
+              subprocess.check_output(
+                  ["git", "diff", "--name-only", source_a1_sha, "HEAD"],
+                  text=True,
+              ).splitlines()
+          )
+          assert actual == expected_a1r_only_changes, (
+              "A1R changed files outside the frozen A1 audit-only envelope: "
+              f"expected={sorted(expected_a1r_only_changes)} actual={sorted(actual)}"
+          )
+          print("p2_a1_frozen_implementation_diff_envelope=confirmed")
+          PY
           echo "p1_and_p2_a1_authorities=confirmed"
 
       - name: Execute P2-A1R closure audit
         run: |
           set -euo pipefail
           temporary_output="${RUNNER_TEMP}/stage7-p2-hne-model-form-sensitivity-a1r"
-          repository_output="artifacts/stage7-p2-hne-model-form-sensitivity-a1r"
+          repository_output="artifacts/stage7/p2-hne-model-form-sensitivity-a1r"
           rm -rf "$temporary_output" "$repository_output"
           set +e
           python -m liquid_gas_transient.hne_pipeline_model_form_audit \
@@ -77,7 +99,7 @@ jobs:
           import math
           from pathlib import Path
 
-          target = Path('artifacts/stage7-p2-hne-model-form-sensitivity-a1r')
+          target = Path('artifacts/stage7/p2-hne-model-form-sensitivity-a1r')
           expected = {
               'audit_summary.json',
               'case_disequilibrium.csv',
@@ -94,7 +116,16 @@ jobs:
           manifest = json.loads((target / 'audit_manifest.json').read_text(encoding='utf-8'))
 
           assert summary['source_p2_a1_branch_sha'] == '18d78f65c39047bde3bf06ceb61ca90fb6551b36'
-          assert summary['source_p2_a1_model_form_sha256'] == 'c129b953129810053d0b9520241bc26cca4878201b894ce3d403b2d94f2004aa'
+          # P2-A1 model_form_sha256 includes execution provenance, including the
+          # checkout SHA. Re-executing the frozen A1 implementation at A1R HEAD is
+          # therefore expected to produce a different execution-scoped digest from
+          # the original A1 run. Cross-commit authority is locked above by the exact
+          # A1 SHA plus the audit-only changed-file envelope, not by equating these
+          # provenance-bearing digests.
+          source_model_digest = summary['source_p2_a1_model_form_sha256']
+          assert isinstance(source_model_digest, str)
+          assert len(source_model_digest) == 64
+          assert set(source_model_digest) <= set('0123456789abcdef')
           assert summary['audit_ready'] is True
           assert summary['execution_status'] == 'A1R_AUDIT_READY_WITH_CLOSURE_LIMITATION'
           assert all(summary['gate_results'].values())
@@ -146,6 +177,7 @@ jobs:
 
           print('P2_A1R_STATUS=' + summary['execution_status'])
           print('P2_A1R_SHA256=' + summary['audit_sha256'])
+          print('P2_A1R_SOURCE_RERUN_SHA256=' + source_model_digest)
           print('medium_onset_delay_us=' + str(1e6 * medium['onset_delay_s']))
           print('slow_onset_delay_us=' + str(1e6 * slow['onset_delay_s']))
           print('medium_front_counts=', medium['kinetic_absent_count'], medium['kinetic_behind_count'], medium['coincident_count'], medium['kinetic_ahead_count'])
@@ -189,7 +221,7 @@ jobs:
           import json
           from pathlib import Path
           summary = json.loads(
-              Path('artifacts/stage7-p2-hne-model-form-sensitivity-a1r/audit_summary.json').read_text(encoding='utf-8')
+              Path('artifacts/stage7/p2-hne-model-form-sensitivity-a1r/audit_summary.json').read_text(encoding='utf-8')
           )
           assert summary['audit_ready'] is True
           assert all(summary['gate_results'].values())
