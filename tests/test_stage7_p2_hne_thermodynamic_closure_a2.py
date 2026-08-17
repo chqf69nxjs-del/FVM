@@ -64,9 +64,9 @@ def test_independent_quality_feeds_back_to_thermodynamic_state() -> None:
 def test_exact_relaxation_conserves_rho_and_internal_energy_and_bounds_q() -> None:
     closure, rho, e = _constructed_equilibrium_state()
     source = ExactRelaxationThermodynamicSource(closure=closure, tau_s=1.0e-4)
-    result = source.advance(rho, e, vapor_mass_fraction=0.0, dt_s=1.0e-5)
+    result = source.advance(rho, e, vapor_mass_fraction=0.05, dt_s=1.0e-5)
 
-    assert result.after.vapor_mass_fraction > 0.0
+    assert result.after.vapor_mass_fraction > 0.05
     assert result.after.vapor_mass_fraction < result.equilibrium_vapor_mass_fraction
     assert 0.0 <= result.after.vapor_mass_fraction <= 1.0
     assert result.mass_density_residual_kg_m3 == 0.0
@@ -80,7 +80,7 @@ def test_tau_to_zero_recovers_constructed_equilibrium_and_tau_infinity_freezes_q
     hem = closure.backend.state_from_rho_e(rho, e)
 
     stiff = ExactRelaxationThermodynamicSource(closure=closure, tau_s=1.0e-12)
-    relaxed = stiff.advance(rho, e, vapor_mass_fraction=0.0, dt_s=1.0e-4)
+    relaxed = stiff.advance(rho, e, vapor_mass_fraction=0.05, dt_s=1.0e-4)
     assert relaxed.relaxation_factor == 0.0
     assert relaxed.after.vapor_mass_fraction == pytest.approx(float(hem.quality), abs=0.0)
     assert relaxed.after.pressure_pa == pytest.approx(float(hem.p), rel=0.0, abs=1.0e-9)
