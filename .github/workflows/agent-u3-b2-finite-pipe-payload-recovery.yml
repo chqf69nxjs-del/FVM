@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   recover:
-    runs-on: ubuntu-24.04
+    runs-on: macos-15
     timeout-minutes: 15
     env:
       PAYLOAD: .agent_payloads/u3_b2_finite_pipe_baseline.tar.gz.b64
@@ -31,38 +31,101 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Decode and verify retained payload
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -f "${PAYLOAD}"
-          base64 --decode "${PAYLOAD}" > /tmp/u3-b2-finite-pipe-baseline.tar.gz
-          echo "${PAYLOAD_SHA256}  /tmp/u3-b2-finite-pipe-baseline.tar.gz" | sha256sum --check --strict
-          mkdir -p recovered
-          tar -xzf /tmp/u3-b2-finite-pipe-baseline.tar.gz -C recovered
-          test "$(find recovered -maxdepth 1 -type f | wc -l | tr -d ' ')" = 4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
 
-      - name: Verify intended source hashes
+      - name: Decode, verify, and extract retained payload
         shell: bash
         run: |
           set -euo pipefail
-          cd recovered
-          echo 'faadb217d5bef87d4d073a394d6eb939f9e7a5613ab87081b457ec13acd907ff  u3_b2_fvm_discharge_finite_pipe.py' | sha256sum --check --strict
-          echo 'd37699ecb6a4090bd00b01415b13b86b867b831188c1ce071822a91d59be7179  test_stage7_u3_b2_finite_pipe.py' | sha256sum --check --strict
-          echo 'fae3eb757b9fd86c8b76d6fee9bc3f8c2079b3f6eabe3dd1f65d93f1737584bc  stage7_u3_b2_finite_pipe_baseline.md' | sha256sum --check --strict
-          echo '04945560f6ce64154dd4f50c954a94bf78b8d2a8f7f6437bd7cb48053a13d770  stage7-u3-b2-finite-pipe-baseline-preflight.yml' | sha256sum --check --strict
-          python -m py_compile u3_b2_fvm_discharge_finite_pipe.py test_stage7_u3_b2_finite_pipe.py
+          python - <<'PY'
+          from __future__ import annotations
+
+          import base64
+          import hashlib
+          import io
+          import os
+          import tarfile
+          from pathlib import Path
+
+          payload = Path(os.environ["PAYLOAD"])
+          expected = os.environ["PAYLOAD_SHA256"]
+          archive = base64.b64decode(payload.read_bytes(), validate=True)
+          actual = hashlib.sha256(archive).hexdigest()
+          if actual != expected:
+              raise SystemExit(f"payload sha mismatch: {actual} != {expected}")
+          target = Path("recovered")
+          target.mkdir(exist_ok=True)
+          with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as bundle:
+              members = bundle.getmembers()
+              if len(members) != 4:
+                  raise SystemExit(f"unexpected archive member count: {len(members)}")
+              for member in members:
+                  if not member.isfile() or Path(member.name).name != member.name:
+                      raise SystemExit(f"unsafe archive member: {member.name!r}")
+              bundle.extractall(target, filter="data")
+          files = sorted(path.name for path in target.iterdir() if path.is_file())
+          if len(files) != 4:
+              raise SystemExit(f"unexpected recovered file count: {files}")
+          print("recovered=" + ",".join(files))
+          PY
+
+      - name: Verify intended source hashes and syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import py_compile
+          from pathlib import Path
+
+          expected = {
+              "u3_b2_fvm_discharge_finite_pipe.py": "faadb217d5bef87d4d073a394d6eb939f9e7a5613ab87081b457ec13acd907ff",
+              "test_stage7_u3_b2_finite_pipe.py": "d37699ecb6a4090bd00b01415b13b86b867b831188c1ce071822a91d59be7179",
+              "stage7_u3_b2_finite_pipe_baseline.md": "fae3eb757b9fd86c8b76d6fee9bc3f8c2079b3f6eabe3dd1f65d93f1737584bc",
+              "stage7-u3-b2-finite-pipe-baseline-preflight.yml": "04945560f6ce64154dd4f50c954a94bf78b8d2a8f7f6437bd7cb48053a13d770",
+          }
+          target = Path("recovered")
+          for name, digest in expected.items():
+              actual = hashlib.sha256((target / name).read_bytes()).hexdigest()
+              if actual != digest:
+                  raise SystemExit(f"{name}: {actual} != {digest}")
+          py_compile.compile(str(target / "u3_b2_fvm_discharge_finite_pipe.py"), doraise=True)
+          py_compile.compile(str(target / "test_stage7_u3_b2_finite_pipe.py"), doraise=True)
+          PY
 
       - name: Write recovery manifest
         shell: bash
         run: |
           set -euo pipefail
-          (cd recovered && sha256sum * | sort) > recovered_sha256.txt
-          printf '%s\n' \
-            "source_commit=${GITHUB_SHA}" \
-            "payload_sha256=${PAYLOAD_SHA256}" \
-            "recovered_file_count=4" \
-            > recovery_provenance.txt
+          python - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import os
+          from pathlib import Path
+
+          target = Path("recovered")
+          lines = [
+              f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}"
+              for path in sorted(target.iterdir())
+              if path.is_file()
+          ]
+          Path("recovered_sha256.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+          Path("recovery_provenance.txt").write_text(
+              "\n".join(
+                  (
+                      f"source_commit={os.environ['GITHUB_SHA']}",
+                      f"payload_sha256={os.environ['PAYLOAD_SHA256']}",
+                      "recovered_file_count=4",
+                  )
+              ) + "\n",
+              encoding="utf-8",
+          )
+          PY
 
       - name: Upload recovered implementation
         uses: actions/upload-artifact@v7
