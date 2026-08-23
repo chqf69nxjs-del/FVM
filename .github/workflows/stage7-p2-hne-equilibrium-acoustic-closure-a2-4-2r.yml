@@ -1,0 +1,153 @@
+name: Stage 7 P2 HNE Equilibrium Acoustic Closure A2.4-2R
+
+on:
+  push:
+    branches:
+      - agent/stage7-p2-hne-equilibrium-acoustic-closure-a2-4-2r
+  pull_request:
+    branches:
+      - agent/stage7-p2-hne-acoustic-contract-a2-4-1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage7-p2-hne-equilibrium-acoustic-closure-a2-4-2r-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  equilibrium-acoustic-closure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PYTHONPATH: src
+      PYTHONDONTWRITEBYTECODE: "1"
+      ANALYSIS_SOURCE_GIT_SHA: ${{ github.sha }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install pinned dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install 'numpy==2.5.2' 'pytest==9.1.1'
+
+      - name: Assert source and change envelope
+        run: |
+          set -euo pipefail
+          source_sha="3001480c5c4235c898be866c71335464f5d112d7"
+          test "$(git rev-parse HEAD)" = "$ANALYSIS_SOURCE_GIT_SHA"
+          git cat-file -e "${source_sha}^{commit}"
+          git diff --name-only "$source_sha" HEAD | sort > /tmp/actual.txt
+          printf '%s\n' \
+            '.github/workflows/stage7-p2-hne-equilibrium-acoustic-closure-a2-4-2r.yml' \
+            'docs/verification/stage7_p2_hne_equilibrium_acoustic_closure_a2_4_2r.md' \
+            'src/liquid_gas_transient/hne_equilibrium_acoustic_closure.py' \
+            'src/liquid_gas_transient/hne_equilibrium_acoustic_evidence.py' \
+            'src/liquid_gas_transient/hne_equilibrium_acoustic_model.py' \
+            'src/liquid_gas_transient/hne_equilibrium_acoustic_types.py' \
+            'tests/test_stage7_p2_hne_equilibrium_acoustic_closure_a2_4_2r.py' \
+            | sort > /tmp/expected.txt
+          diff -u /tmp/expected.txt /tmp/actual.txt
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Compile and clean
+        run: |
+          set -euo pipefail
+          python -m compileall -q src tests
+          git diff --check
+          find src tests -type d -name __pycache__ -prune -exec rm -rf {} +
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Generate equilibrium acoustic evidence
+        run: |
+          set -euo pipefail
+          python -m liquid_gas_transient.hne_equilibrium_acoustic_closure \
+            --output-dir artifacts/stage7/p2-hne-equilibrium-acoustic-closure-a2-4-2r
+
+      - name: Gate equilibrium acoustic evidence
+        run: |
+          python - <<'PY'
+          import csv
+          import json
+          from pathlib import Path
+
+          p = Path('artifacts/stage7/p2-hne-equilibrium-acoustic-closure-a2-4-2r')
+          assert {x.name for x in p.iterdir()} == {
+              'summary.json',
+              'equilibrium_acoustic_cases.csv',
+              'operator_report.md',
+              'manifest.json',
+          }
+          s = json.loads((p / 'summary.json').read_text())
+          m = json.loads((p / 'manifest.json').read_text())
+          with (p / 'equilibrium_acoustic_cases.csv').open(newline='') as f:
+              rows = list(csv.DictReader(f))
+
+          assert s['source_a2_4_1_sha'] == '3001480c5c4235c898be866c71335464f5d112d7'
+          assert s['green_for_a2_4_3_read_only_shadow'] is True
+          assert s['failed_gates'] == []
+          assert all(s['gate_results'].values())
+          assert s['runtime_provenance']['analysis_source_git_sha'] == s['runtime_provenance']['checkout_git_sha']
+          assert s['runtime_provenance']['git_status_porcelain'] == ''
+          assert s['claimed_domain']['boundary_policy'] == 'open_interval_fail_closed'
+          assert len(rows) == 5
+          assert all(row['valid'] == 'True' for row in rows)
+          assert all(float(row['equilibrium_c2_m2_s2']) > 0.0 for row in rows)
+          assert all(float(row['frozen_c2_m2_s2']) > 0.0 for row in rows)
+          assert all(
+              float(row['equilibrium_c2_m2_s2']) <= float(row['frozen_c2_m2_s2'])
+              for row in rows
+          )
+          assert all(value is False for value in s['solver_authority'].values())
+          assert s['formal_status']['working_verification_slice'] is True
+          assert s['formal_status']['working_vertical_slice'] is False
+          assert s['formal_status']['finite_pipeline_acoustic_shadow'] is False
+          assert s['formal_status']['verified'] is False
+          assert s['formal_status']['physically_validated'] is False
+          assert s['formal_status']['design_use_accepted'] is False
+          assert s['formal_status']['production_approved'] is False
+          assert s['real_fluid_reference']['numerical_comparison_in_this_slice'] is False
+          assert s['real_fluid_reference']['required_before_physical_validation'] is True
+          assert m['green_for_a2_4_3_read_only_shadow'] is True
+          assert m['hydrodynamic_coupling_allowed'] is False
+          print('formal_outcome=' + s['formal_outcome'])
+          PY
+
+      - name: Run focused tests
+        run: |
+          python -m pytest -q \
+            tests/test_stage7_p2_hne_equilibrium_acoustic_closure_a2_4_2r.py \
+            --strict-markers --junitxml=p2-a2-4-2r-focused.xml
+
+      - name: Gate JUnit and tracked checkout
+        run: |
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          root = ET.parse('p2-a2-4-2r-focused.xml').getroot()
+          suites = [root] if root.tag == 'testsuite' else list(root.findall('testsuite'))
+          totals = {
+              key: sum(int(suite.attrib.get(key, 0)) for suite in suites)
+              for key in ('tests', 'skipped', 'failures', 'errors')
+          }
+          assert totals == {'tests': 8, 'skipped': 0, 'failures': 0, 'errors': 0}
+          print(totals)
+          PY
+          test -z "$(git status --porcelain=v1 --untracked-files=no)"
+
+      - name: Upload evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: stage7-p2-hne-equilibrium-acoustic-closure-a2-4-2r-${{ github.run_id }}
+          path: |
+            artifacts/stage7/p2-hne-equilibrium-acoustic-closure-a2-4-2r
+            p2-a2-4-2r-focused.xml
+          if-no-files-found: error
+          compression-level: 6
