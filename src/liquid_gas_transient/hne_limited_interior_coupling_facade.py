@@ -1,11 +1,12 @@
 """Corrected public facade for the P2-A3.1 limited interior coupling slice.
 
-Two integration details are normalized here without changing the candidate EOS
-or solver equations:
+Integration details are normalized here without changing the candidate EOS or
+solver equations:
 
 * the Acoustic Authority Gate exposes its effective grant as ``authority_grant``;
 * the near-zero relaxation limit is compared with the recovered equilibrium map
-  used by the source itself, rather than the nominal constructor input.
+  used by the source itself, rather than the nominal constructor input;
+* working-slice maturity remains closed until the runtime gates pass.
 """
 from __future__ import annotations
 
@@ -72,6 +73,10 @@ def _run_equilibrium_limit_case(config: _impl.InteriorCouplingConfig):
 
 _impl.analyze_acoustic_authority_gate = _authority_analysis_with_compatibility_alias
 _impl._run_equilibrium_limit_case = _run_equilibrium_limit_case
+_base_status = dict(_impl.FORMAL_STATUS)
+_base_status["limited_interior_hne_hydrodynamic_coupling"] = False
+_base_status["working_vertical_slice"] = False
+_impl.FORMAL_STATUS = _base_status
 
 AcousticCompatibleHNEVerificationEOS = _impl.AcousticCompatibleHNEVerificationEOS
 CandidateQualityExactRelaxation = _impl.CandidateQualityExactRelaxation
