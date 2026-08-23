@@ -1,0 +1,182 @@
+name: Stage 7 P2 HNE Acoustic Shadow Pipeline A2.4-3
+
+on:
+  push:
+    branches:
+      - agent/stage7-p2-hne-acoustic-shadow-pipeline-a2-4-3
+  pull_request:
+    branches:
+      - agent/stage7-p2-hne-equilibrium-acoustic-closure-a2-4-2r
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage7-p2-hne-acoustic-shadow-pipeline-a2-4-3-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  acoustic-shadow-pipeline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      PYTHONPATH: src
+      PYTHONDONTWRITEBYTECODE: "1"
+      ANALYSIS_SOURCE_GIT_SHA: ${{ github.sha }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install pinned dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install 'numpy==2.5.2' 'pytest==9.1.1'
+
+      - name: Assert source and change envelope
+        run: |
+          set -euo pipefail
+          source_sha="fd4380472e5487dccb7824d4eddac1dcb134e18e"
+          test "$(git rev-parse HEAD)" = "$ANALYSIS_SOURCE_GIT_SHA"
+          git cat-file -e "${source_sha}^{commit}"
+          git diff --name-only "$source_sha" HEAD | sort > /tmp/actual.txt
+          printf '%s\n' \
+            '.github/workflows/stage7-p2-hne-acoustic-shadow-pipeline-a2-4-3.yml' \
+            'docs/verification/stage7_p2_hne_acoustic_shadow_pipeline_a2_4_3.md' \
+            'src/liquid_gas_transient/hne_acoustic_shadow_pipeline.py' \
+            'src/liquid_gas_transient/hne_equilibrium_acoustic_closure.py' \
+            'src/liquid_gas_transient/hne_equilibrium_acoustic_model_compat.py' \
+            'tests/test_stage7_p2_hne_acoustic_shadow_pipeline_a2_4_3.py' \
+            | sort > /tmp/expected.txt
+          diff -u /tmp/expected.txt /tmp/actual.txt
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Compile and clean
+        run: |
+          set -euo pipefail
+          python -m compileall -q src tests
+          git diff --check
+          find src tests -type d -name __pycache__ -prune -exec rm -rf {} +
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Generate finite-pipeline acoustic shadow evidence
+        run: |
+          set -euo pipefail
+          python -m liquid_gas_transient.hne_acoustic_shadow_pipeline \
+            --output-dir artifacts/stage7/p2-hne-acoustic-shadow-pipeline-a2-4-3
+
+      - name: Gate acoustic shadow evidence
+        run: |
+          python - <<'PY'
+          import csv
+          import json
+          from pathlib import Path
+
+          p = Path('artifacts/stage7/p2-hne-acoustic-shadow-pipeline-a2-4-3')
+          expected = {
+              'summary.json',
+              'case_summary.csv',
+              'step_history.csv',
+              'cell_history.csv',
+              'operator_report.md',
+              'manifest.json',
+          }
+          assert {x.name for x in p.iterdir()} == expected
+          s = json.loads((p / 'summary.json').read_text())
+          m = json.loads((p / 'manifest.json').read_text())
+          report = (p / 'operator_report.md').read_text()
+          with (p / 'case_summary.csv').open(newline='') as f:
+              cases = list(csv.DictReader(f))
+          with (p / 'step_history.csv').open(newline='') as f:
+              steps = list(csv.DictReader(f))
+          with (p / 'cell_history.csv').open(newline='') as f:
+              cells = list(csv.DictReader(f))
+
+          backend = 'surrogate_lco2'
+          assert s['source_a2_4_2r_sha'] == 'fd4380472e5487dccb7824d4eddac1dcb134e18e'
+          assert s['property_backend']['name'] == backend
+          assert s['acoustic_model']['property_backend_name'] == backend
+          assert s['a2_4_3_acoustic_shadow_ready'] is True
+          assert s['failed_gates'] == []
+          assert all(s['gate_results'].values())
+          assert s['runtime_provenance']['analysis_source_git_sha'] == s['runtime_provenance']['checkout_git_sha']
+          assert s['runtime_provenance']['git_status_porcelain'] == ''
+          assert s['acoustic_model']['boundary_policy'] == 'open_interval_fail_closed'
+          assert s['acoustic_model']['empirical_fallback'] == 'FORBIDDEN_AND_UNUSED'
+          assert len(cases) == 3
+          assert len(steps) == 27
+          assert len(cells) == 216
+          assert all(row['property_backend_name'] == backend for row in cases)
+          assert all(row['property_backend_name'] == backend for row in steps)
+          assert all(row['property_backend_name'] == backend for row in cells)
+          assert all(row['valid'] == 'True' for row in cells)
+          assert all(row['within_claimed_domain'] == 'True' for row in cells)
+          assert all(float(row['equilibrium_c2_m2_s2']) > 0.0 for row in cells)
+          assert all(float(row['frozen_c2_m2_s2']) > 0.0 for row in cells)
+          assert all(float(row['subcharacteristic_margin_m2_s2']) >= 0.0 for row in cells)
+          assert all(row['derivative_crosscheck_satisfied'] == 'True' for row in cells)
+          assert all(row['solver_authority_granted'] == 'False' for row in cells)
+          assert all(row['empirical_fallback_used'] == 'False' for row in cells)
+          assert all(row['baseline_shadow_full_trajectory_bitwise_equal'] == 'True' for row in cases)
+          assert all(
+              row['baseline_shadow_hydrodynamic_trajectory_bitwise_equal'] == 'True'
+              for row in cases
+          )
+          assert all(value is False for value in s['solver_authority'].values())
+          assert s['formal_status']['working_verification_slice'] is True
+          assert s['formal_status']['finite_pipeline_acoustic_shadow'] is True
+          assert s['formal_status']['working_vertical_slice'] is False
+          assert s['formal_status']['verified'] is False
+          assert s['formal_status']['physically_validated'] is False
+          assert s['formal_status']['design_use_accepted'] is False
+          assert s['formal_status']['production_approved'] is False
+          assert s['hydrodynamic_coupling_allowed'] is False
+          assert m['property_backend_name'] == backend
+          assert m['analysis_sha256'] == s['analysis_sha256']
+          assert m['a2_4_3_acoustic_shadow_ready'] is True
+          assert m['hydrodynamic_coupling_allowed'] is False
+          assert f'Property backend: `{backend}`' in report
+          assert f"Next action: `{s['next_action']}`" in report
+          assert 'STOP: A2.4-3 gates are not green' not in report
+          print('formal_outcome=' + s['formal_outcome'])
+          PY
+
+      - name: Run focused regression matrix
+        run: |
+          python -m pytest -q \
+            tests/test_stage7_p2_hne_shadow_pipeline_a2_3.py \
+            tests/test_stage7_p2_hne_equilibrium_acoustic_closure_a2_4_2r.py \
+            tests/test_stage7_p2_hne_acoustic_shadow_pipeline_a2_4_3.py \
+            --strict-markers --junitxml=p2-a2-4-3-focused.xml
+
+      - name: Gate JUnit and tracked checkout
+        run: |
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+
+          root = ET.parse('p2-a2-4-3-focused.xml').getroot()
+          suites = [root] if root.tag == 'testsuite' else list(root.findall('testsuite'))
+          totals = {
+              key: sum(int(suite.attrib.get(key, 0)) for suite in suites)
+              for key in ('tests', 'skipped', 'failures', 'errors')
+          }
+          assert totals == {'tests': 22, 'skipped': 0, 'failures': 0, 'errors': 0}
+          print(totals)
+          PY
+          test -z "$(git status --porcelain=v1 --untracked-files=no)"
+
+      - name: Upload evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: stage7-p2-hne-acoustic-shadow-pipeline-a2-4-3-${{ github.run_id }}
+          path: |
+            artifacts/stage7/p2-hne-acoustic-shadow-pipeline-a2-4-3
+            p2-a2-4-3-focused.xml
+          if-no-files-found: error
+          compression-level: 6
