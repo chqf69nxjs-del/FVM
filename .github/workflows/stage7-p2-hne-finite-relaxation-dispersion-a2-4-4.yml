@@ -1,0 +1,171 @@
+name: Stage 7 P2 HNE Finite Relaxation Dispersion A2.4-4
+
+on:
+  push:
+    branches:
+      - agent/stage7-p2-hne-finite-relaxation-dispersion-a2-4-4
+  pull_request:
+    branches:
+      - agent/stage7-p2-hne-acoustic-shadow-pipeline-a2-4-3
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage7-p2-hne-finite-relaxation-dispersion-a2-4-4-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  finite-relaxation-dispersion:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      PYTHONPATH: src
+      PYTHONDONTWRITEBYTECODE: "1"
+      ANALYSIS_SOURCE_GIT_SHA: ${{ github.sha }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install pinned dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install 'numpy==2.5.2' 'pytest==9.1.1'
+
+      - name: Assert source and change envelope
+        run: |
+          set -euo pipefail
+          source_sha="3fdd2fbdd81bafecfa44607324c5e47dddd43d52"
+          test "$(git rev-parse HEAD)" = "$ANALYSIS_SOURCE_GIT_SHA"
+          git cat-file -e "${source_sha}^{commit}"
+          git diff --name-only "$source_sha" HEAD | sort > /tmp/actual.txt
+          printf '%s\n' \
+            '.github/workflows/stage7-p2-hne-finite-relaxation-dispersion-a2-4-4.yml' \
+            'docs/verification/stage7_p2_hne_finite_relaxation_dispersion_a2_4_4.md' \
+            'src/liquid_gas_transient/hne_finite_relaxation_dispersion.py' \
+            'tests/test_stage7_p2_hne_finite_relaxation_dispersion_a2_4_4.py' \
+            | sort > /tmp/expected.txt
+          diff -u /tmp/expected.txt /tmp/actual.txt
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Compile and clean
+        run: |
+          set -euo pipefail
+          python -m compileall -q src tests
+          git diff --check
+          find src tests -type d -name __pycache__ -prune -exec rm -rf {} +
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Generate finite-relaxation dispersion evidence
+        run: |
+          set -euo pipefail
+          python -m liquid_gas_transient.hne_finite_relaxation_dispersion \
+            --output-dir artifacts/stage7/p2-hne-finite-relaxation-dispersion-a2-4-4
+
+      - name: Gate dispersion and temporal-stability evidence
+        run: |
+          python - <<'PY'
+          import csv
+          import json
+          from pathlib import Path
+
+          p = Path('artifacts/stage7/p2-hne-finite-relaxation-dispersion-a2-4-4')
+          expected = {
+              'summary.json',
+              'state_summary.csv',
+              'spatial_dispersion.csv',
+              'temporal_stability.csv',
+              'operator_report.md',
+              'manifest.json',
+          }
+          assert {x.name for x in p.iterdir()} == expected
+          s = json.loads((p / 'summary.json').read_text())
+          m = json.loads((p / 'manifest.json').read_text())
+          with (p / 'state_summary.csv').open(newline='') as f:
+              states = list(csv.DictReader(f))
+          with (p / 'spatial_dispersion.csv').open(newline='') as f:
+              spatial = list(csv.DictReader(f))
+          with (p / 'temporal_stability.csv').open(newline='') as f:
+              temporal = list(csv.DictReader(f))
+
+          source = s['source_a2_4_3']
+          assert source['head_sha'] == '3fdd2fbdd81bafecfa44607324c5e47dddd43d52'
+          assert source['workflow_run_id'] == 32626001623
+          assert source['artifact_id'] == 9489698258
+          assert s['a2_4_4_dispersion_investigation_ready'] is True
+          assert s['failed_gates'] == []
+          assert all(s['gate_results'].values())
+          assert s['runtime_provenance']['analysis_source_git_sha'] == s['runtime_provenance']['checkout_git_sha']
+          assert s['runtime_provenance']['git_status_porcelain'] == ''
+          assert len(states) == 6
+          assert len(spatial) == 66
+          assert len(temporal) == 42
+          assert all(float(row['strict_subcharacteristic_margin_m2_s2']) > 0.0 for row in states)
+          assert all(float(row['low_frequency_limit_relative_residual']) <= 1e-6 for row in states)
+          assert all(float(row['high_frequency_limit_relative_residual']) <= 1e-6 for row in states)
+          assert all(0.1 <= float(row['peak_attenuation_omega_tau']) <= 10.0 for row in states)
+          assert all(row['all_temporal_modes_stable'] == 'True' for row in states)
+          assert all(float(row['attenuation_m_inverse']) >= 0.0 for row in spatial)
+          assert all(float(row['dispersion_relative_residual']) <= 1e-12 for row in spatial)
+          assert all(row['stable'] == 'True' for row in temporal)
+          assert all(float(row['maximum_real_growth']) <= 1e-10 for row in temporal)
+          assert all(float(row['polynomial_matrix_root_mismatch']) <= 1e-9 for row in temporal)
+          assert all(float(row['polynomial_relative_residual']) <= 1e-9 for row in temporal)
+          assert all(value is False for value in s['solver_authority'].values())
+          assert s['formal_status']['working_verification_slice'] is True
+          assert s['formal_status']['finite_relaxation_dispersion_investigation'] is True
+          assert s['formal_status']['acoustic_authority_gate_ready'] is False
+          assert s['formal_status']['working_vertical_slice'] is False
+          assert s['formal_status']['verified'] is False
+          assert s['formal_status']['physically_validated'] is False
+          assert s['formal_status']['design_use_accepted'] is False
+          assert s['formal_status']['production_approved'] is False
+          assert s['hydrodynamic_coupling_allowed'] is False
+          assert m['analysis_sha256'] == s['analysis_sha256']
+          assert m['a2_4_4_dispersion_investigation_ready'] is True
+          assert m['hydrodynamic_coupling_allowed'] is False
+          print('formal_outcome=' + s['formal_outcome'])
+          print('analysis_sha256=' + s['analysis_sha256'])
+          PY
+
+      - name: Run focused regression matrix
+        run: |
+          python -m pytest -q \
+            tests/test_stage7_p2_hne_shadow_pipeline_a2_3.py \
+            tests/test_stage7_p2_hne_equilibrium_acoustic_closure_a2_4_2r.py \
+            tests/test_stage7_p2_hne_acoustic_shadow_pipeline_a2_4_3.py \
+            tests/test_stage7_p2_hne_finite_relaxation_dispersion_a2_4_4.py \
+            --strict-markers --junitxml=p2-a2-4-4-focused.xml
+
+      - name: Gate JUnit and tracked checkout
+        run: |
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+
+          root = ET.parse('p2-a2-4-4-focused.xml').getroot()
+          suites = [root] if root.tag == 'testsuite' else list(root.findall('testsuite'))
+          totals = {
+              key: sum(int(suite.attrib.get(key, 0)) for suite in suites)
+              for key in ('tests', 'skipped', 'failures', 'errors')
+          }
+          assert totals == {'tests': 34, 'skipped': 0, 'failures': 0, 'errors': 0}
+          print(totals)
+          PY
+          test -z "$(git status --porcelain=v1 --untracked-files=no)"
+
+      - name: Upload evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: stage7-p2-hne-finite-relaxation-dispersion-a2-4-4-${{ github.run_id }}
+          path: |
+            artifacts/stage7/p2-hne-finite-relaxation-dispersion-a2-4-4
+            p2-a2-4-4-focused.xml
+          if-no-files-found: error
+          compression-level: 6
