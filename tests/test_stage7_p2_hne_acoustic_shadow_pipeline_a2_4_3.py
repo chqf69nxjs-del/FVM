@@ -10,11 +10,13 @@ from liquid_gas_transient.hne_acoustic_shadow_pipeline import (
     FORMAL_STATUS,
     NEXT_ACTION,
     OUTPUT_FILES,
+    PROPERTY_BACKEND_NAME,
     SCHEMA_VERSION,
     SOLVER_AUTHORITY,
     FinitePipelineAcousticShadowObserver,
     ShadowPipelineConfig,
     _build_solver,
+    _report,
     analyze_acoustic_shadow_pipeline,
     execute,
 )
@@ -27,6 +29,7 @@ from liquid_gas_transient.state import make_conserved
 
 def test_a2_4_3_contract_and_maturity_boundary() -> None:
     assert SCHEMA_VERSION == "stage7_p2_hne_acoustic_shadow_pipeline_a2_4_3_v1"
+    assert PROPERTY_BACKEND_NAME == "surrogate_lco2"
     assert len(OUTPUT_FILES) == 6
     assert all(value is False for value in SOLVER_AUTHORITY.values())
     assert FORMAL_STATUS["implemented"] is True
@@ -76,12 +79,14 @@ def test_acoustic_observer_is_read_only_and_valid_on_focused_pipeline_state() ->
         dt_s=0.0,
     )
     assert np.array_equal(before, solver.U)
+    assert observation.step_row["property_backend_name"] == PROPERTY_BACKEND_NAME
     assert observation.step_row["shadow_state_read_only"] is True
     assert observation.step_row["acoustic_valid_count"] == config.n_cells
     assert observation.step_row["acoustic_invalid_count"] == 0
     assert observation.step_row["any_empirical_fallback_used"] is False
     assert observation.step_row["all_solver_authority_denied"] is True
     for row in observation.cell_rows:
+        assert row["property_backend_name"] == PROPERTY_BACKEND_NAME
         assert row["valid"] is True
         assert row["equilibrium_c2_m2_s2"] > 0.0
         assert row["frozen_c2_m2_s2"] > 0.0
@@ -129,10 +134,13 @@ def test_finite_pipeline_acoustic_shadow_matrix_passes_without_coupling() -> Non
     assert summary["a2_4_3_acoustic_shadow_ready"] is True
     assert summary["failed_gates"] == []
     assert all(summary["gate_results"].values())
+    assert summary["property_backend"]["name"] == PROPERTY_BACKEND_NAME
+    assert summary["acoustic_model"]["property_backend_name"] == PROPERTY_BACKEND_NAME
     assert summary["hydrodynamic_coupling_allowed"] is False
     assert all(value is False for value in summary["solver_authority"].values())
     assert len(summary["case_summary"]) == 3
     for row in summary["case_summary"]:
+        assert row["property_backend_name"] == PROPERTY_BACKEND_NAME
         assert row["baseline_shadow_full_trajectory_bitwise_equal"] is True
         assert row[
             "baseline_shadow_hydrodynamic_trajectory_bitwise_equal"
@@ -153,6 +161,7 @@ def test_pipeline_acoustic_values_are_finite_ordered_and_in_claimed_domain() -> 
         ShadowPipelineConfig(n_cells=4, n_steps=2)
     )
     for row in analysis.cell_rows:
+        assert row["property_backend_name"] == PROPERTY_BACKEND_NAME
         assert row["valid"] is True
         assert row["within_claimed_domain"] is True
         assert 1.5e6 < row["p_equilibrium_acoustic_pa"] < 5.0e6
@@ -173,6 +182,20 @@ def test_repeated_analysis_is_deterministic() -> None:
     assert first.cell_rows == second.cell_rows
 
 
+def test_operator_report_stops_when_any_gate_fails() -> None:
+    analysis = analyze_acoustic_shadow_pipeline(ShadowPipelineConfig(n_cells=4, n_steps=1))
+    summary = dict(analysis.summary)
+    summary["a2_4_3_acoustic_shadow_ready"] = False
+    summary["formal_outcome"] = "A2_4_3_IMPLEMENTED_NOT_READY_WITH_FAIL_CLOSED_GATES"
+    summary["next_action"] = "RESOLVE_FAILED_A2_4_3_GATES_BEFORE_A2_4_4"
+    summary["failed_gates"] = ["SYNTHETIC_REVIEW_GATE"]
+    report = _report(summary)
+    assert "STOP: A2.4-3 gates are not green" in report
+    assert "do not proceed to A2.4-4" in report
+    assert "SYNTHETIC_REVIEW_GATE" in report
+    assert "Proceed only according" not in report
+
+
 def test_execute_writes_complete_strict_reproducible_evidence(
     tmp_path: Path,
     monkeypatch,
@@ -191,8 +214,14 @@ def test_execute_writes_complete_strict_reproducible_evidence(
 
     summary = json.loads((first / "summary.json").read_text(encoding="utf-8"))
     manifest = json.loads((first / "manifest.json").read_text(encoding="utf-8"))
+    report = (first / "operator_report.md").read_text(encoding="utf-8")
     assert summary["failed_gates"] == []
     assert all(summary["gate_results"].values())
+    assert summary["property_backend"]["name"] == PROPERTY_BACKEND_NAME
+    assert summary["acoustic_model"]["property_backend_name"] == PROPERTY_BACKEND_NAME
+    assert manifest["property_backend_name"] == PROPERTY_BACKEND_NAME
+    assert f"Property backend: `{PROPERTY_BACKEND_NAME}`" in report
+    assert f"Next action: `{NEXT_ACTION}`" in report
     assert manifest["declared_file_count"] == len(OUTPUT_FILES)
     assert manifest["declared_file_names"] == list(OUTPUT_FILES)
     assert manifest["analysis_sha256"] == summary["analysis_sha256"]
