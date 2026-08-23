@@ -1,0 +1,223 @@
+name: Stage 7 P2 HNE Controlled Finite-Pipe Coupling A3.2
+
+on:
+  push:
+    branches:
+      - agent/stage7-p2-hne-controlled-finite-pipe-coupling-a3-2
+  pull_request:
+    branches:
+      - agent/stage7-p2-hne-limited-interior-coupling-a3-1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage7-p2-hne-controlled-finite-pipe-coupling-a3-2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  controlled-finite-pipe-coupling:
+    runs-on: macos-15
+    timeout-minutes: 35
+    env:
+      PYTHONPATH: src
+      PYTHONDONTWRITEBYTECODE: "1"
+      ANALYSIS_SOURCE_GIT_SHA: ${{ github.sha }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install pinned dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install 'numpy==2.5.2' 'pytest==9.1.1'
+
+      - name: Assert source and change envelope
+        run: |
+          set -euo pipefail
+          source_sha="d4db09a6447ba4c98fcf0618e37e3ad6fe859ec1"
+          test "$(git rev-parse HEAD)" = "$ANALYSIS_SOURCE_GIT_SHA"
+          git cat-file -e "${source_sha}^{commit}"
+          git diff --name-only "$source_sha" HEAD | sort > /tmp/actual.txt
+          printf '%s\n' \
+            '.github/workflows/stage7-p2-hne-controlled-finite-pipe-coupling-a3-2.yml' \
+            'docs/verification/stage7_p2_hne_controlled_finite_pipe_coupling_a3_2.md' \
+            'src/liquid_gas_transient/hne_controlled_finite_pipe_coupling.py' \
+            'src/liquid_gas_transient/hne_controlled_finite_pipe_coupling_impl.py' \
+            'tests/test_stage7_p2_hne_controlled_finite_pipe_coupling_a3_2.py' \
+            | sort > /tmp/expected.txt
+          diff -u /tmp/expected.txt /tmp/actual.txt
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Compile and clean
+        run: |
+          set -euo pipefail
+          python -m compileall -q src tests
+          git diff --check
+          find src tests -type d -name __pycache__ -prune -exec rm -rf {} +
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Generate P2-A3.2 controlled finite-pipe evidence
+        run: |
+          set -euo pipefail
+          python -m liquid_gas_transient.hne_controlled_finite_pipe_coupling \
+            --output-dir artifacts/stage7/p2-hne-controlled-finite-pipe-coupling-a3-2
+
+      - name: Gate P2-A3.2 evidence
+        run: |
+          python - <<'PY'
+          import csv
+          import json
+          from pathlib import Path
+
+          p = Path('artifacts/stage7/p2-hne-controlled-finite-pipe-coupling-a3-2')
+          expected = {
+              'summary.json',
+              'case_summary.csv',
+              'probe_history.csv',
+              'step_history.csv',
+              'operator_report.md',
+              'manifest.json',
+          }
+          assert {x.name for x in p.iterdir()} == expected
+          s = json.loads((p / 'summary.json').read_text())
+          m = json.loads((p / 'manifest.json').read_text())
+          report = (p / 'operator_report.md').read_text()
+          with (p / 'case_summary.csv').open(newline='') as f:
+              cases = list(csv.DictReader(f))
+          with (p / 'probe_history.csv').open(newline='') as f:
+              probes = list(csv.DictReader(f))
+          with (p / 'step_history.csv').open(newline='') as f:
+              steps = list(csv.DictReader(f))
+
+          source = s['source_a3_1']
+          assert source['head_sha'] == 'd4db09a6447ba4c98fcf0618e37e3ad6fe859ec1'
+          assert source['workflow_run_id'] == 32638595911
+          assert source['job_id'] == 97192025339
+          assert source['artifact_id'] == 9493006871
+          assert source['artifact_digest'] == \
+              'sha256:21fbde78e47b271d12061dd8c2be67a2128f44645aa6434fe487d50b16d6d423'
+          assert source['runtime_gate_green'] is True
+          assert s['property_backend_name'] == 'surrogate_lco2'
+          assert s['p2_a3_2_controlled_finite_pipe_coupling_ready'] is True
+          assert s['failed_gates'] == []
+          assert all(s['gate_results'].values())
+          assert s['runtime_provenance']['analysis_source_git_sha'] == \
+              s['runtime_provenance']['checkout_git_sha']
+          assert s['runtime_provenance']['git_status_porcelain'] == ''
+
+          policy = s['numerical_gate_policy']
+          assert policy['near_zero_hem_quality_lag_tolerance'] == 1.0e-10
+          assert policy['near_zero_hem_pressure_offset_tolerance_pa'] == 1.0e-3
+          assert policy['physics_calculation_modified'] is False
+          assert policy['policy_basis'] == \
+              'guarded_equilibrium_root_recovery_resolution'
+
+          assert len(cases) == 3
+          assert len(probes) > 30
+          assert len(steps) > 100
+          assert {row['property_backend_name'] for row in cases} == {'surrogate_lco2'}
+          assert {row['property_backend_name'] for row in probes} == {'surrogate_lco2'}
+          assert {row['property_backend_name'] for row in steps} == {'surrogate_lco2'}
+          assert {row['boundary_model'] for row in cases} == {
+              'prescribed_verification_ghost_state_pressure_ramp'
+          }
+          by_id = {row['case_id']: row for row in cases}
+
+          hem = by_id['TAU_NEAR_ZERO_HEM_LIMIT']
+          assert float(hem['maximum_absolute_quality_lag']) <= 1.0e-10
+          assert float(hem['maximum_absolute_hne_equilibrium_pressure_offset_pa']) <= 1.0e-3
+
+          finite = by_id['TAU_FINITE_HNE']
+          assert float(finite['maximum_absolute_quality_lag']) > 1.0e-4
+          assert float(finite['maximum_absolute_hne_equilibrium_pressure_offset_pa']) > 1.0e3
+          assert float(finite['equilibrium_quality_range']) > 5.0e-3
+          assert float(finite['frozen_c_range_m_s']) > 0.5
+
+          frozen = by_id['TAU_INFINITY_FROZEN_LIMIT']
+          assert frozen['tau_is_infinite'] == 'True'
+          assert frozen['tau_s'] == ''
+          assert abs(float(frozen['phase_vapor_mass_source_cumulative_kg'])) <= 1.0e-14
+          assert float(frozen['actual_quality_range']) <= 1.0e-12
+          assert float(frozen['maximum_absolute_quality_lag']) > 1.0e-3
+
+          for row in cases:
+              assert row['all_states_finite'] == 'True'
+              assert row['all_states_positive'] == 'True'
+              assert row['actual_and_equilibrium_states_remained_in_open_authority_domain'] == 'True'
+              assert row['all_pressure_wave_probes_arrived'] == 'True'
+              assert row['pressure_wave_arrival_order_outlet_to_upstream'] == 'True'
+              assert row['boundary_schedule_reached_final_pressure'] == 'True'
+              assert float(row['maximum_absolute_hydro_budget_relative_residual']) <= 1.0e-9
+              assert float(row['maximum_absolute_phase_vapor_balance_relative_residual']) <= 1.0e-9
+
+          assert s['repeatability']['deterministic_repeatability_passed'] is True
+          assert s['formal_status']['working_verification_slice'] is True
+          assert s['formal_status']['working_vertical_slice'] is True
+          assert s['formal_status']['controlled_finite_pipe_hne_hydrodynamic_coupling'] is True
+          assert s['existing_production_default_path_modified'] is False
+          assert s['hne_boundary_characteristics_authorized'] is False
+          assert s['critical_discharge_authorized'] is False
+          assert s['physical_discharge_authorized'] is False
+          assert s['rupture_model_authorized'] is False
+          assert s['physically_validated'] is False
+          assert s['formal_status']['verified'] is False
+          assert s['formal_status']['accepted'] is False
+          assert s['formal_status']['design_use_accepted'] is False
+          assert s['formal_status']['production_approved'] is False
+
+          assert m['analysis_sha256'] == s['analysis_sha256']
+          assert m['p2_a3_2_controlled_finite_pipe_coupling_ready'] is True
+          assert m['property_backend_name'] == 'surrogate_lco2'
+          assert m['source_a3_1_sha'] == source['head_sha']
+          assert m['existing_production_default_path_modified'] is False
+          assert m['hne_boundary_characteristics_authorized'] is False
+          assert m['critical_discharge_authorized'] is False
+          assert m['physical_discharge_authorized'] is False
+          assert f"Property backend: `{s['property_backend_name']}`" in report
+          assert f"Next action: `{s['next_action']}`" in report
+          assert 'STOP: P2-A3.2 gates failed' not in report
+          print('formal_outcome=' + s['formal_outcome'])
+          print('analysis_sha256=' + s['analysis_sha256'])
+          PY
+
+      - name: Run source authority and A3.2 focused tests
+        run: |
+          python -m pytest -q \
+            tests/test_stage7_p2_hne_acoustic_authority_gate.py \
+            tests/test_stage7_p2_hne_limited_interior_coupling_a3_1.py \
+            tests/test_stage7_p2_hne_controlled_finite_pipe_coupling_a3_2.py \
+            --strict-markers --junitxml=p2-a3-2-focused.xml
+
+      - name: Gate JUnit and tracked checkout
+        run: |
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+
+          root = ET.parse('p2-a3-2-focused.xml').getroot()
+          suites = [root] if root.tag == 'testsuite' else list(root.findall('testsuite'))
+          totals = {
+              key: sum(int(suite.attrib.get(key, 0)) for suite in suites)
+              for key in ('tests', 'skipped', 'failures', 'errors')
+          }
+          assert totals == {'tests': 31, 'skipped': 0, 'failures': 0, 'errors': 0}
+          print(totals)
+          PY
+          test -z "$(git status --porcelain=v1 --untracked-files=no)"
+
+      - name: Upload evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: stage7-p2-hne-controlled-finite-pipe-coupling-a3-2-${{ github.run_id }}
+          path: |
+            artifacts/stage7/p2-hne-controlled-finite-pipe-coupling-a3-2
+            p2-a3-2-focused.xml
+          if-no-files-found: error
+          compression-level: 6
