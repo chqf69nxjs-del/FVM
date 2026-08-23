@@ -104,13 +104,7 @@ U=[\rho,\rho u,\rho E,\rho q]^T,
 with Euler-type physical flux
 
 \[
-F(U)=
-\begin{bmatrix}
-\rho u\\
-\rho u^2+p\\
-u(\rho E+p)\\
-\rho q u
-\end{bmatrix}.
+F(U)=\begin{bmatrix}\rho u & \rho u^2+p & u(\rho E+p) & \rho q u\end{bmatrix}^T.
 \]
 
 For `p=p(rho,q)` in the hyperbolic transport step, the expected characteristics
