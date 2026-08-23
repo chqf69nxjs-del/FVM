@@ -4,10 +4,20 @@ on:
   push:
     branches:
       - agent/u3-b2-finite-pipe-baseline-recovery
+      - agent/u3-b2-finite-pipe-recovery-trigger
+  pull_request:
+    branches:
+      - agent/u3-b2-finite-pipe-baseline-recovery
+    paths:
+      - .github/workflows/agent-u3-b2-finite-pipe-payload-recovery.yml
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: agent-u3-b2-finite-pipe-payload-recovery-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   recover:
