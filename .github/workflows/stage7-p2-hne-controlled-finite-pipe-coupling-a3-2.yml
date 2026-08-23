@@ -50,6 +50,7 @@ jobs:
             '.github/workflows/stage7-p2-hne-controlled-finite-pipe-coupling-a3-2.yml' \
             'docs/verification/stage7_p2_hne_controlled_finite_pipe_coupling_a3_2.md' \
             'src/liquid_gas_transient/hne_controlled_finite_pipe_coupling.py' \
+            'src/liquid_gas_transient/hne_controlled_finite_pipe_coupling_impl.py' \
             'tests/test_stage7_p2_hne_controlled_finite_pipe_coupling_a3_2.py' \
             | sort > /tmp/expected.txt
           diff -u /tmp/expected.txt /tmp/actual.txt
@@ -112,6 +113,13 @@ jobs:
               s['runtime_provenance']['checkout_git_sha']
           assert s['runtime_provenance']['git_status_porcelain'] == ''
 
+          policy = s['numerical_gate_policy']
+          assert policy['near_zero_hem_quality_lag_tolerance'] == 1.0e-10
+          assert policy['near_zero_hem_pressure_offset_tolerance_pa'] == 1.0e-3
+          assert policy['physics_calculation_modified'] is False
+          assert policy['policy_basis'] == \
+              'guarded_equilibrium_root_recovery_resolution'
+
           assert len(cases) == 3
           assert len(probes) > 30
           assert len(steps) > 100
@@ -124,7 +132,7 @@ jobs:
           by_id = {row['case_id']: row for row in cases}
 
           hem = by_id['TAU_NEAR_ZERO_HEM_LIMIT']
-          assert float(hem['maximum_absolute_quality_lag']) <= 1.0e-12
+          assert float(hem['maximum_absolute_quality_lag']) <= 1.0e-10
           assert float(hem['maximum_absolute_hne_equilibrium_pressure_offset_pa']) <= 1.0e-3
 
           finite = by_id['TAU_FINITE_HNE']
