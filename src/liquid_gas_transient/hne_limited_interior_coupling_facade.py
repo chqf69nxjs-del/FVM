@@ -6,7 +6,7 @@ solver equations:
 * the Acoustic Authority Gate exposes its effective grant as ``authority_grant``;
 * the near-zero relaxation limit is compared with the recovered equilibrium map
   used by the source itself, rather than the nominal constructor input;
-* NumPy scalar values are normalized before deterministic evidence hashing;
+* NumPy scalar values are normalized before evidence hashing and serialization;
 * working-slice maturity remains closed until the runtime gates pass.
 """
 from __future__ import annotations
@@ -20,6 +20,7 @@ from .state import IDX_RHO, IDX_RHO_XV, internal_energy, vapor_mass_fraction
 
 _original_authority_analysis = _impl.analyze_acoustic_authority_gate
 _original_payload_sha = _impl._payload_sha
+_original_write_artifacts = _impl.write_artifacts
 
 
 def _json_native(value: object) -> object:
@@ -38,6 +39,18 @@ def _json_native(value: object) -> object:
 
 def _payload_sha_with_numpy_compatibility(value: object) -> str:
     return _original_payload_sha(_json_native(value))
+
+
+def _write_artifacts_with_numpy_compatibility(
+    output_dir: str | _impl.Path,
+    analysis: _impl.CouplingAnalysis,
+):
+    normalized = _impl.CouplingAnalysis(
+        summary=_json_native(analysis.summary),
+        case_rows=tuple(_json_native(row) for row in analysis.case_rows),
+        pulse_rows=tuple(_json_native(row) for row in analysis.pulse_rows),
+    )
+    return _original_write_artifacts(output_dir, normalized)
 
 
 def _authority_analysis_with_compatibility_alias():
@@ -92,6 +105,7 @@ def _run_equilibrium_limit_case(config: _impl.InteriorCouplingConfig):
 
 
 _impl._payload_sha = _payload_sha_with_numpy_compatibility
+_impl.write_artifacts = _write_artifacts_with_numpy_compatibility
 _impl.analyze_acoustic_authority_gate = _authority_analysis_with_compatibility_alias
 _impl._run_equilibrium_limit_case = _run_equilibrium_limit_case
 _base_status = dict(_impl.FORMAL_STATUS)
