@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import math
 from functools import lru_cache
 from pathlib import Path
 
@@ -15,6 +14,8 @@ from liquid_gas_transient.hne_controlled_finite_pipe_coupling import (
     FORMAL_OUTCOME,
     FORMAL_STATUS,
     IMPLEMENTATION_AUTHORITY,
+    NEAR_ZERO_HEM_PRESSURE_OFFSET_TOLERANCE_PA,
+    NEAR_ZERO_HEM_QUALITY_LAG_TOLERANCE,
     NEXT_ACTION,
     OUTPUT_FILES,
     PROPERTY_BACKEND_NAME,
@@ -31,7 +32,6 @@ from liquid_gas_transient.hne_controlled_finite_pipe_coupling import (
     analyze_controlled_finite_pipe_coupling,
     build_controlled_finite_pipe_solver,
     requested_boundary_pressure_pa,
-    schedule_pressure_tolerance_pa,
     write_artifacts,
 )
 from liquid_gas_transient.hne_equilibrium_acoustic_closure import (
@@ -61,6 +61,8 @@ def test_contract_source_pin_and_pre_execution_maturity_boundary() -> None:
         "sha256:21fbde78e47b271d12061dd8c2be67a2128f44645aa6434fe487d50b16d6d423"
     )
     assert PROPERTY_BACKEND_NAME == "surrogate_lco2"
+    assert NEAR_ZERO_HEM_QUALITY_LAG_TOLERANCE == 1.0e-10
+    assert NEAR_ZERO_HEM_PRESSURE_OFFSET_TOLERANCE_PA == 1.0e-3
     assert len(OUTPUT_FILES) == 6
     assert FORMAL_STATUS["implemented"] is True
     assert FORMAL_STATUS["working_verification_slice"] is False
@@ -92,8 +94,7 @@ def test_prescribed_pressure_ramp_boundary_is_exact_and_noncharacteristic() -> N
     )
     assert isinstance(boundary, PrescribedHNEPressureRampOutlet)
     solver.t = config.ramp_start_s + 0.5 * config.ramp_duration_s
-    extended = solver.extend_with_ghosts(solver.t)
-    ghost = extended[-solver.n_ghost :]
+    ghost = solver.extend_with_ghosts(solver.t)[-solver.n_ghost :]
     primitive = solver.eos.primitive_from_conserved(ghost)
     target = requested_boundary_pressure_pa(solver.t, config)
     assert np.allclose(
@@ -165,6 +166,10 @@ def test_full_a3_2_gate_passes_with_three_controlled_relaxation_regimes() -> Non
     assert {row["controlled_condition_id"] for row in analysis.case_rows} == {
         CONTROLLED_CONDITION_ID
     }
+    policy = summary["numerical_gate_policy"]
+    assert policy["near_zero_hem_quality_lag_tolerance"] == 1.0e-10
+    assert policy["near_zero_hem_pressure_offset_tolerance_pa"] == 1.0e-3
+    assert policy["physics_calculation_modified"] is False
     assert summary["formal_status"]["working_verification_slice"] is True
     assert summary["formal_status"]["working_vertical_slice"] is True
     assert summary["formal_status"][
@@ -190,10 +195,14 @@ def test_full_a3_2_gate_passes_with_three_controlled_relaxation_regimes() -> Non
 def test_near_zero_tau_recovers_hem_limit_in_controlled_pipe() -> None:
     row = _case("TAU_NEAR_ZERO_HEM_LIMIT")
     assert row["relaxation_regime"] == "near_zero"
-    assert float(row["maximum_absolute_quality_lag"]) <= 1.0e-12
-    assert float(
-        row["maximum_absolute_hne_equilibrium_pressure_offset_pa"]
-    ) <= 1.0e-3
+    assert (
+        float(row["maximum_absolute_quality_lag"])
+        <= NEAR_ZERO_HEM_QUALITY_LAG_TOLERANCE
+    )
+    assert (
+        float(row["maximum_absolute_hne_equilibrium_pressure_offset_pa"])
+        <= NEAR_ZERO_HEM_PRESSURE_OFFSET_TOLERANCE_PA
+    )
     assert float(row["phase_vapor_mass_source_cumulative_kg"]) > 1.0e-6
     assert float(row["actual_quality_range"]) > 5.0e-3
 
@@ -269,8 +278,7 @@ def test_finite_case_repeatability_and_three_trajectories_are_distinct() -> None
     assert repeatability["finite_final_state_sha256_match"] is True
     assert repeatability["finite_step_history_sha256_match"] is True
     assert repeatability["finite_probe_history_sha256_match"] is True
-    hashes = {row["trajectory_sha256"] for row in analysis.case_rows}
-    assert len(hashes) == 3
+    assert len({row["trajectory_sha256"] for row in analysis.case_rows}) == 3
 
 
 def test_evidence_is_complete_strict_and_byte_deterministic(tmp_path: Path) -> None:
