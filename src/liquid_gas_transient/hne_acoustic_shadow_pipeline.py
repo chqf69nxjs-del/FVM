@@ -22,6 +22,7 @@ from .state import (
 SCHEMA_VERSION = "stage7_p2_hne_acoustic_shadow_pipeline_a2_4_3_v1"
 SOURCE_A2_4_2R_SHA = "fd4380472e5487dccb7824d4eddac1dcb134e18e"
 SOURCE_A2_4_2R_FIX_SHA = "f95a1bd248849cfb8c72dac942823191e9023c63"
+PROPERTY_BACKEND_NAME = "surrogate_lco2"
 FORMAL_OUTCOME = (
     "A2_4_3_FINITE_PIPELINE_READ_ONLY_ACOUSTIC_SHADOW_READY_"
     "WITH_SOLVER_AUTHORITY_CLOSED"
@@ -94,6 +95,8 @@ def _conserved(run: Mapping[str, object]) -> bool:
 
 @dataclass(frozen=True)
 class FinitePipelineAcousticShadowObserver:
+    property_backend_name: str = PROPERTY_BACKEND_NAME
+
     def observe(self, *, case_id: str, tau_s: float, U: np.ndarray, grid: object,
                 step: int, time_s: float, dt_s: float) -> AcousticShadowObservation:
         check_physical_state(U, names=["A2.4-3 acoustic shadow input"])
@@ -112,6 +115,7 @@ class FinitePipelineAcousticShadowObserver:
                 failures[label] = failures.get(label, 0) + 1
             ce2, cf2 = d.equilibrium_sound_speed_squared_m2_s2, d.frozen_sound_speed_squared_m2_s2
             row: dict[str, object] = {
+                "property_backend_name": self.property_backend_name,
                 "case_id": case_id, "tau_s": _tau_value(tau_s), "step": int(step),
                 "time_s": float(time_s), "dt_s": float(dt_s), "cell_index": i,
                 "x_m": float(x[i]), "rho_kg_m3": float(rho[i]), "u_m_s": float(u[i]),
@@ -143,6 +147,7 @@ class FinitePipelineAcousticShadowObserver:
             raise HNEAcousticShadowPipelineError("observer mutated U")
         valid = [row for row in cells if row["valid"] is True]
         step_row = {
+            "property_backend_name": self.property_backend_name,
             "case_id": case_id, "tau_s": _tau_value(tau_s), "step": int(step),
             "time_s": float(time_s), "dt_s": float(dt_s), "state_sha256": state_sha,
             "hydrodynamic_state_sha256": hydro_sha, "cell_count": n,
@@ -178,7 +183,11 @@ class FinitePipelineAcousticShadowObserver:
         return AcousticShadowObservation(step_row, tuple(cells))
 
 def _run(case_id: str, tau_s: float, config: ShadowPipelineConfig, shadow: bool) -> dict[str, object]:
-    solver, _ = _build_solver(config, tau_s); observer = FinitePipelineAcousticShadowObserver()
+    solver, _ = _build_solver(config, tau_s)
+    backend_name = str(getattr(solver.eos, "backend_name", ""))
+    if backend_name != PROPERTY_BACKEND_NAME:
+        raise HNEAcousticShadowPipelineError(f"unexpected property backend: {backend_name!r}")
+    observer = FinitePipelineAcousticShadowObserver(backend_name)
     initial = inventory(solver.U, solver.grid.dx, solver.grid.geometry.area_m2)
     states, hydros = [_array_sha(solver.U)], [_array_sha(solver.U[..., :IDX_RHO_XV])]
     steps: list[dict[str, object]] = []; cells: list[dict[str, object]] = []
@@ -193,6 +202,7 @@ def _run(case_id: str, tau_s: float, config: ShadowPipelineConfig, shadow: bool)
         states.append(_array_sha(solver.U)); hydros.append(_array_sha(solver.U[..., :IDX_RHO_XV]))
         if shadow: observe(dt)
     return {
+        "property_backend_name": backend_name,
         "trajectory": tuple(states), "hydrodynamic_trajectory": tuple(hydros),
         "initial_inventory": initial,
         "final_inventory": inventory(solver.U, solver.grid.dx, solver.grid.geometry.area_m2),
@@ -217,6 +227,7 @@ def _case(case_id: str, tau_s: float, baseline: Mapping[str, object], shadow: Ma
     assert isinstance(initial, Mapping) and isinstance(final, Mapping)
     complete = len(valid) == len(cells)
     return {
+        "property_backend_name": str(shadow["property_backend_name"]),
         "case_id": case_id, "tau_s": _tau_value(tau_s),
         "step_count": int(shadow["step_count"]), "observation_count": len(steps),
         "cell_observation_count": len(cells), "final_time_s": float(shadow["final_time_s"]),
@@ -278,6 +289,9 @@ def analyze_acoustic_shadow_pipeline(config: ShadowPipelineConfig | None = None)
     gates = {
         "A2_4_2R_SOURCE_PINNED": SOURCE_A2_4_2R_SHA == "fd4380472e5487dccb7824d4eddac1dcb134e18e",
         "A2_4_2R_RECOVERY_NAME_ERROR_CORRECTED": SOURCE_A2_4_2R_FIX_SHA == "f95a1bd248849cfb8c72dac942823191e9023c63",
+        "PROPERTY_BACKEND_EXACTLY_DECLARED": all(
+            row["property_backend_name"] == PROPERTY_BACKEND_NAME for row in (*cases, *steps, *cells)
+        ),
         "A2_4_2R_SOLVER_AUTHORITY_REMAINS_CLOSED": all(v is False for v in PARENT_AUTHORITY.values()),
         "A2_4_3_SOLVER_AUTHORITY_REMAINS_CLOSED": all(v is False for v in SOLVER_AUTHORITY.values()),
         "ACOUSTIC_SHADOW_FULL_TRAJECTORY_BITWISE_UNCHANGED": all(r["baseline_shadow_full_trajectory_bitwise_equal"] is True for r in cases),
@@ -297,10 +311,15 @@ def analyze_acoustic_shadow_pipeline(config: ShadowPipelineConfig | None = None)
         "schema_version": SCHEMA_VERSION, "scope": "p2_a2_4_3_finite_pipeline_read_only_acoustic_shadow",
         "source_a2_4_2r_sha": SOURCE_A2_4_2R_SHA,
         "source_a2_4_2r_recovery_fix_sha": SOURCE_A2_4_2R_FIX_SHA,
+        "property_backend": {
+            "name": PROPERTY_BACKEND_NAME,
+            "role": "AUTHORITATIVE_A2_3_FVM_PROPERTY_BACKEND",
+        },
         "configuration": asdict(cfg),
         "case_matrix": [{"case_id": c, "tau_s": _tau_value(t)} for c, t in TAU_CASES],
         "acoustic_model": {
             "model_form": MODEL_FORM, "authority": ACOUSTIC_AUTHORITY,
+            "property_backend_name": PROPERTY_BACKEND_NAME,
             "claimed_pressure_interval_pa": [DEFAULT_CONFIG.claimed_pressure_min_pa, DEFAULT_CONFIG.claimed_pressure_max_pa],
             "claimed_quality_interval": [DEFAULT_CONFIG.claimed_quality_min, DEFAULT_CONFIG.claimed_quality_max],
             "boundary_policy": "open_interval_fail_closed", "empirical_fallback": "FORBIDDEN_AND_UNUSED",
@@ -331,8 +350,13 @@ def _write_csv(path: Path, rows: Sequence[Mapping[str, object]]) -> None:
             writer.writerow({k: json.dumps(v, sort_keys=True, separators=(",", ":")) if isinstance(v, (dict,list,tuple)) else v for k,v in row.items()})
 
 def _report(summary: Mapping[str, object]) -> str:
+    failed_gates = tuple(str(item) for item in summary.get("failed_gates", []))
+    ready = bool(summary.get("a2_4_3_acoustic_shadow_ready", False))
+    backend = summary.get("property_backend")
+    backend_name = str(backend.get("name", "UNKNOWN")) if isinstance(backend, Mapping) else "UNKNOWN"
     lines = ["# Stage 7 P2-A2.4-3 Finite-Pipeline Acoustic Shadow", "",
-        f"- Outcome: `{summary['formal_outcome']}`", "- Hydrodynamic coupling allowed: `false`", "",
+        f"- Outcome: `{summary['formal_outcome']}`", f"- Property backend: `{backend_name}`",
+        "- Hydrodynamic coupling allowed: `false`", f"- Next action: `{summary['next_action']}`", "",
         "| case | tau [s] | min c_eq [m/s] | min c_frozen [m/s] | min margin [m2/s2] | no effect |",
         "|---|---:|---:|---:|---:|---|"]
     for row in summary["case_summary"]:  # type: ignore[index]
@@ -341,7 +365,16 @@ def _report(summary: Mapping[str, object]) -> str:
             case=row["case_id"], tau=row["tau_s"], ce="NA" if ce2 is None else f"{math.sqrt(float(ce2)):.8g}",
             cf="NA" if cf2 is None else f"{math.sqrt(float(cf2)):.8g}", m="NA" if m is None else f"{float(m):.8g}",
             same=row["baseline_shadow_full_trajectory_bitwise_equal"]))
-    lines += ["", "Read-only verification evidence only; proceed to A2.4-4 with all solver authority closed.", ""]
+    lines.append("")
+    if ready:
+        lines += ["Read-only verification evidence only.",
+            f"Proceed only according to `{summary['next_action']}` with all solver authority closed."]
+    else:
+        lines.append("STOP: A2.4-3 gates are not green; do not proceed to A2.4-4.")
+        if failed_gates:
+            lines += ["", "## Failed gates", ""]
+            lines.extend(f"- `{gate}`" for gate in failed_gates)
+    lines.append("")
     return "\n".join(lines)
 
 def write_artifacts(output_dir: str | Path, analysis: AcousticShadowPipelineAnalysis) -> dict[str, Path]:
@@ -351,16 +384,17 @@ def write_artifacts(output_dir: str | Path, analysis: AcousticShadowPipelineAnal
     paths = {"summary": target/"summary.json", "cases": target/"case_summary.csv",
         "steps": target/"step_history.csv", "cells": target/"cell_history.csv",
         "report": target/"operator_report.md", "manifest": target/"manifest.json"}
-    paths["summary"].write_text(json.dumps(analysis.summary, indent=2, sort_keys=True, allow_nan=False)+"\n")
+    paths["summary"].write_text(json.dumps(analysis.summary, indent=2, sort_keys=True, allow_nan=False)+"\n", encoding="utf-8")
     _write_csv(paths["cases"], analysis.case_rows); _write_csv(paths["steps"], analysis.step_rows); _write_csv(paths["cells"], analysis.cell_rows)
-    paths["report"].write_text(_report(analysis.summary))
+    paths["report"].write_text(_report(analysis.summary), encoding="utf-8")
     payload = {k:p for k,p in paths.items() if k != "manifest"}
     manifest = {"schema_version": SCHEMA_VERSION, "declared_file_count": len(OUTPUT_FILES),
-        "declared_file_names": list(OUTPUT_FILES), "analysis_sha256": analysis.summary["analysis_sha256"],
+        "declared_file_names": list(OUTPUT_FILES), "property_backend_name": PROPERTY_BACKEND_NAME,
+        "analysis_sha256": analysis.summary["analysis_sha256"],
         "a2_4_3_acoustic_shadow_ready": analysis.summary["a2_4_3_acoustic_shadow_ready"],
         "hydrodynamic_coupling_allowed": False,
         "payload_files": {p.name:{"size_bytes":p.stat().st_size,"sha256":_file_sha(p)} for p in payload.values()}}
-    paths["manifest"].write_text(json.dumps(manifest, indent=2, sort_keys=True, allow_nan=False)+"\n")
+    paths["manifest"].write_text(json.dumps(manifest, indent=2, sort_keys=True, allow_nan=False)+"\n", encoding="utf-8")
     if {p.name for p in target.iterdir() if p.is_file()} != expected: raise HNEAcousticShadowPipelineError("artifact envelope")
     return paths
 
