@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   limited-interior-coupling:
-    runs-on: ubuntu-24.04
+    runs-on: macos-15
     timeout-minutes: 25
     env:
       PYTHONPATH: src
