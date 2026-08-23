@@ -90,6 +90,7 @@ jobs:
           assert {x.name for x in p.iterdir()} == expected
           s = json.loads((p / 'summary.json').read_text())
           m = json.loads((p / 'manifest.json').read_text())
+          report = (p / 'operator_report.md').read_text()
           with (p / 'case_summary.csv').open(newline='') as f:
               cases = list(csv.DictReader(f))
           with (p / 'step_history.csv').open(newline='') as f:
@@ -97,7 +98,10 @@ jobs:
           with (p / 'cell_history.csv').open(newline='') as f:
               cells = list(csv.DictReader(f))
 
+          backend = 'surrogate_lco2'
           assert s['source_a2_4_2r_sha'] == 'fd4380472e5487dccb7824d4eddac1dcb134e18e'
+          assert s['property_backend']['name'] == backend
+          assert s['acoustic_model']['property_backend_name'] == backend
           assert s['a2_4_3_acoustic_shadow_ready'] is True
           assert s['failed_gates'] == []
           assert all(s['gate_results'].values())
@@ -108,6 +112,9 @@ jobs:
           assert len(cases) == 3
           assert len(steps) == 27
           assert len(cells) == 216
+          assert all(row['property_backend_name'] == backend for row in cases)
+          assert all(row['property_backend_name'] == backend for row in steps)
+          assert all(row['property_backend_name'] == backend for row in cells)
           assert all(row['valid'] == 'True' for row in cells)
           assert all(row['within_claimed_domain'] == 'True' for row in cells)
           assert all(float(row['equilibrium_c2_m2_s2']) > 0.0 for row in cells)
@@ -130,9 +137,13 @@ jobs:
           assert s['formal_status']['design_use_accepted'] is False
           assert s['formal_status']['production_approved'] is False
           assert s['hydrodynamic_coupling_allowed'] is False
+          assert m['property_backend_name'] == backend
           assert m['analysis_sha256'] == s['analysis_sha256']
           assert m['a2_4_3_acoustic_shadow_ready'] is True
           assert m['hydrodynamic_coupling_allowed'] is False
+          assert f'Property backend: `{backend}`' in report
+          assert f"Next action: `{s['next_action']}`" in report
+          assert 'STOP: A2.4-3 gates are not green' not in report
           print('formal_outcome=' + s['formal_outcome'])
           PY
 
@@ -155,7 +166,7 @@ jobs:
               key: sum(int(suite.attrib.get(key, 0)) for suite in suites)
               for key in ('tests', 'skipped', 'failures', 'errors')
           }
-          assert totals == {'tests': 21, 'skipped': 0, 'failures': 0, 'errors': 0}
+          assert totals == {'tests': 22, 'skipped': 0, 'failures': 0, 'errors': 0}
           print(totals)
           PY
           test -z "$(git status --porcelain=v1 --untracked-files=no)"
