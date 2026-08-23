@@ -1,0 +1,66 @@
+name: Agent U3 B2 Finite-Pipe Payload Recovery
+
+on:
+  push:
+    branches:
+      - agent/u3-b2-finite-pipe-baseline-recovery
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  recover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PAYLOAD: .agent_payloads/u3_b2_finite_pipe_baseline.tar.gz.b64
+      PAYLOAD_SHA256: 85772b5f9f4a50c167fd38b0285f50401bab82624a96758f100930e32c2408e6
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Decode and verify retained payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f "${PAYLOAD}"
+          base64 --decode "${PAYLOAD}" > /tmp/u3-b2-finite-pipe-baseline.tar.gz
+          echo "${PAYLOAD_SHA256}  /tmp/u3-b2-finite-pipe-baseline.tar.gz" | sha256sum --check --strict
+          mkdir -p recovered
+          tar -xzf /tmp/u3-b2-finite-pipe-baseline.tar.gz -C recovered
+          test "$(find recovered -maxdepth 1 -type f | wc -l | tr -d ' ')" = 4
+
+      - name: Verify intended source hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd recovered
+          echo 'faadb217d5bef87d4d073a394d6eb939f9e7a5613ab87081b457ec13acd907ff  u3_b2_fvm_discharge_finite_pipe.py' | sha256sum --check --strict
+          echo 'd37699ecb6a4090bd00b01415b13b86b867b831188c1ce071822a91d59be7179  test_stage7_u3_b2_finite_pipe.py' | sha256sum --check --strict
+          echo 'fae3eb757b9fd86c8b76d6fee9bc3f8c2079b3f6eabe3dd1f65d93f1737584bc  stage7_u3_b2_finite_pipe_baseline.md' | sha256sum --check --strict
+          echo '04945560f6ce64154dd4f50c954a94bf78b8d2a8f7f6437bd7cb48053a13d770  stage7-u3-b2-finite-pipe-baseline-preflight.yml' | sha256sum --check --strict
+          python -m py_compile u3_b2_fvm_discharge_finite_pipe.py test_stage7_u3_b2_finite_pipe.py
+
+      - name: Write recovery manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd recovered && sha256sum * | sort) > recovered_sha256.txt
+          printf '%s\n' \
+            "source_commit=${GITHUB_SHA}" \
+            "payload_sha256=${PAYLOAD_SHA256}" \
+            "recovered_file_count=4" \
+            > recovery_provenance.txt
+
+      - name: Upload recovered implementation
+        uses: actions/upload-artifact@v7
+        with:
+          name: u3-b2-finite-pipe-recovered-source-${{ github.run_id }}
+          path: |
+            recovered
+            recovered_sha256.txt
+            recovery_provenance.txt
+          if-no-files-found: error
+          compression-level: 6
