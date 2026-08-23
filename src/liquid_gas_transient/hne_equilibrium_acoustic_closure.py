@@ -25,7 +25,7 @@ from .hne_equilibrium_acoustic_types import (
     SOURCE_A2_4_1_SHA,
     VerificationCase,
 )
-from .hne_equilibrium_acoustic_model import (
+from .hne_equilibrium_acoustic_model_compat import (
     evaluate_equilibrium_acoustic,
     recover_equilibrium_state,
     representative_cases,
