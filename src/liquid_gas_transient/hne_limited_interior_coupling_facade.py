@@ -83,6 +83,7 @@ CandidateQualityExactRelaxation = _impl.CandidateQualityExactRelaxation
 CouplingAnalysis = _impl.CouplingAnalysis
 FORMAL_OUTCOME = _impl.FORMAL_OUTCOME
 FORMAL_STATUS = _impl.FORMAL_STATUS
+HNEAcousticAuthorityGateError = _impl.HNEAcousticAuthorityGateError
 HNELimitedInteriorCouplingError = _impl.HNELimitedInteriorCouplingError
 IMPLEMENTATION_AUTHORITY = _impl.IMPLEMENTATION_AUTHORITY
 InteriorCouplingConfig = _impl.InteriorCouplingConfig
@@ -104,6 +105,7 @@ __all__ = [
     "CouplingAnalysis",
     "FORMAL_OUTCOME",
     "FORMAL_STATUS",
+    "HNEAcousticAuthorityGateError",
     "HNELimitedInteriorCouplingError",
     "IMPLEMENTATION_AUTHORITY",
     "InteriorCouplingConfig",
